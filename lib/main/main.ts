@@ -41,9 +41,15 @@ app.whenReady().then(async () => {
   })
 
   app.on('activate', function () {
+    if (textPickerFeature?.isBubbleVisible()) {
+      return
+    }
+
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    showMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      showMainWindow()
+    }
   })
 })
 

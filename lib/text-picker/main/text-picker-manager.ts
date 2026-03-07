@@ -29,6 +29,11 @@ interface ToolbarPositionMemory {
   offsetY: number
 }
 
+interface AnchorPoint {
+  x: number
+  y: number
+}
+
 interface TextPickerManagerOptions {
   bubbleWindow: BubbleWindowPort
   bridge: SelectionBridge
@@ -54,17 +59,18 @@ export class TextPickerManager {
   private isRunning = false
   private globalEnabled = true
   private debounceTimer: NodeJS.Timeout | null = null
+  private bubbleDragReleaseTimer: NodeJS.Timeout | null = null
   private refreshToken = 0
   private isOverlayPolicyActive = false
+  private isBubbleDragging = false
+  private ignorePointerEventsUntil = 0
+  private currentAnchor: AnchorPoint | null = null
   private pickedInfo: PickedInfo | null = null
   private skills: SelectionSkill[] = [
-    { commandId: SystemCommand.Search, label: 'AI 搜索', enabled: true },
     { commandId: SystemCommand.Translate, label: '翻译', enabled: true },
-    { commandId: SystemCommand.Summary, label: '总结', enabled: true },
     { commandId: SystemCommand.Explain, label: '解释', enabled: true },
-    { commandId: SystemCommand.Rewrite, label: '改写', enabled: true },
     { commandId: SystemCommand.Copy, label: '复制', enabled: true },
-    { commandId: SystemCommand.TextToSpeech, label: '朗读', enabled: true },
+    { commandId: SystemCommand.Search, label: 'AI 搜', enabled: true },
   ]
 
   constructor({
@@ -112,6 +118,11 @@ export class TextPickerManager {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
       this.debounceTimer = null
+    }
+
+    if (this.bubbleDragReleaseTimer) {
+      clearTimeout(this.bubbleDragReleaseTimer)
+      this.bubbleDragReleaseTimer = null
     }
 
     if (this.isRunning) {
@@ -204,6 +215,7 @@ export class TextPickerManager {
       this.bubbleWindow.hide()
     }
 
+    this.currentAnchor = null
     this.leaveFullscreenOverlayMode()
   }
 
@@ -212,6 +224,67 @@ export class TextPickerManager {
       offsetX,
       offsetY,
     })
+  }
+
+  moveBubble(deltaX: number, deltaY: number) {
+    if (
+      this.bubbleWindow.isDestroyed() ||
+      !this.bubbleWindow.isVisible() ||
+      !this.currentAnchor ||
+      !this.pickedInfo
+    ) {
+      return
+    }
+
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY) || (deltaX === 0 && deltaY === 0)) {
+      return
+    }
+
+    const bounds = this.bubbleWindow.getBounds()
+    const display = screen.getDisplayMatching(bounds)
+    const { workArea } = display
+
+    const nextX = Math.max(
+      workArea.x,
+      Math.min(bounds.x + Math.round(deltaX), workArea.x + workArea.width - bounds.width),
+    )
+    const nextY = Math.max(
+      workArea.y,
+      Math.min(bounds.y + Math.round(deltaY), workArea.y + workArea.height - bounds.height),
+    )
+
+    this.bubbleWindow.setBounds({
+      ...bounds,
+      x: nextX,
+      y: nextY,
+    })
+
+    this.memorizePosition(
+      this.pickedInfo.appId,
+      nextX - this.currentAnchor.x,
+      nextY - this.currentAnchor.y,
+    )
+
+    this.bubbleWindow.orderFront()
+  }
+
+  setBubbleDragging(isDragging: boolean) {
+    if (this.bubbleDragReleaseTimer) {
+      clearTimeout(this.bubbleDragReleaseTimer)
+      this.bubbleDragReleaseTimer = null
+    }
+
+    if (isDragging) {
+      this.isBubbleDragging = true
+      this.ignorePointerEventsUntil = Number.POSITIVE_INFINITY
+      return
+    }
+
+    this.bubbleDragReleaseTimer = setTimeout(() => {
+      this.isBubbleDragging = false
+      this.ignorePointerEventsUntil = Date.now() + 180
+      this.bubbleDragReleaseTimer = null
+    }, 0)
   }
 
   triggerCommand(commandId: string, selectionId?: string) {
@@ -242,6 +315,10 @@ export class TextPickerManager {
       return
     }
 
+    if (this.isBubbleDragging || Date.now() < this.ignorePointerEventsUntil) {
+      return
+    }
+
     const scene = (event.scene || SelectionScene.NONE) as SelectionSceneValue | string
 
     if (DISMISS_SCENES.has(scene as SelectionSceneValue)) {
@@ -254,6 +331,10 @@ export class TextPickerManager {
       scene === SelectionScene.BOX_SELECT ||
       scene === SelectionScene.MULTI_CLICK ||
       scene === SelectionScene.SHIFT_MOUSE_CLICK
+
+    if (isPointerScene && this.isEventInsideBubble(event)) {
+      return
+    }
 
     if (isPointerScene) {
       this.hideOnOutsideClickIfNeeded(event)
@@ -273,6 +354,23 @@ export class TextPickerManager {
         : CHECK_DELAY_MS
 
     this.scheduleSelectionCheck(scene, delay)
+  }
+
+  private isEventInsideBubble(event: SelectionActionEvent) {
+    if (!event || this.bubbleWindow.isDestroyed() || !this.bubbleWindow.isVisible()) {
+      return false
+    }
+
+    const x = Number(event.x)
+    const y = Number(event.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return false
+    }
+
+    const bounds = this.bubbleWindow.getBounds()
+    const right = bounds.x + bounds.width
+    const bottom = bounds.y + bounds.height
+    return x >= bounds.x && x <= right && y >= bounds.y && y <= bottom
   }
 
   private hideOnOutsideClickIfNeeded(event: SelectionActionEvent) {
@@ -390,7 +488,7 @@ export class TextPickerManager {
     anchor,
     pickedInfo,
   }: {
-    anchor: { x: number; y: number }
+    anchor: AnchorPoint
     pickedInfo: PickedInfo
   }) {
     if (this.bubbleWindow.isDestroyed()) {
@@ -426,6 +524,8 @@ export class TextPickerManager {
       width: TOOLBAR_WIDTH,
       height: TOOLBAR_HEIGHT,
     })
+
+    this.currentAnchor = anchor
 
     this.bubbleWindow.sendUpdate({
       sourceApp: pickedInfo.appName,

@@ -845,7 +845,14 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         addObserverForName:NSWorkspaceDidActivateApplicationNotification
                     object:nil
                      queue:[NSOperationQueue mainQueue]
-                usingBlock:^(__unused NSNotification*) {
+                usingBlock:^(NSNotification* note) {
+      NSDictionary* userInfo = note.userInfo;
+      NSRunningApplication* activatedApp = userInfo[NSWorkspaceApplicationKey];
+      if (activatedApp &&
+          activatedApp.processIdentifier ==
+              NSRunningApplication.currentApplication.processIdentifier) {
+        return;
+      }
       StartWindowObserver();
       EmitAction(SelectionScene::kGestureDismiss, [NSEvent mouseLocation]);
     }];

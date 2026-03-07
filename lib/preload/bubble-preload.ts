@@ -17,6 +17,15 @@ const bubbleApi: BubblePreloadApi = {
   hideBubble() {
     return ipcRenderer.invoke(TextPickerChannel.HideBubble)
   },
+  moveBubble(deltaX, deltaY) {
+    ipcRenderer.send(TextPickerChannel.MoveBubble, deltaX, deltaY)
+  },
+  setBubbleDragging(isDragging) {
+    ipcRenderer.send(TextPickerChannel.SetBubbleDragging, isDragging)
+  },
+  openMainWindow() {
+    return ipcRenderer.invoke(TextPickerChannel.OpenMainWindow)
+  },
   getPickedInfo() {
     return ipcRenderer.invoke(TextPickerChannel.GetPickedInfo)
   },

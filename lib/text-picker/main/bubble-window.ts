@@ -25,13 +25,12 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
 
   private createWindow(): BrowserWindow {
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
-      width: 460,
-      height: 50,
+      width: 400,
+      height: 40,
       show: false,
       frame: false,
       transparent: true,
       resizable: false,
-      movable: false,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
@@ -58,12 +57,6 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
 
     bubbleWindow.once('ready-to-show', () => {
       this.bridge.configureBubbleWindow(bubbleWindow.getNativeWindowHandle())
-    })
-
-    bubbleWindow.on('blur', () => {
-      if (!bubbleWindow.isDestroyed()) {
-        bubbleWindow.hide()
-      }
     })
 
     if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {

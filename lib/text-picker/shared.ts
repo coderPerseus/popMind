@@ -50,6 +50,9 @@ export const TextPickerChannel = {
   RemoveBlockApp: 'textPicker:removeBlockApp',
   GetSkills: 'textPicker:getSkills',
   HideBubble: 'textPicker:hideBubble',
+  MoveBubble: 'bubble:move',
+  SetBubbleDragging: 'bubble:setDragging',
+  OpenMainWindow: 'textPicker:openMainWindow',
   BubbleUpdate: 'bubble:update',
 } as const
 
@@ -57,9 +60,9 @@ export const CHECK_DELAY_MS = 70
 export const RETRY_DELAY_MS = 65
 export const MAX_RETRIES = 2
 export const KEYBOARD_CHECK_DELAY_MS = 150
-export const TOOLBAR_WIDTH = 460
-export const TOOLBAR_HEIGHT = 50
-export const TOOLBAR_GAP = 10
+export const TOOLBAR_WIDTH = 400
+export const TOOLBAR_HEIGHT = 40
+export const TOOLBAR_GAP = 18
 
 export interface SelectionRect {
   x: number
@@ -131,6 +134,9 @@ export interface BubblePreloadApi {
   onUpdate(handler: (payload: BubbleUpdatePayload) => void): () => void
   triggerCommand(commandId: string, selectionId: string): Promise<{ ok: boolean; reason?: string; commandId?: string }>
   hideBubble(): Promise<{ ok: boolean }>
+  moveBubble(deltaX: number, deltaY: number): void
+  setBubbleDragging(isDragging: boolean): void
+  openMainWindow(): Promise<{ ok: boolean }>
   getPickedInfo(): Promise<PickedInfo | null>
   getGlobalEnabled(): Promise<{ isEnabled: boolean }>
   setGlobalEnabled(enabled: boolean): Promise<{ ok: boolean }>

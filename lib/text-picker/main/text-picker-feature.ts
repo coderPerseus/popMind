@@ -5,7 +5,7 @@ import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
 
-const IPC_CHANNELS = [
+const IPC_HANDLE_CHANNELS = [
   TextPickerChannel.Command,
   TextPickerChannel.GetPickedInfo,
   TextPickerChannel.GetGlobalEnabled,
@@ -15,6 +15,12 @@ const IPC_CHANNELS = [
   TextPickerChannel.RemoveBlockApp,
   TextPickerChannel.GetSkills,
   TextPickerChannel.HideBubble,
+  TextPickerChannel.OpenMainWindow,
+] as const
+
+const IPC_EVENT_CHANNELS = [
+  TextPickerChannel.MoveBubble,
+  TextPickerChannel.SetBubbleDragging,
 ] as const
 
 interface TextPickerFeatureOptions {
@@ -79,12 +85,20 @@ export class TextPickerFeature {
     return false
   }
 
+  isBubbleVisible() {
+    return this.bubbleWindow?.isVisible() ?? false
+  }
+
   dispose() {
     globalShortcut.unregister('CommandOrControl+Shift+E')
     globalShortcut.unregister('CommandOrControl+Shift+X')
 
-    for (const channel of IPC_CHANNELS) {
+    for (const channel of IPC_HANDLE_CHANNELS) {
       ipcMain.removeHandler(channel)
+    }
+
+    for (const channel of IPC_EVENT_CHANNELS) {
+      ipcMain.removeAllListeners(channel)
     }
 
     this.manager?.stop()
@@ -204,6 +218,20 @@ export class TextPickerFeature {
     ipcMain.handle(TextPickerChannel.HideBubble, async () => {
       this.manager?.hideBubble()
       return { ok: true }
+    })
+
+    ipcMain.handle(TextPickerChannel.OpenMainWindow, async () => {
+      this.manager?.hideBubble()
+      this.onTrayClick?.()
+      return { ok: true }
+    })
+
+    ipcMain.on(TextPickerChannel.MoveBubble, (_event, deltaX: number, deltaY: number) => {
+      this.manager?.moveBubble(deltaX, deltaY)
+    })
+
+    ipcMain.on(TextPickerChannel.SetBubbleDragging, (_event, isDragging: boolean) => {
+      this.manager?.setBubbleDragging(isDragging)
     })
   }
 }
