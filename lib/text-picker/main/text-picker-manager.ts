@@ -20,7 +20,7 @@ import {
   SystemCommand,
   TOOLBAR_GAP,
   TOOLBAR_HEIGHT,
-  TOOLBAR_WIDTH,
+  TOOLBAR_MIN_WIDTH,
 } from '@/lib/text-picker/shared'
 import type { BubbleWindowPort } from './bubble-window'
 
@@ -67,6 +67,7 @@ export class TextPickerManager {
   private isBubbleDragging = false
   private ignorePointerEventsUntil = 0
   private currentAnchor: AnchorPoint | null = null
+  private bubbleWidth = TOOLBAR_MIN_WIDTH
   private pickedInfo: PickedInfo | null = null
   private skills: SelectionSkill[] = [
     { commandId: SystemCommand.Translate, label: '翻译', enabled: true },
@@ -266,6 +267,41 @@ export class TextPickerManager {
       nextX - this.currentAnchor.x,
       nextY - this.currentAnchor.y,
     )
+
+    this.bubbleWindow.orderFront()
+  }
+
+  resizeBubble(requestedWidth: number) {
+    if (this.bubbleWindow.isDestroyed() || !this.currentAnchor || !Number.isFinite(requestedWidth)) {
+      return
+    }
+
+    const nextWidth = Math.max(TOOLBAR_MIN_WIDTH, Math.round(requestedWidth))
+    if (nextWidth === this.bubbleWidth) {
+      return
+    }
+
+    this.bubbleWidth = nextWidth
+
+    if (!this.bubbleWindow.isVisible() || !this.pickedInfo) {
+      return
+    }
+
+    const bounds = this.bubbleWindow.getBounds()
+    const display = screen.getDisplayNearestPoint(this.currentAnchor)
+    const { workArea } = display
+    const memKey = this.pickedInfo.appId || '__default__'
+    const memPos = this.positionMemory.get(memKey)
+
+    let x = memPos ? this.currentAnchor.x + memPos.offsetX : this.currentAnchor.x - nextWidth / 2
+    x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - nextWidth))
+
+    this.bubbleWindow.setBounds({
+      x: Math.round(x),
+      y: bounds.y,
+      width: nextWidth,
+      height: bounds.height,
+    })
 
     this.bubbleWindow.orderFront()
   }
@@ -506,7 +542,7 @@ export class TextPickerManager {
     const memKey = pickedInfo.appId || '__default__'
     const memPos = this.positionMemory.get(memKey)
 
-    let x = anchor.x - TOOLBAR_WIDTH / 2
+    let x = anchor.x - this.bubbleWidth / 2
     let y = anchor.y - TOOLBAR_HEIGHT - TOOLBAR_GAP - TOOLBAR_TOP_NUDGE
 
     if (memPos) {
@@ -514,7 +550,7 @@ export class TextPickerManager {
       y = anchor.y + memPos.offsetY
     }
 
-    x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - TOOLBAR_WIDTH))
+    x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - this.bubbleWidth))
 
     if (y < workArea.y) {
       y = Math.min(anchor.y + TOOLBAR_GAP, workArea.y + workArea.height - TOOLBAR_HEIGHT)
@@ -523,7 +559,7 @@ export class TextPickerManager {
     this.bubbleWindow.setBounds({
       x: Math.round(x),
       y: Math.round(y),
-      width: TOOLBAR_WIDTH,
+      width: this.bubbleWidth,
       height: TOOLBAR_HEIGHT,
     })
 

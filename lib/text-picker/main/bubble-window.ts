@@ -1,6 +1,6 @@
 import { app, BrowserWindow, type Rectangle } from 'electron'
 import { join } from 'node:path'
-import { TextPickerChannel } from '@/lib/text-picker/shared'
+import { TextPickerChannel, TOOLBAR_HEIGHT, TOOLBAR_MIN_WIDTH } from '@/lib/text-picker/shared'
 import type { BubbleUpdatePayload, SelectionBridge } from '@/lib/text-picker/shared'
 
 export interface BubbleWindowPort {
@@ -25,8 +25,8 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
 
   private createWindow(): BrowserWindow {
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
-      width: 400,
-      height: 40,
+      width: TOOLBAR_MIN_WIDTH,
+      height: TOOLBAR_HEIGHT,
       show: false,
       frame: false,
       transparent: true,

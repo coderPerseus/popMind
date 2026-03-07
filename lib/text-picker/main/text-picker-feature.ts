@@ -20,6 +20,7 @@ const IPC_HANDLE_CHANNELS = [
 
 const IPC_EVENT_CHANNELS = [
   TextPickerChannel.MoveBubble,
+  TextPickerChannel.ResizeBubble,
   TextPickerChannel.SetBubbleDragging,
 ] as const
 
@@ -179,11 +180,7 @@ export class TextPickerFeature {
         return { ok: true, commandId }
       }
 
-      const result = this.manager?.triggerCommand(commandId, selectionId)
-      if (result?.ok !== false) {
-        this.manager?.hideBubble()
-      }
-      return result || { ok: false }
+      return { ok: false, reason: 'not_implemented' }
     })
 
     ipcMain.handle(TextPickerChannel.GetPickedInfo, async () => this.manager?.getPickedInfo() || null)
@@ -228,6 +225,10 @@ export class TextPickerFeature {
 
     ipcMain.on(TextPickerChannel.MoveBubble, (_event, deltaX: number, deltaY: number) => {
       this.manager?.moveBubble(deltaX, deltaY)
+    })
+
+    ipcMain.on(TextPickerChannel.ResizeBubble, (_event, width: number) => {
+      this.manager?.resizeBubble(width)
     })
 
     ipcMain.on(TextPickerChannel.SetBubbleDragging, (_event, isDragging: boolean) => {

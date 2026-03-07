@@ -20,6 +20,9 @@ const bubbleApi: BubblePreloadApi = {
   moveBubble(deltaX, deltaY) {
     ipcRenderer.send(TextPickerChannel.MoveBubble, deltaX, deltaY)
   },
+  resizeBubble(width) {
+    ipcRenderer.send(TextPickerChannel.ResizeBubble, width)
+  },
   setBubbleDragging(isDragging) {
     ipcRenderer.send(TextPickerChannel.SetBubbleDragging, isDragging)
   },

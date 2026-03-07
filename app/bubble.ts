@@ -17,6 +17,7 @@ const leadLogo = document.querySelector<HTMLButtonElement>('#lead-logo')
 const leadLogoImage = document.querySelector<HTMLImageElement>('#lead-logo-image')
 const LOGO_ACTIVATION_MAX_DISTANCE = 6
 const SYNTHETIC_CLICK_GUARD_MS = 320
+const BUBBLE_WIDTH_PADDING = 2
 
 if (leadLogoImage) {
   leadLogoImage.src = logoUrl
@@ -28,6 +29,7 @@ let activePointerId: number | null = null
 let lastDragPoint: { x: number; y: number } | null = null
 let suppressPointerActivationsUntil = 0
 let logoPressState: { pointerId: number; x: number; y: number } | null = null
+let widthMeasureFrame = 0
 
 const setBusy = (state: boolean) => {
   busy = state
@@ -41,6 +43,25 @@ const setBusy = (state: boolean) => {
     button.disabled = state
     button.style.opacity = state ? '0.5' : '1'
   }
+
+  queueBubbleWidthMeasurement()
+}
+
+const queueBubbleWidthMeasurement = () => {
+  if (widthMeasureFrame) {
+    cancelAnimationFrame(widthMeasureFrame)
+  }
+
+  widthMeasureFrame = requestAnimationFrame(() => {
+    widthMeasureFrame = 0
+
+    if (!toolbarNode) {
+      return
+    }
+
+    const nextWidth = Math.ceil(toolbarNode.scrollWidth + BUBBLE_WIDTH_PADDING)
+    window.textPicker.resizeBubble(nextWidth)
+  })
 }
 
 const renderSkills = (skills: SelectionSkill[] | undefined) => {
@@ -81,7 +102,7 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
     button.style.opacity = busy ? '0.5' : '1'
 
     button.addEventListener('click', async () => {
-      if (!currentPickedInfo || busy) {
+      if (!currentPickedInfo || busy || skill.commandId !== SystemCommand.Copy) {
         return
       }
 
@@ -100,6 +121,7 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
 const applyState = (pickedInfo: PickedInfo | null, skills?: SelectionSkill[]) => {
   currentPickedInfo = pickedInfo
   renderSkills(pickedInfo?.text ? skills : [])
+  queueBubbleWidthMeasurement()
 }
 
 window.textPicker.onUpdate((payload) => {
