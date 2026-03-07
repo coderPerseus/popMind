@@ -11,11 +11,12 @@ const SKILL_ICONS: Record<string, string> = {
 }
 
 const skillsContainer = document.querySelector<HTMLDivElement>('#skills')
-const sourceNode = document.querySelector<HTMLDivElement>('#source')
 const toolbarNode = document.querySelector<HTMLDivElement>('#toolbar')
 const dragHandle = document.querySelector<HTMLButtonElement>('#drag-handle')
 const leadLogo = document.querySelector<HTMLButtonElement>('#lead-logo')
 const leadLogoImage = document.querySelector<HTMLImageElement>('#lead-logo-image')
+const LOGO_ACTIVATION_MAX_DISTANCE = 6
+const SYNTHETIC_CLICK_GUARD_MS = 320
 
 if (leadLogoImage) {
   leadLogoImage.src = logoUrl
@@ -25,6 +26,8 @@ let currentPickedInfo: PickedInfo | null = null
 let busy = false
 let activePointerId: number | null = null
 let lastDragPoint: { x: number; y: number } | null = null
+let suppressPointerActivationsUntil = 0
+let logoPressState: { pointerId: number; x: number; y: number } | null = null
 
 const setBusy = (state: boolean) => {
   busy = state
@@ -94,25 +97,9 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
   })
 }
 
-const renderSource = (sourceApp: string | undefined) => {
-  if (!sourceNode) {
-    return
-  }
-
-  if (sourceApp) {
-    sourceNode.textContent = sourceApp
-    sourceNode.title = sourceApp
-    return
-  }
-
-  sourceNode.textContent = ''
-  sourceNode.title = ''
-}
-
 const applyState = (pickedInfo: PickedInfo | null, skills?: SelectionSkill[]) => {
   currentPickedInfo = pickedInfo
   renderSkills(pickedInfo?.text ? skills : [])
-  renderSource(pickedInfo?.appName)
 }
 
 window.textPicker.onUpdate((payload) => {
@@ -147,7 +134,9 @@ const stopBubbleDrag = () => {
     return
   }
 
+  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
   dragHandle?.classList.remove('is-dragging')
+  toolbarNode?.classList.remove('is-dragging')
 
   if (dragHandle?.hasPointerCapture(activePointerId)) {
     dragHandle.releasePointerCapture(activePointerId)
@@ -168,7 +157,9 @@ dragHandle?.addEventListener('pointerdown', (event) => {
 
   activePointerId = event.pointerId
   lastDragPoint = { x: event.screenX, y: event.screenY }
+  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
   dragHandle.classList.add('is-dragging')
+  toolbarNode?.classList.add('is-dragging')
   dragHandle.setPointerCapture(event.pointerId)
   window.textPicker.setBubbleDragging(true)
 })
@@ -191,13 +182,84 @@ dragHandle?.addEventListener('pointermove', (event) => {
 dragHandle?.addEventListener('pointerup', stopBubbleDrag)
 dragHandle?.addEventListener('pointercancel', stopBubbleDrag)
 dragHandle?.addEventListener('lostpointercapture', stopBubbleDrag)
+dragHandle?.addEventListener('click', (event) => {
+  event.preventDefault()
+  event.stopPropagation()
+})
 
-leadLogo?.addEventListener('click', async (event) => {
+const resetLogoPressState = () => {
+  logoPressState = null
+  leadLogo?.classList.remove('is-pressed')
+}
+
+leadLogo?.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || activePointerId != null || Date.now() < suppressPointerActivationsUntil) {
+    return
+  }
+
+  logoPressState = {
+    pointerId: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+  }
+  leadLogo.classList.add('is-pressed')
+})
+
+leadLogo?.addEventListener('pointermove', (event) => {
+  if (!logoPressState || event.pointerId !== logoPressState.pointerId) {
+    return
+  }
+
+  const distance = Math.hypot(event.clientX - logoPressState.x, event.clientY - logoPressState.y)
+  if (distance > LOGO_ACTIVATION_MAX_DISTANCE) {
+    resetLogoPressState()
+  }
+})
+
+leadLogo?.addEventListener('pointerup', async (event) => {
+  if (!logoPressState || event.pointerId !== logoPressState.pointerId) {
+    return
+  }
+
+  const distance = Math.hypot(event.clientX - logoPressState.x, event.clientY - logoPressState.y)
+  const rect = leadLogo.getBoundingClientRect()
+  const isInsideLogo =
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
+
+  resetLogoPressState()
+
+  if (
+    distance > LOGO_ACTIVATION_MAX_DISTANCE ||
+    !isInsideLogo ||
+    activePointerId != null ||
+    Date.now() < suppressPointerActivationsUntil
+  ) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
   event.stopPropagation()
   await window.textPicker.openMainWindow()
 })
 
+leadLogo?.addEventListener('pointercancel', resetLogoPressState)
+leadLogo?.addEventListener('lostpointercapture', resetLogoPressState)
+leadLogo?.addEventListener('click', (event) => {
+  event.preventDefault()
+  event.stopPropagation()
+})
+
 toolbarNode?.addEventListener('click', async (event) => {
+  if (Date.now() < suppressPointerActivationsUntil) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
   const target = event.target
   if (!(target instanceof Element)) {
     return

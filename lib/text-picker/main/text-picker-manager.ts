@@ -47,6 +47,8 @@ const DISMISS_SCENES = new Set<SelectionSceneValue>([
   SelectionScene.WINDOW_FRAME_DISMISS,
 ])
 
+const TOOLBAR_TOP_NUDGE = 10
+
 export class TextPickerManager {
   private readonly bubbleWindow: BubbleWindowPort
   private readonly bridge: SelectionBridge
@@ -505,7 +507,7 @@ export class TextPickerManager {
     const memPos = this.positionMemory.get(memKey)
 
     let x = anchor.x - TOOLBAR_WIDTH / 2
-    let y = anchor.y - TOOLBAR_HEIGHT - TOOLBAR_GAP
+    let y = anchor.y - TOOLBAR_HEIGHT - TOOLBAR_GAP - TOOLBAR_TOP_NUDGE
 
     if (memPos) {
       x = anchor.x + memPos.offsetX

@@ -46,6 +46,7 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  touch-action: none;
 }
 
 .drag-handle {
@@ -93,11 +94,20 @@ body {
   background: rgba(32, 86, 217, 0.08);
 }
 
+.lead-logo.is-pressed {
+  background: rgba(32, 86, 217, 0.14);
+}
+
 .lead-logo img {
   width: 22px;
   height: 22px;
   object-fit: contain;
   pointer-events: none;
+}
+
+#toolbar.is-dragging .lead-logo {
+  pointer-events: none;
+  opacity: 0.6;
 }
 
 #skills {
@@ -155,16 +165,6 @@ body {
   flex-shrink: 0;
 }
 
-#source {
-  font-size: 11px;
-  color: rgba(60, 60, 67, 0.72);
-  max-width: 80px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 0;
-}
-
 @media (prefers-color-scheme: dark) {
   .drag-handle {
     color: rgba(235, 235, 245, 0.55);
@@ -184,6 +184,10 @@ body {
     background: rgba(255, 255, 255, 0.08);
   }
 
+  .lead-logo.is-pressed {
+    background: rgba(100, 160, 255, 0.18);
+  }
+
   .skill-btn {
     color: #e8e8e8;
   }
@@ -194,9 +198,5 @@ body {
 
   .separator {
     background: rgba(255, 255, 255, 0.12);
-  }
-
-  #source {
-    color: rgba(235, 235, 245, 0.6);
   }
 }
