@@ -1,5 +1,5 @@
-appId: com.guasam.era
-productName: electron-react-app
+appId: com.popmind.app
+productName: popMind
 asar: true
 asarUnpack:
   - resources/**
@@ -13,7 +13,7 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 win:
-  executableName: electron-react-app
+  executableName: popMind
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

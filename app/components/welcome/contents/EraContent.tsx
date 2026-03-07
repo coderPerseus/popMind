@@ -20,10 +20,10 @@ const EraContent = () => {
 
   return (
     <div>
-      <h2 className="flex items-center gap-4">Electron React App</h2>
+      <h2 className="flex items-center gap-4">popMind</h2>
       <p>
-        Welcome to the Electron React App "v{appVersion}". A starter kit that provides a solid foundation for developing
-        desktop applications.
+        Welcome to popMind "v{appVersion}". This desktop app starts from a modern Electron foundation and is ready for
+        custom product work.
       </p>
       <p>
         This project utilizes Electron, React, Vite, TypeScript, and Tailwind CSS to provide a modern development
@@ -56,12 +56,7 @@ const EraContent = () => {
         />
       </div>
 
-      <p className="learn-more">
-        Learn more about Electron React App at{' '}
-        <a href="https://github.com/guasam/electron-react-app" target="_blank" rel="noreferrer">
-          Github
-        </a>
-      </p>
+      <p className="learn-more">Build on top of this foundation to shape the popMind desktop experience.</p>
     </div>
   )
 }

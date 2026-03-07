@@ -7,7 +7,7 @@ const pathTypes = [
   { name: 'Vite' },
   { name: 'Shadcn' },
   { name: 'Tailwind' },
-  { name: 'ERA' },
+  { name: 'popMind' },
 ]
 
 interface EraShapeIconProps {
@@ -17,7 +17,7 @@ interface EraShapeIconProps {
 }
 
 const EraShape = ({ onPathHover, onPathReset, ...props }: EraShapeIconProps) => {
-  const [hoveredPath, setHoveredPath] = useState('ERA')
+  const [hoveredPath, setHoveredPath] = useState('popMind')
   const timeoutRef = useRef<number | null>(null)
 
   const handleMouseEnter = (index: number) => {
@@ -34,7 +34,7 @@ const EraShape = ({ onPathHover, onPathReset, ...props }: EraShapeIconProps) => 
   }
   const handleMouseLeave = () => {
     timeoutRef.current = window.setTimeout(() => {
-      setHoveredPath('ERA')
+      setHoveredPath('popMind')
       timeoutRef.current = null
       // Emit the reset event when the mouse leaves the shape
       if (onPathReset) onPathReset()

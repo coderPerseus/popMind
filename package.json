@@ -1,13 +1,9 @@
 {
-  "name": "era",
+  "name": "popmind",
   "version": "12.1.0",
-  "description": "A modern Electron application starter kit with React, Vite, TypeScript, Shadcn UI and TailwindCSS",
+  "description": "popMind desktop application built with Electron, React, Vite, TypeScript, Shadcn UI, and Tailwind CSS",
   "main": "./out/main/main.js",
   "license": "MIT",
-  "author": {
-    "name": "Guasam",
-    "url": "https://github.com/guasam"
-  },
   "scripts": {
     "dev": "cross-env ELECTRON_DISABLE_SANDBOX=1 electron-vite dev -w",
     "format": "prettier --write --list-different .",
@@ -23,10 +19,6 @@
     "build:win": "run-s vite:build:app electron:build:win",
     "build:mac": "run-s vite:build:app electron:build:mac",
     "build:linux": "run-s vite:build:app electron:build:linux"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/guasam/electron-react-app"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
