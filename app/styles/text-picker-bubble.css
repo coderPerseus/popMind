@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
 html,
@@ -27,6 +27,14 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   user-select: none;
   -webkit-user-select: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  #toolbar {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(40, 40, 40, 0.92);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
 }
 
 .lead {
@@ -83,4 +91,22 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .skill-btn {
+    color: #e8e8e8;
+  }
+
+  .skill-btn:hover {
+    background: rgba(100, 160, 255, 0.18);
+  }
+
+  .separator {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  #source {
+    color: rgba(235, 235, 245, 0.6);
+  }
 }

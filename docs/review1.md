@@ -1,53 +1,5 @@
 Code Review: Text Picker Feature Migration
 
-1. Verdict: Request Changes
-
----
-
-2. 需求一致性摘要
-
-反推需求意图：将 open-doubao 独立 Electron 应用的全局划词取词功能，迁移集成到 popMind 桌面应用中，作为后台特性运行。
-
-实际行为：代码完整迁移了 UserActionMonitor（全局鼠标/键盘监听）、AX 文本获取链、剪贴板回退策略、气泡窗口管理、Tray 菜单与 IPC 通信。TypeScript 化、分层合理。
-
-漂移结论：
-
-- 激活策略漂移：原项目是纯后台应用（无主窗口），默认 NSApplicationActivationPolicyAccessory 合理。popMind 有主窗口，但迁移后构造函数立即将整个 App 切为 Accessory
-  策略，导致 Dock 图标消失、无法 Cmd+Tab 切换。这改变了主应用的行为语义。
-- ShouldClipboardFallback 过于保守：对 Canvas 渲染类应用（VS Code 终端、PDF 查看器等）AX 无法获取文本时，剪贴板回退不触发。已在暂存区修复（return true）。
-
----
-
-3. 关键问题清单
-
-[S1 High] 激活策略与主窗口冲突
-
-文件: text-picker-manager.ts:82 → applyActivationPolicy()
-
-问题: TextPickerManager 构造时调用 applyActivationPolicy()，dockIconEnabled 默认 false，立即将整个进程设为
-NSApplicationActivationPolicyAccessory。原项目是无主窗口的后台应用，但 popMind 有主窗口。
-
-影响: 应用启动后 Dock 图标消失，用户无法通过 Dock 或 Cmd+Tab 切回应用。Tray 菜单虽有"显示底部应用图标"选项，但默认行为对已有主窗口的应用不合理。
-
-修复建议: TextPickerFeature 初始化时传入 dockIconEnabled: true 作为默认值，或在 applyActivationPolicy
-中判断当前是否存在可见的主窗口（BrowserWindow.getAllWindows().length > 0），有主窗口时默认使用 Regular 策略。
-
----
-
-[S1 High] initialize() 的阻塞式 Dialog 影响启动流程
-
-文件: text-picker-feature.ts:47-76
-
-问题: initialize() 在平台不支持、权限缺失、启动失败时调用 await dialog.showMessageBox()。这些是模态阻塞对话框，在 main.ts:29 的 await textPickerFeature.initialize()
-中执行，会阻塞后续的 optimizer.watchWindowShortcuts 注册和 activate 事件监听绑定。
-
-影响: 如果用户在 Windows/Linux 上运行（平台不支持），或首次未授权辅助功能，主进程会被阻塞在 dialog 上。在此期间，app.on('browser-window-created') 和
-app.on('activate') 的回调尚未注册。
-
-修复建议: 将 textPickerFeature.initialize() 改为不阻塞主流程——要么不 await，要么将 dialog 改为非模态通知、日志输出或 Tray 状态提示，让主窗口流程正常完成后再处理。
-
----
-
 [S2 Medium] showToolbar 中 position memory 分支为死代码
 
 文件: text-picker-manager.ts:394-401
@@ -167,17 +119,13 @@ checkbox 状态（Electron 不会自动刷新 Menu）。
 ┌────────┬────────────────────────────┬──────────────────────────────────────┐
 │ 优先级 │ 问题 │ 建议 │
 ├────────┼────────────────────────────┼──────────────────────────────────────┤
-│ 1 │ S1: 激活策略冲突 │ 合并前修复，否则主窗口 Dock 图标消失 │
+│ 1 │ S2: position memory 死代码 │ 合并前修复，一行改动 │
 ├────────┼────────────────────────────┼──────────────────────────────────────┤
-│ 2 │ S1: initialize() 阻塞启动 │ 合并前修复，改为非阻塞 │
+│ 2 │ S2: IPC channel 常量化 │ 可合并后跟进 │
 ├────────┼────────────────────────────┼──────────────────────────────────────┤
-│ 3 │ S2: position memory 死代码 │ 合并前修复，一行改动 │
+│ 3 │ S2: Tray 菜单状态不同步 │ 可合并后跟进 │
 ├────────┼────────────────────────────┼──────────────────────────────────────┤
-│ 4 │ S2: IPC channel 常量化 │ 可合并后跟进 │
+│ 4 │ S2: 600ms 阻塞 │ 记录为技术债 │
 ├────────┼────────────────────────────┼──────────────────────────────────────┤
-│ 5 │ S2: Tray 菜单状态不同步 │ 可合并后跟进 │
-├────────┼────────────────────────────┼──────────────────────────────────────┤
-│ 6 │ S2: 600ms 阻塞 │ 记录为技术债 │
-├────────┼────────────────────────────┼──────────────────────────────────────┤
-│ 7 │ S3: 其余项 │ 可选优化 │
+│ 5 │ S3: 其余项 │ 可选优化 │
 └────────┴────────────────────────────┴──────────────────────────────────────┘

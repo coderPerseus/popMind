@@ -40,6 +40,19 @@ export const DEFAULT_SCENE_ENABLE = {
 export type EnabledSelectionScene = keyof typeof DEFAULT_SCENE_ENABLE
 export type SceneEnableMap = Record<EnabledSelectionScene, boolean>
 
+export const TextPickerChannel = {
+  Command: 'textPicker:command',
+  GetPickedInfo: 'textPicker:getPickedInfo',
+  GetGlobalEnabled: 'textPicker:getGlobalEnabled',
+  SetGlobalEnabled: 'textPicker:setGlobalEnabled',
+  GetBlockApps: 'textPicker:getBlockApps',
+  AddBlockApp: 'textPicker:addBlockApp',
+  RemoveBlockApp: 'textPicker:removeBlockApp',
+  GetSkills: 'textPicker:getSkills',
+  HideBubble: 'textPicker:hideBubble',
+  BubbleUpdate: 'bubble:update',
+} as const
+
 export const CHECK_DELAY_MS = 70
 export const RETRY_DELAY_MS = 65
 export const MAX_RETRIES = 2
@@ -70,6 +83,8 @@ export interface SelectionSnapshot {
   rect?: SelectionRect | null
   strategy?: string
   error?: string
+  needsClipboardFallback?: boolean
+  fallbackAppPid?: number
 }
 
 export interface PickedInfo {
@@ -102,6 +117,7 @@ export interface SelectionBridge {
   isSupported: boolean
   checkPermission(prompt?: boolean): boolean
   getSelectionSnapshot(scene?: SelectionSceneValue | string | null): SelectionSnapshot
+  getTextByClipboardAsync(useMenu: boolean, pid: number): Promise<string>
   startActionMonitor(callback: (event: SelectionActionEvent) => void): boolean
   stopActionMonitor(): boolean
   getCursorPosition(): { x: number; y: number }

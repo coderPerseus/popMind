@@ -303,7 +303,7 @@ export class TextPickerManager {
     }, delay)
   }
 
-  private refreshSelectionWithRetries(
+  private async refreshSelectionWithRetries(
     token: number,
     scene: SelectionSceneValue | string,
     attempt: number,
@@ -317,7 +317,26 @@ export class TextPickerManager {
       return
     }
 
-    const text = typeof snapshot.text === 'string' ? snapshot.text.trim() : ''
+    let text = typeof snapshot.text === 'string' ? snapshot.text.trim() : ''
+
+    if (!text && snapshot.needsClipboardFallback && snapshot.fallbackAppPid != null) {
+      const menuText = await this.bridge.getTextByClipboardAsync(true, snapshot.fallbackAppPid)
+      if (token !== this.refreshToken) return
+
+      if (menuText?.trim()) {
+        text = menuText.trim()
+        snapshot.strategy = 'menu_copy'
+      } else {
+        const shortcutText = await this.bridge.getTextByClipboardAsync(false, -1)
+        if (token !== this.refreshToken) return
+
+        if (shortcutText?.trim()) {
+          text = shortcutText.trim()
+          snapshot.strategy = 'shortcut_copy'
+        }
+      }
+      snapshot.text = text
+    }
 
     if (!text) {
       if (attempt < MAX_RETRIES) {
@@ -381,8 +400,7 @@ export class TextPickerManager {
     let x = anchor.x - TOOLBAR_WIDTH / 2
     let y = anchor.y - TOOLBAR_HEIGHT - TOOLBAR_GAP
 
-    const memorizedPosition = memPos as (ToolbarPositionMemory & { x?: number | null; y?: number | null }) | undefined
-    if (memorizedPosition && memorizedPosition.x != null && memorizedPosition.y != null) {
+    if (memPos) {
       x = anchor.x + memPos.offsetX
       y = anchor.y + memPos.offsetY
     }

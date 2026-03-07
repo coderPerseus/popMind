@@ -40,7 +40,7 @@ const renderSkills = (
     return
   }
 
-  skillsContainer.innerHTML = ''
+  skillsContainer.replaceChildren()
 
   if (!skills?.length) {
     return

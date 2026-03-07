@@ -1,5 +1,6 @@
 import { app, BrowserWindow, type Rectangle } from 'electron'
 import { join } from 'node:path'
+import { TextPickerChannel } from '@/lib/text-picker/shared'
 import type { BubbleUpdatePayload, SelectionBridge } from '@/lib/text-picker/shared'
 
 export interface BubbleWindowPort {
@@ -99,7 +100,7 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
   }
 
   sendUpdate(payload: BubbleUpdatePayload) {
-    this.window.webContents.send('bubble:update', payload)
+    this.window.webContents.send(TextPickerChannel.BubbleUpdate, payload)
   }
 
   getNativeWindowHandle() {

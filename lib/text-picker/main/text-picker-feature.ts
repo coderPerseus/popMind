@@ -1,20 +1,20 @@
 import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
-import { SystemCommand, type SelectionBridge } from '@/lib/text-picker/shared'
+import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
 
 const IPC_CHANNELS = [
-  'textPicker:command',
-  'textPicker:getPickedInfo',
-  'textPicker:getGlobalEnabled',
-  'textPicker:setGlobalEnabled',
-  'textPicker:getBlockApps',
-  'textPicker:addBlockApp',
-  'textPicker:removeBlockApp',
-  'textPicker:getSkills',
-  'textPicker:hideBubble',
+  TextPickerChannel.Command,
+  TextPickerChannel.GetPickedInfo,
+  TextPickerChannel.GetGlobalEnabled,
+  TextPickerChannel.SetGlobalEnabled,
+  TextPickerChannel.GetBlockApps,
+  TextPickerChannel.AddBlockApp,
+  TextPickerChannel.RemoveBlockApp,
+  TextPickerChannel.GetSkills,
+  TextPickerChannel.HideBubble,
 ] as const
 
 interface TextPickerFeatureOptions {
@@ -143,7 +143,7 @@ export class TextPickerFeature {
   }
 
   private setupIpc() {
-    ipcMain.handle('textPicker:command', async (_event, commandId: string) => {
+    ipcMain.handle(TextPickerChannel.Command, async (_event, commandId: string) => {
       const pickedInfo = this.manager?.getPickedInfo()
       if (!pickedInfo?.text) {
         return { ok: false, reason: 'empty_selection' }
@@ -165,36 +165,36 @@ export class TextPickerFeature {
       return result || { ok: false }
     })
 
-    ipcMain.handle('textPicker:getPickedInfo', async () => this.manager?.getPickedInfo() || null)
+    ipcMain.handle(TextPickerChannel.GetPickedInfo, async () => this.manager?.getPickedInfo() || null)
 
-    ipcMain.handle('textPicker:getGlobalEnabled', async () => ({
+    ipcMain.handle(TextPickerChannel.GetGlobalEnabled, async () => ({
       isEnabled: this.manager?.isGlobalEnabled() ?? false,
     }))
 
-    ipcMain.handle('textPicker:setGlobalEnabled', async (_event, enabled: boolean) => {
+    ipcMain.handle(TextPickerChannel.SetGlobalEnabled, async (_event, enabled: boolean) => {
       this.manager?.setGlobalEnabled(enabled)
       return { ok: true }
     })
 
-    ipcMain.handle('textPicker:getBlockApps', async () => ({
+    ipcMain.handle(TextPickerChannel.GetBlockApps, async () => ({
       apps: this.manager?.getBlockedApps() || [],
     }))
 
-    ipcMain.handle('textPicker:addBlockApp', async (_event, bundleId: string) => {
+    ipcMain.handle(TextPickerChannel.AddBlockApp, async (_event, bundleId: string) => {
       this.manager?.addBlockedApp(bundleId)
       return { ok: true }
     })
 
-    ipcMain.handle('textPicker:removeBlockApp', async (_event, bundleId: string) => {
+    ipcMain.handle(TextPickerChannel.RemoveBlockApp, async (_event, bundleId: string) => {
       this.manager?.removeBlockedApp(bundleId)
       return { ok: true }
     })
 
-    ipcMain.handle('textPicker:getSkills', async () => ({
+    ipcMain.handle(TextPickerChannel.GetSkills, async () => ({
       skills: this.manager?.getSkills() || [],
     }))
 
-    ipcMain.handle('textPicker:hideBubble', async () => {
+    ipcMain.handle(TextPickerChannel.HideBubble, async () => {
       this.manager?.hideBubble()
       return { ok: true }
     })

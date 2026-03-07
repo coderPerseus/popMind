@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { TextPickerChannel } from '@/lib/text-picker/shared'
 import type { BubblePreloadApi, BubbleUpdatePayload } from '@/lib/text-picker/shared'
 
 const bubbleApi: BubblePreloadApi = {
@@ -7,35 +8,35 @@ const bubbleApi: BubblePreloadApi = {
       handler(payload)
     }
 
-    ipcRenderer.on('bubble:update', listener)
-    return () => ipcRenderer.removeListener('bubble:update', listener)
+    ipcRenderer.on(TextPickerChannel.BubbleUpdate, listener)
+    return () => ipcRenderer.removeListener(TextPickerChannel.BubbleUpdate, listener)
   },
   triggerCommand(commandId) {
-    return ipcRenderer.invoke('textPicker:command', commandId)
+    return ipcRenderer.invoke(TextPickerChannel.Command, commandId)
   },
   hideBubble() {
-    return ipcRenderer.invoke('textPicker:hideBubble')
+    return ipcRenderer.invoke(TextPickerChannel.HideBubble)
   },
   getPickedInfo() {
-    return ipcRenderer.invoke('textPicker:getPickedInfo')
+    return ipcRenderer.invoke(TextPickerChannel.GetPickedInfo)
   },
   getGlobalEnabled() {
-    return ipcRenderer.invoke('textPicker:getGlobalEnabled')
+    return ipcRenderer.invoke(TextPickerChannel.GetGlobalEnabled)
   },
   setGlobalEnabled(enabled) {
-    return ipcRenderer.invoke('textPicker:setGlobalEnabled', enabled)
+    return ipcRenderer.invoke(TextPickerChannel.SetGlobalEnabled, enabled)
   },
   getBlockApps() {
-    return ipcRenderer.invoke('textPicker:getBlockApps')
+    return ipcRenderer.invoke(TextPickerChannel.GetBlockApps)
   },
   addBlockApp(bundleId) {
-    return ipcRenderer.invoke('textPicker:addBlockApp', bundleId)
+    return ipcRenderer.invoke(TextPickerChannel.AddBlockApp, bundleId)
   },
   removeBlockApp(bundleId) {
-    return ipcRenderer.invoke('textPicker:removeBlockApp', bundleId)
+    return ipcRenderer.invoke(TextPickerChannel.RemoveBlockApp, bundleId)
   },
   getSkills() {
-    return ipcRenderer.invoke('textPicker:getSkills')
+    return ipcRenderer.invoke(TextPickerChannel.GetSkills)
   },
 }
 

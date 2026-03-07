@@ -700,25 +700,60 @@ Napi::Value GetSelectionSnapshot(const Napi::CallbackInfo& info) {
 
   if (text.empty() &&
       ShouldClipboardFallback(bundleId, scene, gotFocusedElement, hasNonEmpty)) {
-    if (focusedApp) {
-      text = GetTextByClipboard(true, focusedApp);
-      if (!text.empty()) {
-        result.Set("strategy", "menu_copy");
-      }
-    }
-
-    if (text.empty()) {
-      text = GetTextByClipboard(false, nullptr);
-      if (!text.empty()) {
-        result.Set("strategy", "shortcut_copy");
-      }
-    }
+    result.Set("needsClipboardFallback", true);
+    pid_t pid = frontApp ? frontApp.processIdentifier : -1;
+    result.Set("fallbackAppPid", (double)pid);
   }
 
   result.Set("text", text);
   ReleaseAX(&focusedElem);
   ReleaseAX(&focusedApp);
   return result;
+}
+
+class ClipboardFallbackWorker : public Napi::AsyncWorker {
+public:
+  ClipboardFallbackWorker(Napi::Promise::Deferred deferred, bool useMenu, pid_t appPid)
+    : Napi::AsyncWorker(deferred.Env()), deferred_(deferred), useMenu_(useMenu), appPid_(appPid) {}
+
+  void Execute() override {
+    @autoreleasepool {
+      AXUIElementRef app = nullptr;
+      if (useMenu_ && appPid_ > 0) {
+        app = AXUIElementCreateApplication(appPid_);
+      }
+      result_ = GetTextByClipboard(useMenu_, app);
+      if (app) CFRelease(app);
+    }
+  }
+
+  void OnOK() override {
+    deferred_.Resolve(Napi::String::New(Env(), result_));
+  }
+
+  void OnError(const Napi::Error& error) override {
+    deferred_.Reject(error.Value());
+  }
+
+private:
+  Napi::Promise::Deferred deferred_;
+  bool useMenu_;
+  pid_t appPid_;
+  std::string result_;
+};
+
+Napi::Value GetTextByClipboardAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool useMenu = info.Length() >= 1 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
+  pid_t pid = -1;
+  if (info.Length() >= 2 && info[1].IsNumber()) {
+    pid = info[1].As<Napi::Number>().Int32Value();
+  }
+
+  auto deferred = Napi::Promise::Deferred::New(env);
+  auto* worker = new ClipboardFallbackWorker(deferred, useMenu, pid);
+  worker->Queue();
+  return deferred.Promise();
 }
 
 Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
@@ -932,6 +967,7 @@ Napi::Value SetActivationPolicy(const Napi::CallbackInfo& info) {
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("checkPermission", Napi::Function::New(env, CheckPermission));
   exports.Set("getSelectionSnapshot", Napi::Function::New(env, GetSelectionSnapshot));
+  exports.Set("getTextByClipboardAsync", Napi::Function::New(env, GetTextByClipboardAsync));
   exports.Set("startActionMonitor", Napi::Function::New(env, StartActionMonitor));
   exports.Set("stopActionMonitor", Napi::Function::New(env, StopActionMonitor));
   exports.Set("getCursorPosition", Napi::Function::New(env, GetCursorPosition));
