@@ -79,7 +79,7 @@ checkbox 状态（Electron 不会自动刷新 Menu）。
 
 文件: bubble.ts:80
 
-问题: window.textPicker.onUpdate(...) 返回一个清理函数但被丢弃。虽然气泡窗口生命周期与 listener 一致不会泄漏，但不够规范。
+问题: window.textPicke函数但被丢弃r.onUpdate(...) 返回一个清理。虽然气泡窗口生命周期与 listener 一致不会泄漏，但不够规范。
 
 ---
 

@@ -1,16 +1,11 @@
 import '@/app/styles/text-picker-bubble.css'
+import type { PickedInfo, SelectionSkill } from '@/lib/text-picker/shared'
 
 const skillsContainer = document.querySelector<HTMLDivElement>('#skills')
 const sourceNode = document.querySelector<HTMLDivElement>('#source')
 const toolbarNode = document.querySelector<HTMLDivElement>('#toolbar')
 
-let currentPickedInfo: {
-  text: string
-  sourceApp: string
-  sourceBundleId: string
-  scene: string
-  selectionId: string
-} | null = null
+let currentPickedInfo: PickedInfo | null = null
 let busy = false
 
 const setBusy = (state: boolean) => {
@@ -27,15 +22,7 @@ const setBusy = (state: boolean) => {
   }
 }
 
-const renderSkills = (
-  skills:
-    | {
-        commandId: string
-        label: string
-        enabled: boolean
-      }[]
-    | undefined,
-) => {
+const renderSkills = (skills: SelectionSkill[] | undefined) => {
   if (!skillsContainer) {
     return
   }
@@ -67,7 +54,7 @@ const renderSkills = (
 
       setBusy(true)
       try {
-        await window.textPicker.triggerCommand(skill.commandId)
+        await window.textPicker.triggerCommand(skill.commandId, currentPickedInfo.selectionId)
       } finally {
         setBusy(false)
       }
@@ -77,31 +64,53 @@ const renderSkills = (
   })
 }
 
-window.textPicker.onUpdate((payload) => {
-  currentPickedInfo = {
-    text: payload.selectionText || '',
-    sourceApp: payload.sourceApp || '',
-    sourceBundleId: payload.sourceBundleId || '',
-    scene: payload.scene || '',
-    selectionId: payload.selectionId || '',
-  }
-
-  if (payload.skills) {
-    renderSkills(payload.skills)
-  }
-
+const renderSource = (sourceApp: string | undefined) => {
   if (!sourceNode) {
     return
   }
 
-  if (payload.sourceApp) {
-    sourceNode.textContent = payload.sourceApp
-    sourceNode.title = payload.sourceApp
-  } else {
-    sourceNode.textContent = ''
-    sourceNode.title = ''
+  if (sourceApp) {
+    sourceNode.textContent = sourceApp
+    sourceNode.title = sourceApp
+    return
   }
+
+  sourceNode.textContent = ''
+  sourceNode.title = ''
+}
+
+const applyState = (pickedInfo: PickedInfo | null, skills?: SelectionSkill[]) => {
+  currentPickedInfo = pickedInfo
+  renderSkills(pickedInfo?.text ? skills : [])
+  renderSource(pickedInfo?.appName)
+}
+
+window.textPicker.onUpdate((payload) => {
+  applyState({
+    text: payload.selectionText || '',
+    appName: payload.sourceApp || '',
+    appId: payload.sourceBundleId || '',
+    scene: payload.scene || '',
+    selectionId: payload.selectionId || '',
+    strategy: 'none',
+    hasRect: false,
+    rect: null,
+  }, payload.skills)
 })
+
+const hydrateBubble = async () => {
+  try {
+    const [pickedInfo, skillsResult] = await Promise.all([
+      window.textPicker.getPickedInfo(),
+      window.textPicker.getSkills(),
+    ])
+    applyState(pickedInfo, skillsResult.skills)
+  } catch (error) {
+    console.error('[bubble] failed to hydrate state', error)
+  }
+}
+
+void hydrateBubble()
 
 toolbarNode?.addEventListener('click', async (event) => {
   const target = event.target

@@ -214,9 +214,16 @@ export class TextPickerManager {
     })
   }
 
-  triggerCommand(commandId: string) {
+  triggerCommand(commandId: string, selectionId?: string) {
     if (!this.pickedInfo) {
       return { ok: false, reason: 'no_selection' }
+    }
+
+    if (selectionId && this.pickedInfo.selectionId !== selectionId) {
+      this.logger.warn(
+        `[TextPickerManager] stale selection rejected: current=${this.pickedInfo.selectionId}, requested=${selectionId}`,
+      )
+      return { ok: false, reason: 'stale_selection' }
     }
 
     this.logger.info(
@@ -354,6 +361,8 @@ export class TextPickerManager {
     const bundleId = snapshot.sourceBundleId || ''
     if (bundleId && this.isAppBlocked(bundleId)) {
       this.logger.info(`[TextPickerManager] blocked app: ${bundleId}`)
+      this.pickedInfo = null
+      this.hideBubble()
       return
     }
 

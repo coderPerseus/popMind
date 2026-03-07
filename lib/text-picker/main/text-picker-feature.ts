@@ -143,10 +143,15 @@ export class TextPickerFeature {
   }
 
   private setupIpc() {
-    ipcMain.handle(TextPickerChannel.Command, async (_event, commandId: string) => {
+    ipcMain.handle(TextPickerChannel.Command, async (_event, commandId: string, selectionId?: string) => {
       const pickedInfo = this.manager?.getPickedInfo()
       if (!pickedInfo?.text) {
         return { ok: false, reason: 'empty_selection' }
+      }
+
+      if (selectionId && pickedInfo.selectionId !== selectionId) {
+        this.manager?.hideBubble()
+        return { ok: false, reason: 'stale_selection' }
       }
 
       if (commandId === SystemCommand.Copy) {
@@ -160,8 +165,10 @@ export class TextPickerFeature {
         return { ok: true, commandId }
       }
 
-      const result = this.manager?.triggerCommand(commandId)
-      this.manager?.hideBubble()
+      const result = this.manager?.triggerCommand(commandId, selectionId)
+      if (result?.ok !== false) {
+        this.manager?.hideBubble()
+      }
       return result || { ok: false }
     })
 

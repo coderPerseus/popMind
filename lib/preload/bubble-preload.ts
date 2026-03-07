@@ -11,8 +11,8 @@ const bubbleApi: BubblePreloadApi = {
     ipcRenderer.on(TextPickerChannel.BubbleUpdate, listener)
     return () => ipcRenderer.removeListener(TextPickerChannel.BubbleUpdate, listener)
   },
-  triggerCommand(commandId) {
-    return ipcRenderer.invoke(TextPickerChannel.Command, commandId)
+  triggerCommand(commandId, selectionId) {
+    return ipcRenderer.invoke(TextPickerChannel.Command, commandId, selectionId)
   },
   hideBubble() {
     return ipcRenderer.invoke(TextPickerChannel.HideBubble)

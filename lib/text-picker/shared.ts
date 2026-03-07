@@ -129,7 +129,7 @@ export interface SelectionBridge {
 
 export interface BubblePreloadApi {
   onUpdate(handler: (payload: BubbleUpdatePayload) => void): () => void
-  triggerCommand(commandId: string): Promise<{ ok: boolean; reason?: string; commandId?: string }>
+  triggerCommand(commandId: string, selectionId: string): Promise<{ ok: boolean; reason?: string; commandId?: string }>
   hideBubble(): Promise<{ ok: boolean }>
   getPickedInfo(): Promise<PickedInfo | null>
   getGlobalEnabled(): Promise<{ isEnabled: boolean }>
