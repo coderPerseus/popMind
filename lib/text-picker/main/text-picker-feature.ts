@@ -1,11 +1,6 @@
-import { app, clipboard, dialog, globalShortcut, ipcMain, Menu, Tray, nativeImage, shell } from 'electron'
-import trayIconTemplate from '@/resources/build/tray-icon-template.svg?asset'
-import {
-  SelectionScene,
-  SystemCommand,
-  type EnabledSelectionScene,
-  type SelectionBridge,
-} from '@/lib/text-picker/shared'
+import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, Tray } from 'electron'
+import appLogo from '@/app/assets/logo.png?asset'
+import { SystemCommand, type SelectionBridge } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
@@ -22,17 +17,24 @@ const IPC_CHANNELS = [
   'textPicker:hideBubble',
 ] as const
 
+interface TextPickerFeatureOptions {
+  onTrayClick?: () => void
+}
+
 export class TextPickerFeature {
   private bubbleWindow: SelectionBubbleWindow | null = null
   private manager: TextPickerManager | null = null
   private tray: Tray | null = null
+  private onTrayClick: (() => void) | undefined
 
   constructor(
     private readonly bridge: SelectionBridge = selectionBridge,
     private readonly logger: Console = console,
   ) {}
 
-  async initialize() {
+  async initialize(options: TextPickerFeatureOptions = {}) {
+    this.onTrayClick = options.onTrayClick
+
     this.bubbleWindow = new SelectionBubbleWindow(this.bridge)
     this.manager = new TextPickerManager({
       bubbleWindow: this.bubbleWindow,
@@ -44,36 +46,37 @@ export class TextPickerFeature {
     this.setupIpc()
 
     if (!this.bridge.isSupported) {
-      await dialog.showMessageBox({
-        type: 'warning',
-        title: '平台不支持',
-        message: '当前仅支持 macOS。',
-      })
+      this.logger.warn('[TextPickerFeature] platform not supported, text picker disabled')
       return false
     }
 
-    const trusted = this.manager.ensurePermission({ prompt: true })
+    const trusted = this.manager.ensurePermission({ prompt: false })
     if (!trusted) {
-      await dialog.showMessageBox({
-        type: 'warning',
-        title: '需要辅助功能权限',
-        message: '请在“系统设置 > 隐私与安全性 > 辅助功能”中允许本应用，然后重启应用。',
-      })
+      this.logger.warn(
+        '[TextPickerFeature] accessibility permission not granted, text picker inactive until authorized',
+      )
       return false
     }
 
     const started = this.manager.start()
     if (!started) {
-      await dialog.showMessageBox({
-        type: 'error',
-        title: '启动失败',
-        message: '无法启动全局事件监听，请检查权限与系统限制。',
-      })
+      this.logger.error('[TextPickerFeature] failed to start action monitor')
       return false
     }
 
     this.registerShortcuts()
     return true
+  }
+
+  /** Try to start the monitor if it was previously blocked by missing permission. */
+  retryStart(): boolean {
+    if (!this.manager || !this.bridge.isSupported) return false
+    if (this.manager.ensurePermission({ prompt: false })) {
+      const started = this.manager.start()
+      if (started) this.registerShortcuts()
+      return started
+    }
+    return false
   }
 
   dispose() {
@@ -99,28 +102,25 @@ export class TextPickerFeature {
       return
     }
 
-    const trayIcon = nativeImage.createFromPath(trayIconTemplate)
-    if (!trayIcon.isEmpty()) {
-      trayIcon.setTemplateImage(true)
-    }
+    const icon = nativeImage.createFromPath(appLogo).resize({ width: 18, height: 18 })
+    icon.setTemplateImage(true)
 
-    this.tray = new Tray(trayIcon)
-    this.tray.setToolTip('popMind Text Picker')
-    this.tray.setContextMenu(this.buildTrayMenu())
-    this.tray.on('click', () => this.manager?.refreshSelection())
+    this.tray = new Tray(icon)
+    this.tray.setToolTip('popMind')
+
+    // Left-click: open main window
+    this.tray.on('click', () => {
+      this.onTrayClick?.()
+    })
+
+    // Right-click: show text picker context menu
+    this.tray.on('right-click', () => {
+      this.tray?.popUpContextMenu(this.buildTrayMenu())
+    })
   }
 
   private buildTrayMenu() {
     return Menu.buildFromTemplate([
-      {
-        label: '手动触发取词',
-        click: () => this.manager?.refreshSelection(),
-      },
-      {
-        label: '隐藏气泡',
-        click: () => this.manager?.hideBubble(),
-      },
-      { type: 'separator' },
       {
         label: '划词开关',
         type: 'checkbox',
@@ -129,54 +129,7 @@ export class TextPickerFeature {
           this.manager?.setGlobalEnabled(menuItem.checked)
         },
       },
-      {
-        label: '显示底部应用图标',
-        type: 'checkbox',
-        checked: this.manager?.isDockIconEnabled() ?? false,
-        click: (menuItem) => {
-          this.manager?.setDockIconEnabled(menuItem.checked)
-        },
-      },
-      {
-        label: '选择模式',
-        submenu: [
-          this.createSceneMenuItem('拖选', SelectionScene.BOX_SELECT),
-          this.createSceneMenuItem('双击/三击选词', SelectionScene.MULTI_CLICK),
-          this.createSceneMenuItem('Shift+方向键', SelectionScene.SHIFT_ARROW),
-          this.createSceneMenuItem('Shift+点击', SelectionScene.SHIFT_MOUSE_CLICK),
-          this.createSceneMenuItem('Cmd+A 全选', SelectionScene.CTRL_A),
-        ],
-      },
-      { type: 'separator' },
-      {
-        label: '打开辅助功能设置',
-        click: async () => {
-          try {
-            await shell.openExternal(
-              'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-            )
-          } catch (error) {
-            this.logger.error('[TextPickerFeature] failed to open accessibility settings', error)
-          }
-        },
-      },
-      { type: 'separator' },
-      {
-        label: '退出',
-        click: () => app.quit(),
-      },
     ])
-  }
-
-  private createSceneMenuItem(label: string, scene: EnabledSelectionScene) {
-    return {
-      label,
-      type: 'checkbox' as const,
-      checked: this.manager?.isSceneEnabled(scene) ?? true,
-      click: (menuItem: Electron.MenuItem) => {
-        this.manager?.setSceneEnabled(scene, menuItem.checked)
-      },
-    }
   }
 
   private registerShortcuts() {

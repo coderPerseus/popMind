@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Badge } from '../ui/badge'
+import { AccessibilityPermission } from './AccessibilityPermission'
 import './styles.css'
 
 export default function WelcomeKit() {
@@ -14,6 +15,7 @@ export default function WelcomeKit() {
       >
         <div className="welcome-wordmark">popMind</div>
         <DarkModeToggle />
+        <AccessibilityPermission />
       </motion.div>
     </div>
   )

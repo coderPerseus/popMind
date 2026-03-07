@@ -6,15 +6,18 @@ import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 let mainWindow: BrowserWindow | null = null
 let textPickerFeature: TextPickerFeature | null = null
 
-const openMainWindow = () => {
-  const window = createAppWindow()
-  mainWindow = window
-  window.on('closed', () => {
-    if (mainWindow === window) {
-      mainWindow = null
-    }
-  })
-  return window
+const showMainWindow = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createAppWindow()
+    mainWindow.on('closed', () => {
+      if (mainWindow?.isDestroyed()) {
+        mainWindow = null
+      }
+    })
+  } else {
+    mainWindow.show()
+    mainWindow.focus()
+  }
 }
 
 // This method will be called when Electron has finished
@@ -24,9 +27,11 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
   // Create app window
-  openMainWindow()
+  showMainWindow()
+
+  // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()
-  await textPickerFeature.initialize()
+  textPickerFeature.initialize({ onTrayClick: showMainWindow })
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -38,11 +43,7 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      openMainWindow()
-    } else {
-      mainWindow.show()
-    }
+    showMainWindow()
   })
 })
 

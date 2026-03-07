@@ -33,7 +33,6 @@ interface TextPickerManagerOptions {
   bubbleWindow: BubbleWindowPort
   bridge: SelectionBridge
   logger?: Console
-  dockIconEnabled?: boolean
 }
 
 const DISMISS_SCENES = new Set<SelectionSceneValue>([
@@ -57,7 +56,6 @@ export class TextPickerManager {
   private debounceTimer: NodeJS.Timeout | null = null
   private refreshToken = 0
   private isOverlayPolicyActive = false
-  private dockIconEnabled: boolean
   private pickedInfo: PickedInfo | null = null
   private skills: SelectionSkill[] = [
     { commandId: SystemCommand.Search, label: 'AI 搜索', enabled: true },
@@ -73,12 +71,10 @@ export class TextPickerManager {
     bubbleWindow,
     bridge,
     logger = console,
-    dockIconEnabled = false,
   }: TextPickerManagerOptions) {
     this.bubbleWindow = bubbleWindow
     this.bridge = bridge
     this.logger = logger
-    this.dockIconEnabled = dockIconEnabled
     this.applyActivationPolicy()
   }
 
@@ -134,15 +130,6 @@ export class TextPickerManager {
 
   isGlobalEnabled() {
     return this.globalEnabled
-  }
-
-  setDockIconEnabled(enabled: boolean) {
-    this.dockIconEnabled = Boolean(enabled)
-    this.applyActivationPolicy()
-  }
-
-  isDockIconEnabled() {
-    return this.dockIconEnabled
   }
 
   setSceneEnabled(scene: EnabledSelectionScene, enabled: boolean) {
@@ -454,8 +441,9 @@ export class TextPickerManager {
       return
     }
 
-    const shouldUseAccessory = this.isOverlayPolicyActive || !this.dockIconEnabled
-    this.bridge.setActivationPolicy(shouldUseAccessory ? 1 : 0)
+    // Always use Accessory policy — the app lives in the menu bar tray,
+    // not in the Dock. This also enables the bubble to overlay fullscreen apps.
+    this.bridge.setActivationPolicy(1)
   }
 
   private resolveAnchor(snapshot: SelectionSnapshot, cursorPoint: { x: number; y: number }) {
