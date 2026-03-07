@@ -12,7 +12,7 @@ export default function WelcomeKit() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
       >
-        <div className="welcome-wordmark">pubMind</div>
+        <div className="welcome-wordmark">popMind</div>
         <DarkModeToggle />
       </motion.div>
     </div>

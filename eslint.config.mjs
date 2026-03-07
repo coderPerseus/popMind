@@ -10,6 +10,7 @@ export default [
       'dist/**',
       'build/**',
       'out/**',
+      'temp/**',
       '.vscode/**',
       '.git/**',
       '.gitignore',
@@ -103,6 +104,15 @@ export default [
         process: 'readonly',
         console: 'readonly',
         window: 'readonly',
+      },
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
       },
     },
   },

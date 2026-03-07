@@ -1,0 +1,86 @@
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
+}
+
+#toolbar {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lead {
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: linear-gradient(120deg, #2f6bff, #12b4ff);
+  flex-shrink: 0;
+}
+
+#skills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.skill-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  color: #1d2129;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.skill-btn:hover {
+  background: rgba(32, 86, 217, 0.12);
+}
+
+.skill-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.separator {
+  width: 1px;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+#source {
+  font-size: 11px;
+  color: rgba(60, 60, 67, 0.72);
+  max-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}

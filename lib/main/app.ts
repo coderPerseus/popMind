@@ -5,7 +5,7 @@ import { registerResourcesProtocol } from './protocols'
 import { registerWindowHandlers } from '@/lib/conveyor/handlers/window-handler'
 import { registerAppHandlers } from '@/lib/conveyor/handlers/app-handler'
 
-export function createAppWindow(): void {
+export function createAppWindow(): BrowserWindow {
   // Register custom protocol for resources
   registerResourcesProtocol()
 
@@ -47,4 +47,6 @@ export function createAppWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }

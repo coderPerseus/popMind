@@ -3,6 +3,7 @@ productName: popMind
 asar: true
 asarUnpack:
   - resources/**
+  - build/Release/*.node
 directories:
   buildResources: resources/build
 files:

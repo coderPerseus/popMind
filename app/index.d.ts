@@ -1,4 +1,5 @@
 /// <reference types="electron-vite/node" />
+import type { BubblePreloadApi } from '@/lib/text-picker/shared'
 
 declare module '*.css' {
   const content: string
@@ -28,4 +29,10 @@ declare module '*.svg' {
 declare module '*.web' {
   const content: string
   export default content
+}
+
+declare global {
+  interface Window {
+    textPicker: BubblePreloadApi
+  }
 }
