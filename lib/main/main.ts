@@ -1,24 +1,8 @@
-import { app, BrowserWindow } from 'electron'
+import { app } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { createAppWindow } from './app'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 
-let mainWindow: BrowserWindow | null = null
 let textPickerFeature: TextPickerFeature | null = null
-
-const showMainWindow = () => {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    mainWindow = createAppWindow()
-    mainWindow.on('closed', () => {
-      if (mainWindow?.isDestroyed()) {
-        mainWindow = null
-      }
-    })
-  } else {
-    mainWindow.show()
-    mainWindow.focus()
-  }
-}
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -26,30 +10,16 @@ const showMainWindow = () => {
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
-  // Create app window
-  showMainWindow()
 
   // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()
-  textPickerFeature.initialize({ onTrayClick: showMainWindow })
+  textPickerFeature.initialize()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
-  })
-
-  app.on('activate', function () {
-    if (textPickerFeature?.isBubbleVisible()) {
-      return
-    }
-
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      showMainWindow()
-    }
   })
 })
 

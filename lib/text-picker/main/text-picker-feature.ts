@@ -1,4 +1,4 @@
-import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, Tray } from 'electron'
+import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
@@ -15,33 +15,26 @@ const IPC_HANDLE_CHANNELS = [
   TextPickerChannel.RemoveBlockApp,
   TextPickerChannel.GetSkills,
   TextPickerChannel.HideBubble,
-  TextPickerChannel.OpenMainWindow,
 ] as const
 
 const IPC_EVENT_CHANNELS = [
   TextPickerChannel.MoveBubble,
   TextPickerChannel.ResizeBubble,
   TextPickerChannel.SetBubbleDragging,
+  TextPickerChannel.NotifyBubbleInteraction,
 ] as const
-
-interface TextPickerFeatureOptions {
-  onTrayClick?: () => void
-}
 
 export class TextPickerFeature {
   private bubbleWindow: SelectionBubbleWindow | null = null
   private manager: TextPickerManager | null = null
   private tray: Tray | null = null
-  private onTrayClick: (() => void) | undefined
 
   constructor(
     private readonly bridge: SelectionBridge = selectionBridge,
     private readonly logger: Console = console,
   ) {}
 
-  async initialize(options: TextPickerFeatureOptions = {}) {
-    this.onTrayClick = options.onTrayClick
-
+  async initialize() {
     this.bubbleWindow = new SelectionBubbleWindow(this.bridge)
     this.manager = new TextPickerManager({
       bubbleWindow: this.bubbleWindow,
@@ -90,6 +83,10 @@ export class TextPickerFeature {
     return this.bubbleWindow?.isVisible() ?? false
   }
 
+  shouldSuppressAppActivation() {
+    return this.manager?.shouldSuppressAppActivation() ?? false
+  }
+
   dispose() {
     globalShortcut.unregister('CommandOrControl+Shift+E')
     globalShortcut.unregister('CommandOrControl+Shift+X')
@@ -123,9 +120,9 @@ export class TextPickerFeature {
     this.tray = new Tray(icon)
     this.tray.setToolTip('popMind')
 
-    // Left-click: open main window
+    // Left-click: show text picker context menu
     this.tray.on('click', () => {
-      this.onTrayClick?.()
+      this.tray?.popUpContextMenu(this.buildTrayMenu())
     })
 
     // Right-click: show text picker context menu
@@ -159,27 +156,128 @@ export class TextPickerFeature {
 
   private setupIpc() {
     ipcMain.handle(TextPickerChannel.Command, async (_event, commandId: string, selectionId?: string) => {
+      this.logger.info('[TextPickerFeature] ipc command received', {
+        commandId,
+        selectionId,
+      })
+      this.manager?.noteBubbleInteraction()
+
       const pickedInfo = this.manager?.getPickedInfo()
       if (!pickedInfo?.text) {
+        this.logger.warn('[TextPickerFeature] ipc command rejected: empty_selection', {
+          commandId,
+          selectionId,
+        })
         return { ok: false, reason: 'empty_selection' }
       }
 
       if (selectionId && pickedInfo.selectionId !== selectionId) {
+        this.logger.warn('[TextPickerFeature] ipc command rejected: stale_selection', {
+          commandId,
+          requestedSelectionId: selectionId,
+          currentSelectionId: pickedInfo.selectionId,
+        })
         this.manager?.hideBubble()
         return { ok: false, reason: 'stale_selection' }
       }
 
       if (commandId === SystemCommand.Copy) {
-        clipboard.writeText(pickedInfo.text)
         this.manager?.hideBubble()
-        return { ok: true, commandId }
+
+        const sourceAppPid =
+          Number.isFinite(pickedInfo.sourceAppPid) && Number(pickedInfo.sourceAppPid) > 0
+            ? Number(pickedInfo.sourceAppPid)
+            : -1
+
+        const copiedByMenu =
+          sourceAppPid > 0
+            ? await this.bridge.copySelectionAsync(true, sourceAppPid, pickedInfo.text)
+            : false
+        const copiedByShortcut = copiedByMenu
+          ? false
+          : await this.bridge.copySelectionAsync(false, -1, pickedInfo.text)
+
+        const nativeStrategy = copiedByMenu ? 'menu_copy' : copiedByShortcut ? 'shortcut_copy' : 'native_failed'
+        const clipboardText = clipboard.readText()
+        const clipboardMatches = clipboardText === pickedInfo.text
+
+        if (!copiedByMenu && !copiedByShortcut) {
+          this.logger.warn(
+            `[TextPickerFeature] native copy failed for ${pickedInfo.appId || 'unknown_app'}, falling back to clipboard.writeText`,
+          )
+          clipboard.writeText(pickedInfo.text)
+        } else if (!clipboardMatches) {
+          this.logger.warn('[TextPickerFeature] native copy reported success but clipboard mismatched, forcing fallback', {
+            appId: pickedInfo.appId || 'unknown_app',
+            nativeStrategy,
+            expectedTextLength: pickedInfo.text.length,
+            clipboardTextLength: clipboardText.length,
+            clipboardPreview: clipboardText.slice(0, 60),
+          })
+          clipboard.writeText(pickedInfo.text)
+        }
+
+        const finalClipboardText = clipboard.readText()
+        const strategy =
+          finalClipboardText === pickedInfo.text
+            ? copiedByMenu
+              ? 'menu_copy'
+              : copiedByShortcut
+                ? 'shortcut_copy'
+                : 'clipboard_write'
+            : 'clipboard_write_failed'
+
+        this.logger.info('[TextPickerFeature] ipc command handled: copy', {
+          commandId,
+          selectionId: pickedInfo.selectionId,
+          nativeStrategy,
+          clipboardMatchesAfterWrite: finalClipboardText === pickedInfo.text,
+        })
+        return {
+          ok: true,
+          commandId,
+          strategy,
+        }
       }
 
       if (commandId === SystemCommand.HideTextPicker) {
         this.manager?.hideBubble()
+        this.logger.info('[TextPickerFeature] ipc command handled: hide')
         return { ok: true, commandId }
       }
 
+      if (
+        commandId === SystemCommand.Translate ||
+        commandId === SystemCommand.Explain ||
+        commandId === SystemCommand.Search
+      ) {
+        const commandNameMap: Record<string, string> = {
+          [SystemCommand.Translate]: 'translate',
+          [SystemCommand.Explain]: 'explain',
+          [SystemCommand.Search]: 'search',
+        }
+
+        const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text)
+        this.logger.info(`[TextPickerFeature] bubble skill clicked: ${commandNameMap[commandId]}`, {
+          selectionId: pickedInfo.selectionId,
+          targetUrl,
+        })
+
+        if (!targetUrl) {
+          this.logger.warn('[TextPickerFeature] ipc command rejected: missing_target_url', {
+            commandId,
+          })
+          return { ok: false, reason: 'missing_target_url' }
+        }
+
+        this.manager?.hideBubble()
+        await shell.openExternal(targetUrl)
+        return { ok: true, commandId }
+      }
+
+      this.logger.warn('[TextPickerFeature] ipc command rejected: not_implemented', {
+        commandId,
+      })
       return { ok: false, reason: 'not_implemented' }
     })
 
@@ -217,22 +315,57 @@ export class TextPickerFeature {
       return { ok: true }
     })
 
-    ipcMain.handle(TextPickerChannel.OpenMainWindow, async () => {
-      this.manager?.hideBubble()
-      this.onTrayClick?.()
-      return { ok: true }
-    })
-
     ipcMain.on(TextPickerChannel.MoveBubble, (_event, deltaX: number, deltaY: number) => {
+      this.logger.info('[TextPickerFeature] ipc move bubble', { deltaX, deltaY })
       this.manager?.moveBubble(deltaX, deltaY)
     })
 
     ipcMain.on(TextPickerChannel.ResizeBubble, (_event, width: number) => {
+      this.logger.info('[TextPickerFeature] ipc resize bubble', { width })
       this.manager?.resizeBubble(width)
     })
 
     ipcMain.on(TextPickerChannel.SetBubbleDragging, (_event, isDragging: boolean) => {
+      this.logger.info('[TextPickerFeature] ipc set bubble dragging', { isDragging })
       this.manager?.setBubbleDragging(isDragging)
     })
+
+    ipcMain.on(TextPickerChannel.NotifyBubbleInteraction, () => {
+      this.logger.info('[TextPickerFeature] ipc notify bubble interaction')
+      this.manager?.noteBubbleInteraction()
+    })
+  }
+
+  private buildExternalCommandUrl(commandId: string, text: string) {
+    const trimmedText = text.trim()
+    if (!trimmedText) {
+      return ''
+    }
+
+    if (commandId === SystemCommand.Translate) {
+      const query = new URLSearchParams({
+        sl: 'auto',
+        tl: 'zh-CN',
+        text: trimmedText,
+        op: 'translate',
+      })
+      return `https://translate.google.com/?${query.toString()}`
+    }
+
+    if (commandId === SystemCommand.Explain) {
+      const query = new URLSearchParams({
+        q: `Explain the following text in Chinese: ${trimmedText}`,
+      })
+      return `https://www.perplexity.ai/search?${query.toString()}`
+    }
+
+    if (commandId === SystemCommand.Search) {
+      const query = new URLSearchParams({
+        q: trimmedText,
+      })
+      return `https://www.perplexity.ai/search?${query.toString()}`
+    }
+
+    return ''
   }
 }

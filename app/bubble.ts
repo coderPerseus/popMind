@@ -13,11 +13,12 @@ const SKILL_ICONS: Record<string, string> = {
 const skillsContainer = document.querySelector<HTMLDivElement>('#skills')
 const toolbarNode = document.querySelector<HTMLDivElement>('#toolbar')
 const dragHandle = document.querySelector<HTMLButtonElement>('#drag-handle')
-const leadLogo = document.querySelector<HTMLButtonElement>('#lead-logo')
 const leadLogoImage = document.querySelector<HTMLImageElement>('#lead-logo-image')
-const LOGO_ACTIVATION_MAX_DISTANCE = 6
 const SYNTHETIC_CLICK_GUARD_MS = 320
 const BUBBLE_WIDTH_PADDING = 2
+const bubbleLog = (...args: unknown[]) => {
+  console.info('[bubble]', new Date().toISOString(), ...args)
+}
 
 if (leadLogoImage) {
   leadLogoImage.src = logoUrl
@@ -28,11 +29,16 @@ let busy = false
 let activePointerId: number | null = null
 let lastDragPoint: { x: number; y: number } | null = null
 let suppressPointerActivationsUntil = 0
-let logoPressState: { pointerId: number; x: number; y: number } | null = null
 let widthMeasureFrame = 0
+
+const noteBubbleInteraction = () => {
+  bubbleLog('notifyBubbleInteraction')
+  window.textPicker.notifyBubbleInteraction()
+}
 
 const setBusy = (state: boolean) => {
   busy = state
+  bubbleLog('setBusy', { state })
 
   if (!skillsContainer) {
     return
@@ -60,6 +66,7 @@ const queueBubbleWidthMeasurement = () => {
     }
 
     const nextWidth = Math.ceil(toolbarNode.scrollWidth + BUBBLE_WIDTH_PADDING)
+    bubbleLog('resizeBubble', { nextWidth, scrollWidth: toolbarNode.scrollWidth })
     window.textPicker.resizeBubble(nextWidth)
   })
 }
@@ -101,14 +108,49 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
     button.disabled = busy
     button.style.opacity = busy ? '0.5' : '1'
 
-    button.addEventListener('click', async () => {
-      if (!currentPickedInfo || busy || skill.commandId !== SystemCommand.Copy) {
+    button.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) {
+        return
+      }
+
+      bubbleLog('skill:pointerdown', {
+        commandId: skill.commandId,
+        selectionId: currentPickedInfo?.selectionId ?? null,
+        textLength: currentPickedInfo?.text.length ?? 0,
+      })
+      suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+      noteBubbleInteraction()
+      event.stopPropagation()
+    })
+
+    button.addEventListener('click', async (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+      noteBubbleInteraction()
+
+      if (!currentPickedInfo || busy) {
+        bubbleLog('skill:click:ignored', {
+          commandId: skill.commandId,
+          hasPickedInfo: Boolean(currentPickedInfo),
+          busy,
+        })
         return
       }
 
       setBusy(true)
       try {
-        await window.textPicker.triggerCommand(skill.commandId, currentPickedInfo.selectionId)
+        bubbleLog('skill:click:invoke', {
+          commandId: skill.commandId,
+          selectionId: currentPickedInfo.selectionId,
+          textPreview: currentPickedInfo.text.slice(0, 40),
+        })
+        const result = await window.textPicker.triggerCommand(skill.commandId, currentPickedInfo.selectionId)
+        bubbleLog('skill:click:result', {
+          commandId: skill.commandId,
+          selectionId: currentPickedInfo.selectionId,
+          result,
+        })
       } finally {
         setBusy(false)
       }
@@ -120,29 +162,44 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
 
 const applyState = (pickedInfo: PickedInfo | null, skills?: SelectionSkill[]) => {
   currentPickedInfo = pickedInfo
+  bubbleLog('applyState', {
+    hasPickedInfo: Boolean(pickedInfo),
+    selectionId: pickedInfo?.selectionId ?? null,
+    textLength: pickedInfo?.text.length ?? 0,
+    skills: (skills || []).map((skill) => skill.commandId),
+  })
   renderSkills(pickedInfo?.text ? skills : [])
   queueBubbleWidthMeasurement()
 }
 
 window.textPicker.onUpdate((payload) => {
-  applyState({
-    text: payload.selectionText || '',
-    appName: payload.sourceApp || '',
-    appId: payload.sourceBundleId || '',
-    scene: payload.scene || '',
-    selectionId: payload.selectionId || '',
-    strategy: 'none',
-    hasRect: false,
-    rect: null,
-  }, payload.skills)
+  bubbleLog('onUpdate', payload)
+  applyState(
+    {
+      text: payload.selectionText || '',
+      appName: payload.sourceApp || '',
+      appId: payload.sourceBundleId || '',
+      scene: payload.scene || '',
+      selectionId: payload.selectionId || '',
+      strategy: 'none',
+      hasRect: false,
+      rect: null,
+    },
+    payload.skills
+  )
 })
 
 const hydrateBubble = async () => {
   try {
+    bubbleLog('hydrate:start')
     const [pickedInfo, skillsResult] = await Promise.all([
       window.textPicker.getPickedInfo(),
       window.textPicker.getSkills(),
     ])
+    bubbleLog('hydrate:resolved', {
+      pickedInfo,
+      skills: skillsResult.skills.map((skill) => skill.commandId),
+    })
     applyState(pickedInfo, skillsResult.skills)
   } catch (error) {
     console.error('[bubble] failed to hydrate state', error)
@@ -151,14 +208,19 @@ const hydrateBubble = async () => {
 
 void hydrateBubble()
 
+// ---------------------------------------------------------------------------
+// Drag handle — JS pointer-capture drag (no -webkit-app-region: drag, which
+// activates the Electron app and breaks the non-activating panel behaviour).
+// ---------------------------------------------------------------------------
+
 const stopBubbleDrag = () => {
   if (activePointerId == null) {
     return
   }
 
+  bubbleLog('drag:stop', { activePointerId })
   suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
   dragHandle?.classList.remove('is-dragging')
-  toolbarNode?.classList.remove('is-dragging')
 
   if (dragHandle?.hasPointerCapture(activePointerId)) {
     dragHandle.releasePointerCapture(activePointerId)
@@ -177,11 +239,17 @@ dragHandle?.addEventListener('pointerdown', (event) => {
   event.preventDefault()
   event.stopPropagation()
 
+  bubbleLog('drag:pointerdown', {
+    pointerId: event.pointerId,
+    x: event.screenX,
+    y: event.screenY,
+  })
   activePointerId = event.pointerId
   lastDragPoint = { x: event.screenX, y: event.screenY }
   suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+  noteBubbleInteraction()
+
   dragHandle.classList.add('is-dragging')
-  toolbarNode?.classList.add('is-dragging')
   dragHandle.setPointerCapture(event.pointerId)
   window.textPicker.setBubbleDragging(true)
 })
@@ -198,85 +266,57 @@ dragHandle?.addEventListener('pointermove', (event) => {
   }
 
   lastDragPoint = { x: event.screenX, y: event.screenY }
+  bubbleLog('drag:pointermove', { deltaX, deltaY })
   window.textPicker.moveBubble(deltaX, deltaY)
 })
 
 dragHandle?.addEventListener('pointerup', stopBubbleDrag)
 dragHandle?.addEventListener('pointercancel', stopBubbleDrag)
 dragHandle?.addEventListener('lostpointercapture', stopBubbleDrag)
+
+// Absorb click so it never reaches the toolbar fallback handler.
 dragHandle?.addEventListener('click', (event) => {
   event.preventDefault()
   event.stopPropagation()
 })
 
-const resetLogoPressState = () => {
-  logoPressState = null
-  leadLogo?.classList.remove('is-pressed')
-}
+// ---------------------------------------------------------------------------
+// Toolbar-level event handlers
+// ---------------------------------------------------------------------------
 
-leadLogo?.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0 || activePointerId != null || Date.now() < suppressPointerActivationsUntil) {
-    return
-  }
+// Capture-phase pointerdown: note interaction & set the synthetic-click guard
+// for everything except the drag handle (which manages its own guard).
+toolbarNode?.addEventListener(
+  'pointerdown',
+  (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) {
+      return
+    }
 
-  logoPressState = {
-    pointerId: event.pointerId,
-    x: event.clientX,
-    y: event.clientY,
-  }
-  leadLogo.classList.add('is-pressed')
-})
+    // Drag handle manages its own pointer lifecycle.
+    if (target.closest('.drag-handle')) {
+      return
+    }
 
-leadLogo?.addEventListener('pointermove', (event) => {
-  if (!logoPressState || event.pointerId !== logoPressState.pointerId) {
-    return
-  }
+    bubbleLog('toolbar:pointerdown', {
+      targetClassName: target instanceof HTMLElement ? target.className : target.tagName,
+    })
+    noteBubbleInteraction()
 
-  const distance = Math.hypot(event.clientX - logoPressState.x, event.clientY - logoPressState.y)
-  if (distance > LOGO_ACTIVATION_MAX_DISTANCE) {
-    resetLogoPressState()
-  }
-})
+    // Skill buttons set the guard themselves; the lead-logo is purely visual,
+    // so we only need to guard "empty area" clicks here.
+    if (!target.closest('.lead-logo') && !target.closest('.skill-btn')) {
+      suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+    }
+  },
+  true
+)
 
-leadLogo?.addEventListener('pointerup', async (event) => {
-  if (!logoPressState || event.pointerId !== logoPressState.pointerId) {
-    return
-  }
-
-  const distance = Math.hypot(event.clientX - logoPressState.x, event.clientY - logoPressState.y)
-  const rect = leadLogo.getBoundingClientRect()
-  const isInsideLogo =
-    event.clientX >= rect.left &&
-    event.clientX <= rect.right &&
-    event.clientY >= rect.top &&
-    event.clientY <= rect.bottom
-
-  resetLogoPressState()
-
-  if (
-    distance > LOGO_ACTIVATION_MAX_DISTANCE ||
-    !isInsideLogo ||
-    activePointerId != null ||
-    Date.now() < suppressPointerActivationsUntil
-  ) {
-    event.preventDefault()
-    event.stopPropagation()
-    return
-  }
-
-  event.stopPropagation()
-  await window.textPicker.openMainWindow()
-})
-
-leadLogo?.addEventListener('pointercancel', resetLogoPressState)
-leadLogo?.addEventListener('lostpointercapture', resetLogoPressState)
-leadLogo?.addEventListener('click', (event) => {
-  event.preventDefault()
-  event.stopPropagation()
-})
-
+// Bubble-phase click on toolbar: dismiss the bubble when clicking empty space.
 toolbarNode?.addEventListener('click', async (event) => {
   if (Date.now() < suppressPointerActivationsUntil) {
+    bubbleLog('toolbar:click:guarded')
     event.preventDefault()
     event.stopPropagation()
     return
@@ -288,8 +328,15 @@ toolbarNode?.addEventListener('click', async (event) => {
   }
 
   if (target.closest('.skill-btn') || target.closest('.drag-handle') || target.closest('.lead-logo')) {
+    bubbleLog('toolbar:click:delegated', {
+      targetClassName: target instanceof HTMLElement ? target.className : target.tagName,
+    })
     return
   }
 
+  event.preventDefault()
+  event.stopPropagation()
+  bubbleLog('toolbar:click:hide')
+  noteBubbleInteraction()
   await window.textPicker.hideBubble()
 })

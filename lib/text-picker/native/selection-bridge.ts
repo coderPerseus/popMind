@@ -13,6 +13,7 @@ interface NativeSelectionBridgeModule {
   checkPermission(prompt?: boolean): boolean
   getSelectionSnapshot(options?: { scene?: SelectionSceneValue | string }): SelectionSnapshot
   getTextByClipboardAsync(useMenu: boolean, pid: number): Promise<string>
+  copySelectionAsync(useMenu: boolean, pid: number, expectedText?: string): Promise<boolean>
   startActionMonitor(callback: (event: SelectionActionEvent) => void): boolean
   stopActionMonitor(): boolean
   getCursorPosition(): { x: number; y: number }
@@ -31,10 +32,12 @@ const createStub = (): SelectionBridge => ({
     text: '',
     sourceApp: '',
     sourceBundleId: '',
+    sourceAppPid: -1,
     hasRect: false,
     error: 'unsupported_platform',
   }),
   getTextByClipboardAsync: () => Promise.resolve(''),
+  copySelectionAsync: () => Promise.resolve(false),
   startActionMonitor: () => false,
   stopActionMonitor: () => true,
   getCursorPosition: () => ({ x: 0, y: 0 }),
@@ -95,6 +98,9 @@ export const selectionBridge: SelectionBridge = nativeModule
       },
       getTextByClipboardAsync(useMenu, pid) {
         return nativeModule.getTextByClipboardAsync(useMenu, pid)
+      },
+      copySelectionAsync(useMenu, pid, expectedText) {
+        return nativeModule.copySelectionAsync(useMenu, pid, expectedText)
       },
       startActionMonitor(callback) {
         return Boolean(nativeModule.startActionMonitor(callback))

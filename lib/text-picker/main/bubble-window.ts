@@ -13,6 +13,7 @@ export interface BubbleWindowPort {
   sendUpdate(payload: BubbleUpdatePayload): void
   getNativeWindowHandle(): Buffer
   orderFront(): void
+  onMove(callback: (bounds: Rectangle) => void): () => void
   destroy(): void
 }
 
@@ -29,6 +30,8 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
       height: TOOLBAR_HEIGHT,
       show: false,
       frame: false,
+      // Keep first click functional while the bubble stays non-active.
+      acceptFirstMouse: true,
       transparent: true,
       resizable: false,
       minimizable: false,
@@ -55,9 +58,9 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
       visibleOnFullScreen: true,
     })
 
-    bubbleWindow.once('ready-to-show', () => {
-      this.bridge.configureBubbleWindow(bubbleWindow.getNativeWindowHandle())
-    })
+    // Set NSWindowStyleMaskNonactivatingPanel immediately so the panel never
+    // activates the app — even if a drag / click happens before ready-to-show.
+    this.bridge.configureBubbleWindow(bubbleWindow.getNativeWindowHandle())
 
     if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
       void bubbleWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/bubble.html`)
@@ -102,6 +105,14 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
 
   orderFront() {
     this.bridge.orderBubbleFront(this.window.getNativeWindowHandle())
+  }
+
+  onMove(callback: (bounds: Rectangle) => void) {
+    const listener = () => callback(this.window.getBounds())
+    this.window.on('move', listener)
+    return () => {
+      this.window.removeListener('move', listener)
+    }
   }
 
   destroy() {

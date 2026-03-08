@@ -2,9 +2,14 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { TextPickerChannel } from '@/lib/text-picker/shared'
 import type { BubblePreloadApi, BubbleUpdatePayload } from '@/lib/text-picker/shared'
 
+const preloadLog = (...args: unknown[]) => {
+  console.info('[bubble-preload]', new Date().toISOString(), ...args)
+}
+
 const bubbleApi: BubblePreloadApi = {
   onUpdate(handler) {
     const listener = (_event: Electron.IpcRendererEvent, payload: BubbleUpdatePayload) => {
+      preloadLog('onUpdate', payload)
       handler(payload)
     }
 
@@ -12,25 +17,41 @@ const bubbleApi: BubblePreloadApi = {
     return () => ipcRenderer.removeListener(TextPickerChannel.BubbleUpdate, listener)
   },
   triggerCommand(commandId, selectionId) {
-    return ipcRenderer.invoke(TextPickerChannel.Command, commandId, selectionId)
+    preloadLog('triggerCommand:invoke', { commandId, selectionId })
+    return ipcRenderer.invoke(TextPickerChannel.Command, commandId, selectionId).then((result) => {
+      preloadLog('triggerCommand:result', { commandId, selectionId, result })
+      return result
+    })
   },
   hideBubble() {
-    return ipcRenderer.invoke(TextPickerChannel.HideBubble)
+    preloadLog('hideBubble:invoke')
+    return ipcRenderer.invoke(TextPickerChannel.HideBubble).then((result) => {
+      preloadLog('hideBubble:result', result)
+      return result
+    })
   },
   moveBubble(deltaX, deltaY) {
+    preloadLog('moveBubble', { deltaX, deltaY })
     ipcRenderer.send(TextPickerChannel.MoveBubble, deltaX, deltaY)
   },
   resizeBubble(width) {
+    preloadLog('resizeBubble', { width })
     ipcRenderer.send(TextPickerChannel.ResizeBubble, width)
   },
   setBubbleDragging(isDragging) {
+    preloadLog('setBubbleDragging', { isDragging })
     ipcRenderer.send(TextPickerChannel.SetBubbleDragging, isDragging)
   },
-  openMainWindow() {
-    return ipcRenderer.invoke(TextPickerChannel.OpenMainWindow)
+  notifyBubbleInteraction() {
+    preloadLog('notifyBubbleInteraction')
+    ipcRenderer.send(TextPickerChannel.NotifyBubbleInteraction)
   },
   getPickedInfo() {
-    return ipcRenderer.invoke(TextPickerChannel.GetPickedInfo)
+    preloadLog('getPickedInfo:invoke')
+    return ipcRenderer.invoke(TextPickerChannel.GetPickedInfo).then((result) => {
+      preloadLog('getPickedInfo:result', result)
+      return result
+    })
   },
   getGlobalEnabled() {
     return ipcRenderer.invoke(TextPickerChannel.GetGlobalEnabled)
@@ -48,7 +69,11 @@ const bubbleApi: BubblePreloadApi = {
     return ipcRenderer.invoke(TextPickerChannel.RemoveBlockApp, bundleId)
   },
   getSkills() {
-    return ipcRenderer.invoke(TextPickerChannel.GetSkills)
+    preloadLog('getSkills:invoke')
+    return ipcRenderer.invoke(TextPickerChannel.GetSkills).then((result) => {
+      preloadLog('getSkills:result', result)
+      return result
+    })
   },
 }
 

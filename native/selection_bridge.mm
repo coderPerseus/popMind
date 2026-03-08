@@ -69,8 +69,10 @@ AXObserverRef gFocusedWindowObserver = nullptr;
 AXUIElementRef gObservedApp = nullptr;
 Napi::ThreadSafeFunction* gActionTsfn = nullptr;
 std::mutex gMonitorMutex;
+NSInteger gBubbleWindowNumber = -1;
 
 bool gIsLeftMouseDown = false;
+bool gLeftMouseDownOnBubble = false;
 NSPoint gMouseDownPoint = NSZeroPoint;
 bool gShiftHeldOnMouseDown = false;
 
@@ -84,6 +86,27 @@ std::string ToStdString(NSString* value) {
   if (value == nil) return "";
   const char* utf8 = [value UTF8String];
   return utf8 ? std::string(utf8) : "";
+}
+
+NSWindow* GetBubbleWindow() {
+  if (gBubbleWindowNumber < 0) return nil;
+
+  for (NSWindow* window in NSApp.windows) {
+    if (window.windowNumber == gBubbleWindowNumber) {
+      return window;
+    }
+  }
+
+  return nil;
+}
+
+bool IsPointInsideBubbleWindow(NSPoint point) {
+  NSWindow* bubbleWindow = GetBubbleWindow();
+  if (!bubbleWindow || ![bubbleWindow isVisible]) {
+    return false;
+  }
+
+  return NSPointInRect(point, [bubbleWindow frame]);
 }
 
 bool GetAXStringAttr(AXUIElementRef el, CFStringRef attr, std::string* out) {
@@ -430,6 +453,36 @@ std::string GetTextByClipboard(bool useMenu, AXUIElementRef app) {
   }
 }
 
+bool CopySelection(bool useMenu, AXUIElementRef app, NSString* expectedText) {
+  @autoreleasepool {
+    NSPasteboard* pb = [NSPasteboard generalPasteboard];
+    NSInteger changeCountBefore = [pb changeCount];
+
+    if (useMenu) {
+      if (!TriggerMenuCopy(app)) return false;
+    } else {
+      PostCmdC();
+    }
+
+    for (int i = 0; i < 24; i++) {
+      [NSThread sleepForTimeInterval:0.025];
+
+      if ([pb changeCount] != changeCountBefore) {
+        return true;
+      }
+
+      if (expectedText) {
+        NSString* currentText = [pb stringForType:NSPasteboardTypeString];
+        if (currentText && [currentText isEqualToString:expectedText]) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+}
+
 bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGotFocusedElement,
                              bool hasNonEmptyRange) {
   if (scene == SelectionScene::kNone) return false;
@@ -675,6 +728,7 @@ Napi::Value GetSelectionSnapshot(const Napi::CallbackInfo& info) {
   NSString* appName = frontApp.localizedName ?: @"";
   result.Set("sourceApp", ToStdString(appName));
   result.Set("sourceBundleId", ToStdString(bundleId));
+  result.Set("sourceAppPid", frontApp ? (double)frontApp.processIdentifier : -1.0);
 
   AXUIElementRef focusedApp = nullptr;
   AXUIElementRef focusedElem = nullptr;
@@ -742,6 +796,46 @@ private:
   std::string result_;
 };
 
+class CopySelectionWorker : public Napi::AsyncWorker {
+public:
+  CopySelectionWorker(Napi::Promise::Deferred deferred, bool useMenu, pid_t appPid,
+                      std::string expectedText)
+    : Napi::AsyncWorker(deferred.Env()),
+      deferred_(deferred),
+      useMenu_(useMenu),
+      appPid_(appPid),
+      expectedText_(std::move(expectedText)) {}
+
+  void Execute() override {
+    @autoreleasepool {
+      AXUIElementRef app = nullptr;
+      if (useMenu_ && appPid_ > 0) {
+        app = AXUIElementCreateApplication(appPid_);
+      }
+
+      NSString* expected = expectedText_.empty() ? nil : @(expectedText_.c_str());
+      copied_ = CopySelection(useMenu_, app, expected);
+
+      if (app) CFRelease(app);
+    }
+  }
+
+  void OnOK() override {
+    deferred_.Resolve(Napi::Boolean::New(Env(), copied_));
+  }
+
+  void OnError(const Napi::Error& error) override {
+    deferred_.Reject(error.Value());
+  }
+
+private:
+  Napi::Promise::Deferred deferred_;
+  bool useMenu_;
+  pid_t appPid_;
+  std::string expectedText_;
+  bool copied_ = false;
+};
+
 Napi::Value GetTextByClipboardAsync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   bool useMenu = info.Length() >= 1 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
@@ -752,6 +846,25 @@ Napi::Value GetTextByClipboardAsync(const Napi::CallbackInfo& info) {
 
   auto deferred = Napi::Promise::Deferred::New(env);
   auto* worker = new ClipboardFallbackWorker(deferred, useMenu, pid);
+  worker->Queue();
+  return deferred.Promise();
+}
+
+Napi::Value CopySelectionAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  bool useMenu = info.Length() >= 1 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
+  pid_t pid = -1;
+  if (info.Length() >= 2 && info[1].IsNumber()) {
+    pid = info[1].As<Napi::Number>().Int32Value();
+  }
+
+  std::string expectedText;
+  if (info.Length() >= 3 && info[2].IsString()) {
+    expectedText = info[2].As<Napi::String>().Utf8Value();
+  }
+
+  auto deferred = Napi::Promise::Deferred::New(env);
+  auto* worker = new CopySelectionWorker(deferred, useMenu, pid, expectedText);
   worker->Queue();
   return deferred.Promise();
 }
@@ -787,11 +900,17 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
              NSEventMaskCursorUpdate)
                                    handler:^(NSEvent* event) {
       if (event.type == NSEventTypeRightMouseDown || event.type == NSEventTypeRightMouseUp) {
+        if (IsPointInsideBubbleWindow([NSEvent mouseLocation])) {
+          return;
+        }
         EmitAction(SelectionScene::kOtherClickDismiss, [NSEvent mouseLocation]);
         return;
       }
 
       if (event.type == NSEventTypeOtherMouseDown || event.type == NSEventTypeOtherMouseUp) {
+        if (IsPointInsideBubbleWindow([NSEvent mouseLocation])) {
+          return;
+        }
         EmitAction(SelectionScene::kOtherClickDismiss, [NSEvent mouseLocation]);
         return;
       }
@@ -810,13 +929,28 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
       }
 
       if (event.type == NSEventTypeLeftMouseDown) {
+        NSPoint loc = [NSEvent mouseLocation];
+        if (IsPointInsideBubbleWindow(loc)) {
+          gLeftMouseDownOnBubble = true;
+          gIsLeftMouseDown = false;
+          gShiftHeldOnMouseDown = false;
+          return;
+        }
+
+        gLeftMouseDownOnBubble = false;
         gIsLeftMouseDown = true;
-        gMouseDownPoint = [NSEvent mouseLocation];
+        gMouseDownPoint = loc;
         gShiftHeldOnMouseDown = (event.modifierFlags & NSEventModifierFlagShift) != 0;
         return;
       }
 
       if (event.type == NSEventTypeLeftMouseUp) {
+        if (gLeftMouseDownOnBubble) {
+          gLeftMouseDownOnBubble = false;
+          gIsLeftMouseDown = false;
+          return;
+        }
+
         NSPoint loc = [NSEvent mouseLocation];
         SelectionScene scene = DetectMouseUpScene(event, loc);
         gIsLeftMouseDown = false;
@@ -925,6 +1059,7 @@ Napi::Value ConfigureBubbleWindow(const Napi::CallbackInfo& info) {
   NSView* nsView = (__bridge NSView*)viewPtr;
   NSWindow* nsWindow = [nsView window];
   if (!nsWindow) return Napi::Boolean::New(env, false);
+  gBubbleWindowNumber = nsWindow.windowNumber;
 
   [nsWindow setStyleMask:([nsWindow styleMask] | NSWindowStyleMaskNonactivatingPanel)];
   [nsWindow setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces |
@@ -975,6 +1110,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("checkPermission", Napi::Function::New(env, CheckPermission));
   exports.Set("getSelectionSnapshot", Napi::Function::New(env, GetSelectionSnapshot));
   exports.Set("getTextByClipboardAsync", Napi::Function::New(env, GetTextByClipboardAsync));
+  exports.Set("copySelectionAsync", Napi::Function::New(env, CopySelectionAsync));
   exports.Set("startActionMonitor", Napi::Function::New(env, StartActionMonitor));
   exports.Set("stopActionMonitor", Napi::Function::New(env, StopActionMonitor));
   exports.Set("getCursorPosition", Napi::Function::New(env, GetCursorPosition));

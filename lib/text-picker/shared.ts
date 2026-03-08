@@ -53,7 +53,7 @@ export const TextPickerChannel = {
   MoveBubble: 'bubble:move',
   ResizeBubble: 'bubble:resize',
   SetBubbleDragging: 'bubble:setDragging',
-  OpenMainWindow: 'textPicker:openMainWindow',
+  NotifyBubbleInteraction: 'bubble:interaction',
   BubbleUpdate: 'bubble:update',
 } as const
 
@@ -62,8 +62,8 @@ export const RETRY_DELAY_MS = 65
 export const MAX_RETRIES = 2
 export const KEYBOARD_CHECK_DELAY_MS = 150
 export const TOOLBAR_MIN_WIDTH = 350
-export const TOOLBAR_HEIGHT = 40
-export const TOOLBAR_GAP = 18
+export const TOOLBAR_HEIGHT = 36
+export const TOOLBAR_GAP = 12
 
 export interface SelectionRect {
   x: number
@@ -82,6 +82,7 @@ export interface SelectionSnapshot {
   text: string
   sourceApp: string
   sourceBundleId: string
+  sourceAppPid?: number
   scene?: SelectionSceneValue | string
   hasRect: boolean
   rect?: SelectionRect | null
@@ -95,6 +96,7 @@ export interface PickedInfo {
   text: string
   appName: string
   appId: string
+  sourceAppPid?: number
   scene: SelectionSceneValue | string
   selectionId: string
   strategy: string
@@ -122,6 +124,7 @@ export interface SelectionBridge {
   checkPermission(prompt?: boolean): boolean
   getSelectionSnapshot(scene?: SelectionSceneValue | string | null): SelectionSnapshot
   getTextByClipboardAsync(useMenu: boolean, pid: number): Promise<string>
+  copySelectionAsync(useMenu: boolean, pid: number, expectedText?: string): Promise<boolean>
   startActionMonitor(callback: (event: SelectionActionEvent) => void): boolean
   stopActionMonitor(): boolean
   getCursorPosition(): { x: number; y: number }
@@ -138,7 +141,7 @@ export interface BubblePreloadApi {
   moveBubble(deltaX: number, deltaY: number): void
   resizeBubble(width: number): void
   setBubbleDragging(isDragging: boolean): void
-  openMainWindow(): Promise<{ ok: boolean }>
+  notifyBubbleInteraction(): void
   getPickedInfo(): Promise<PickedInfo | null>
   getGlobalEnabled(): Promise<{ isEnabled: boolean }>
   setGlobalEnabled(enabled: boolean): Promise<{ ok: boolean }>
