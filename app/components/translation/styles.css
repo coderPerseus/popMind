@@ -26,11 +26,9 @@
   border-radius: 20px;
   border: 1px solid rgb(255 255 255 / 0.55);
   background:
-    linear-gradient(
-      160deg,
+    linear-gradient(160deg,
       rgb(255 255 255 / 0.92) 0%,
-      rgb(248 249 252 / 0.88) 100%
-    );
+      rgb(248 249 252 / 0.88) 100%);
   box-shadow:
     0 0 0 0.5px rgb(0 0 0 / 0.06),
     0 4px 6px rgb(0 0 0 / 0.04),
@@ -347,20 +345,6 @@
   cursor: not-allowed;
 }
 
-/* ── Detected language badge ── */
-.translation-detected-lang {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: rgb(99 131 210 / 0.1);
-  color: rgb(80 112 190);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  margin-bottom: 8px;
-}
 
 /* ── Spin animation ── */
 .translation-spin {
@@ -368,8 +352,13 @@
 }
 
 @keyframes translation-rotate {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Scrollbar (webkit) ── */

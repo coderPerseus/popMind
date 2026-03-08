@@ -1,10 +1,10 @@
-import { Check, Copy, Globe, LoaderCircle, Pin, RefreshCw, X } from 'lucide-react'
+import { Check, Copy, LoaderCircle, Pin, RefreshCw, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { ScrollArea } from '@/app/components/ui/scroll-area'
 import { Select } from '@/app/components/ui/select'
 import '@/app/components/translation/styles.css'
-import { getLanguageLabel, translationEngineLabels, translationEngineOrder } from '@/lib/translation/shared'
+import { translationEngineLabels, translationEngineOrder } from '@/lib/translation/shared'
 import type { TranslationWindowState } from '@/lib/translation/types'
 
 const DRAG_GUARD_MS = 260
@@ -156,11 +156,7 @@ export function TranslationPanel() {
     event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
-  // Detected source language label (shown when auto-detect resolved something)
-  const detectedLabel =
-    state.detectedSourceLanguage && state.sourceLanguage === 'auto'
-      ? getLanguageLabel(state.detectedSourceLanguage)
-      : null
+
 
   return (
     <div className="translation-shell">
@@ -239,15 +235,7 @@ export function TranslationPanel() {
                   </div>
                 </div>
               ) : (
-                <>
-                  {detectedLabel && (
-                    <div className="translation-detected-lang">
-                      <Globe size={10} />
-                      {detectedLabel}
-                    </div>
-                  )}
-                  {translatedPreview}
-                </>
+                translatedPreview
               )}
             </ScrollArea>
           </div>

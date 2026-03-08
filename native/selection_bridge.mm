@@ -311,9 +311,73 @@ bool FillRect(AXUIElementRef el, Napi::Object* result, Napi::Env env) {
   return ok;
 }
 
-NSString* SavePasteboardText() {
+NSArray* SavePasteboardItems() {
   NSPasteboard* pb = [NSPasteboard generalPasteboard];
-  return [pb stringForType:NSPasteboardTypeString];
+  NSArray<NSPasteboardItem*>* pasteboardItems = [pb pasteboardItems];
+  if (!pasteboardItems.count) return @[];
+
+  NSMutableArray* snapshot = [NSMutableArray arrayWithCapacity:pasteboardItems.count];
+  for (NSPasteboardItem* item in pasteboardItems) {
+    if (!item) continue;
+
+    NSMutableDictionary* itemSnapshot = [NSMutableDictionary dictionary];
+    for (NSPasteboardType type in item.types) {
+      if (!type) continue;
+
+      NSData* data = [item dataForType:type];
+      if (data) {
+        itemSnapshot[type] = [data copy];
+      }
+    }
+
+    [snapshot addObject:[itemSnapshot copy]];
+  }
+
+  return [snapshot copy];
+}
+
+void RestorePasteboardItems(NSArray* snapshot) {
+  NSPasteboard* pb = [NSPasteboard generalPasteboard];
+  [pb clearContents];
+
+  if (![snapshot isKindOfClass:[NSArray class]] || [snapshot count] == 0) {
+    return;
+  }
+
+  NSMutableArray<NSPasteboardItem*>* restoredItems =
+      [NSMutableArray arrayWithCapacity:[snapshot count]];
+  for (id rawItemSnapshot in snapshot) {
+    if (![rawItemSnapshot isKindOfClass:[NSDictionary class]]) {
+      continue;
+    }
+
+    NSDictionary* itemSnapshot = (NSDictionary*)rawItemSnapshot;
+    NSPasteboardItem* restoredItem = [[NSPasteboardItem alloc] init];
+    bool hasData = false;
+
+    for (id rawType in itemSnapshot) {
+      if (![rawType isKindOfClass:[NSString class]]) {
+        continue;
+      }
+
+      id rawData = itemSnapshot[rawType];
+      if (![rawData isKindOfClass:[NSData class]]) {
+        continue;
+      }
+
+      if ([restoredItem setData:(NSData*)rawData forType:(NSPasteboardType)rawType]) {
+        hasData = true;
+      }
+    }
+
+    if (hasData) {
+      [restoredItems addObject:restoredItem];
+    }
+  }
+
+  if (restoredItems.count > 0) {
+    [pb writeObjects:restoredItems];
+  }
 }
 
 void PostCmdC() {
@@ -422,7 +486,7 @@ bool TriggerMenuCopy(AXUIElementRef app) {
 std::string GetTextByClipboard(bool useMenu, AXUIElementRef app) {
   @autoreleasepool {
     NSPasteboard* pb = [NSPasteboard generalPasteboard];
-    NSString* savedText = SavePasteboardText();
+    NSArray* savedItems = SavePasteboardItems();
     NSInteger changeCountBefore = [pb changeCount];
 
     if (useMenu) {
@@ -443,10 +507,7 @@ std::string GetTextByClipboard(bool useMenu, AXUIElementRef app) {
     }
 
     if (changeCountAfterCopy != changeCountBefore && [pb changeCount] == changeCountAfterCopy) {
-      [pb clearContents];
-      if (savedText) {
-        [pb setString:savedText forType:NSPasteboardTypeString];
-      }
+      RestorePasteboardItems(savedItems);
     }
 
     return ToStdString(result);
@@ -493,13 +554,12 @@ bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGo
   }
 
   if (scene == SelectionScene::kManualTrigger) return true;
-  if (!axGotFocusedElement) return true;
-  if (hasNonEmptyRange) return true;
 
-  // AX found a focused element but could not read selection text or range
-  // (e.g. Canvas-based content like VS Code's xterm.js terminal).
-  // Attempt clipboard fallback for real selection actions as a last resort.
-  return true;
+  // Passive selection tracking must not mutate the user's clipboard. Only the
+  // explicit manual refresh path is allowed to fall back to synthesizing copy.
+  (void)axGotFocusedElement;
+  (void)hasNonEmptyRange;
+  return false;
 }
 
 bool IsTrusted(bool prompt) {
