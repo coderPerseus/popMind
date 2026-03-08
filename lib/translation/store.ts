@@ -7,8 +7,18 @@ import type { TranslationSettings, TranslationSettingsPatch } from './types'
 export class TranslationStore {
   private cache: TranslationSettings | null = null
 
+  private createDefaultSettings() {
+    return mergeSettings(defaultTranslationSettings, {})
+  }
+
   private getFilePath() {
     return join(app.getPath('userData'), 'translation-settings.json')
+  }
+
+  private async persistSettings(settings: TranslationSettings) {
+    const filePath = this.getFilePath()
+    await mkdir(dirname(filePath), { recursive: true })
+    await writeFile(filePath, JSON.stringify(settings, null, 2), 'utf-8')
   }
 
   async getSettings() {
@@ -24,7 +34,8 @@ export class TranslationStore {
       this.cache = mergeSettings(defaultTranslationSettings, parsed)
       return this.cache
     } catch {
-      this.cache = defaultTranslationSettings
+      this.cache = this.createDefaultSettings()
+      await this.persistSettings(this.cache)
       return this.cache
     }
   }
@@ -32,10 +43,7 @@ export class TranslationStore {
   async updateSettings(patch: TranslationSettingsPatch) {
     const previous = await this.getSettings()
     const next = mergeSettings(previous, patch)
-    const filePath = this.getFilePath()
-
-    await mkdir(dirname(filePath), { recursive: true })
-    await writeFile(filePath, JSON.stringify(next, null, 2), 'utf-8')
+    await this.persistSettings(next)
 
     this.cache = next
     return next

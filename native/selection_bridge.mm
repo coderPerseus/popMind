@@ -7,6 +7,7 @@
 #include <cmath>
 #include <mutex>
 #include <string>
+#include <unordered_set>
 
 namespace {
 
@@ -69,7 +70,7 @@ AXObserverRef gFocusedWindowObserver = nullptr;
 AXUIElementRef gObservedApp = nullptr;
 Napi::ThreadSafeFunction* gActionTsfn = nullptr;
 std::mutex gMonitorMutex;
-NSInteger gBubbleWindowNumber = -1;
+std::unordered_set<NSInteger> gBubbleWindowNumbers;
 
 bool gIsLeftMouseDown = false;
 bool gLeftMouseDownOnBubble = false;
@@ -88,25 +89,20 @@ std::string ToStdString(NSString* value) {
   return utf8 ? std::string(utf8) : "";
 }
 
-NSWindow* GetBubbleWindow() {
-  if (gBubbleWindowNumber < 0) return nil;
+bool IsPointInsideBubbleWindow(NSPoint point) {
+  if (gBubbleWindowNumbers.empty()) return false;
 
   for (NSWindow* window in NSApp.windows) {
-    if (window.windowNumber == gBubbleWindowNumber) {
-      return window;
+    if (gBubbleWindowNumbers.find(window.windowNumber) == gBubbleWindowNumbers.end()) {
+      continue;
+    }
+
+    if ([window isVisible] && NSPointInRect(point, [window frame])) {
+      return true;
     }
   }
 
-  return nil;
-}
-
-bool IsPointInsideBubbleWindow(NSPoint point) {
-  NSWindow* bubbleWindow = GetBubbleWindow();
-  if (!bubbleWindow || ![bubbleWindow isVisible]) {
-    return false;
-  }
-
-  return NSPointInRect(point, [bubbleWindow frame]);
+  return false;
 }
 
 bool GetAXStringAttr(AXUIElementRef el, CFStringRef attr, std::string* out) {
@@ -1119,7 +1115,7 @@ Napi::Value ConfigureBubbleWindow(const Napi::CallbackInfo& info) {
   NSView* nsView = (__bridge NSView*)viewPtr;
   NSWindow* nsWindow = [nsView window];
   if (!nsWindow) return Napi::Boolean::New(env, false);
-  gBubbleWindowNumber = nsWindow.windowNumber;
+  gBubbleWindowNumbers.insert(nsWindow.windowNumber);
 
   [nsWindow setStyleMask:([nsWindow styleMask] | NSWindowStyleMaskNonactivatingPanel)];
   [nsWindow setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces |

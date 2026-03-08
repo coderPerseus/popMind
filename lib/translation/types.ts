@@ -84,6 +84,8 @@ export interface TranslationWindowPreloadApi {
   getState(): Promise<TranslationWindowState | null>
   retranslate(payload: { sourceLanguage: string; targetLanguage: string; engineId: TranslationEngineId }): Promise<{ ok: boolean }>
   setPinned(pinned: boolean): Promise<{ ok: boolean; pinned: boolean }>
+  setDragging(isDragging: boolean): void
+  notifyInteraction(durationMs?: number): void
   moveWindow(deltaX: number, deltaY: number): void
   resizeWindow(height: number): void
   copyTranslatedText(): Promise<{ ok: boolean }>

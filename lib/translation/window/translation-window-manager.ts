@@ -6,6 +6,7 @@ import type { SelectionBridge } from '@/lib/text-picker/shared'
 import { TranslationWindow } from './translation-window'
 
 const WINDOW_GAP = 14
+const APP_ACTIVATE_SUPPRESS_MS = 700
 
 const resolveEnabledEngineIds = (settings: TranslationSettings) => {
   return translationEngineOrder.filter((engineId) => settings.enabledEngines[engineId])
@@ -35,6 +36,10 @@ export class TranslationWindowManager {
   constructor(
     private readonly bridge: SelectionBridge,
     private readonly logger: Console = console,
+    private readonly floatingBridge?: {
+      noteInteraction?: (durationMs?: number) => void
+      setDragging?: (isDragging: boolean) => void
+    },
   ) {
     this.setupIpc()
   }
@@ -114,7 +119,10 @@ export class TranslationWindowManager {
     ipcMain.removeHandler(TranslationWindowChannel.SetPinned)
     ipcMain.removeHandler(TranslationWindowChannel.Copy)
     ipcMain.removeHandler(TranslationWindowChannel.Close)
+    ipcMain.removeAllListeners(TranslationWindowChannel.SetDragging)
+    ipcMain.removeAllListeners(TranslationWindowChannel.NotifyInteraction)
     ipcMain.removeAllListeners(TranslationWindowChannel.Move)
+    ipcMain.removeAllListeners(TranslationWindowChannel.Resize)
 
     this.detachMoveListener?.()
     this.detachMoveListener = null
@@ -141,11 +149,13 @@ export class TranslationWindowManager {
     ipcMain.handle(
       TranslationWindowChannel.Retranslate,
       async (_event, payload: { sourceLanguage: string; targetLanguage: string; engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek' }) => {
+        this.noteInteraction()
         await this.runTranslation(payload)
         return { ok: true }
       },
     )
     ipcMain.handle(TranslationWindowChannel.SetPinned, async (_event, pinned: boolean) => {
+      this.noteInteraction()
       if (this.state) {
         this.state = { ...this.state, pinned }
         this.sendState()
@@ -154,6 +164,7 @@ export class TranslationWindowManager {
       return { ok: true, pinned }
     })
     ipcMain.handle(TranslationWindowChannel.Copy, async () => {
+      this.noteInteraction()
       if (this.state?.translatedText) {
         clipboard.writeText(this.state.translatedText)
       }
@@ -161,15 +172,28 @@ export class TranslationWindowManager {
       return { ok: true }
     })
     ipcMain.handle(TranslationWindowChannel.Close, async () => {
+      this.noteInteraction()
       this.window?.hide()
       return { ok: true }
     })
+    ipcMain.on(TranslationWindowChannel.SetDragging, (_event, isDragging: boolean) => {
+      this.floatingBridge?.setDragging?.(isDragging)
+    })
+    ipcMain.on(TranslationWindowChannel.NotifyInteraction, (_event, durationMs?: number) => {
+      this.noteInteraction(typeof durationMs === 'number' ? durationMs : undefined)
+    })
     ipcMain.on(TranslationWindowChannel.Move, (_event, deltaX: number, deltaY: number) => {
+      this.noteInteraction(1000)
       this.moveWindow(deltaX, deltaY)
     })
     ipcMain.on(TranslationWindowChannel.Resize, (_event, height: number) => {
+      this.noteInteraction()
       this.resizeWindow(height)
     })
+  }
+
+  private noteInteraction(durationMs = APP_ACTIVATE_SUPPRESS_MS) {
+    this.floatingBridge?.noteInteraction?.(durationMs)
   }
 
   private async runTranslation(payload: {
@@ -285,10 +309,6 @@ export class TranslationWindowManager {
     }
 
     if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY) || (deltaX === 0 && deltaY === 0)) {
-      return
-    }
-
-    if (Date.now() < this.ignoreMoveUntil) {
       return
     }
 

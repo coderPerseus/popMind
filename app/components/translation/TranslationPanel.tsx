@@ -1,4 +1,4 @@
-import { Check, Copy, LoaderCircle, Pin, RefreshCw, X } from 'lucide-react'
+import { Check, Copy, GripHorizontal, LoaderCircle, Pin, RefreshCw, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { ScrollArea } from '@/app/components/ui/scroll-area'
@@ -6,8 +6,6 @@ import { Select } from '@/app/components/ui/select'
 import '@/app/components/translation/styles.css'
 import { translationEngineLabels, translationEngineOrder } from '@/lib/translation/shared'
 import type { TranslationWindowState } from '@/lib/translation/types'
-
-const DRAG_GUARD_MS = 260
 
 const emptyState: TranslationWindowState = {
   status: 'idle',
@@ -32,12 +30,10 @@ export function TranslationPanel() {
     pointerId: number | null
     x: number
     y: number
-    suppressUntil: number
   }>({
     pointerId: null,
     x: 0,
     y: 0,
-    suppressUntil: 0,
   })
 
   useEffect(() => {
@@ -102,6 +98,7 @@ export function TranslationPanel() {
         : state.translatedText || (isIdle ? '译文会展示在这里' : '')
 
   const handleRetranslate = async () => {
+    window.translationWindow.notifyInteraction()
     await window.translationWindow.retranslate({
       sourceLanguage,
       targetLanguage,
@@ -110,11 +107,13 @@ export function TranslationPanel() {
   }
 
   const handleCopy = async () => {
+    window.translationWindow.notifyInteraction()
     await window.translationWindow.copyTranslatedText()
     setCopied(true)
   }
 
   const handleEngineChange = async (nextEngineId: TranslationWindowState['engineId']) => {
+    window.translationWindow.notifyInteraction()
     setEngineId(nextEngineId)
     setCopied(false)
 
@@ -129,65 +128,88 @@ export function TranslationPanel() {
     })
   }
 
-  const stopDragBubble = (event: React.PointerEvent | React.MouseEvent) => {
-    event.stopPropagation()
-  }
-
   const handlePinToggle = async () => {
+    window.translationWindow.notifyInteraction()
     const result = await window.translationWindow.setPinned(!state.pinned)
     setState((current) => ({ ...current, pinned: result.pinned }))
   }
 
-  const handleDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) {
-      return
-    }
-
-    dragState.current.pointerId = event.pointerId
-    dragState.current.x = event.clientX
-    dragState.current.y = event.clientY
-    dragState.current.suppressUntil = Date.now() + DRAG_GUARD_MS
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  const handleDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragState.current.pointerId !== event.pointerId) {
-      return
-    }
-
-    const deltaX = event.clientX - dragState.current.x
-    const deltaY = event.clientY - dragState.current.y
-
-    dragState.current.x = event.clientX
-    dragState.current.y = event.clientY
-
-    window.translationWindow.moveWindow(deltaX, deltaY)
-  }
-
-  const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragState.current.pointerId !== event.pointerId) {
+  const stopDragging = (target?: EventTarget & HTMLButtonElement) => {
+    const pointerId = dragState.current.pointerId
+    if (pointerId == null) {
       return
     }
 
     dragState.current.pointerId = null
-    event.currentTarget.releasePointerCapture(event.pointerId)
+
+    if (target?.hasPointerCapture(pointerId)) {
+      target.releasePointerCapture(pointerId)
+    }
+
+    window.translationWindow.setDragging(false)
   }
 
+  const handleDragStart = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) {
+      return
+    }
 
+    event.preventDefault()
+    event.stopPropagation()
+
+    dragState.current.pointerId = event.pointerId
+    dragState.current.x = event.screenX
+    dragState.current.y = event.screenY
+    window.translationWindow.notifyInteraction()
+    window.translationWindow.setDragging(true)
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const handleDragMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (dragState.current.pointerId !== event.pointerId) {
+      return
+    }
+
+    const deltaX = event.screenX - dragState.current.x
+    const deltaY = event.screenY - dragState.current.y
+    if (deltaX === 0 && deltaY === 0) {
+      return
+    }
+
+    dragState.current.x = event.screenX
+    dragState.current.y = event.screenY
+
+    window.translationWindow.moveWindow(deltaX, deltaY)
+  }
+
+  const handleDragEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (dragState.current.pointerId !== event.pointerId) {
+      return
+    }
+
+    stopDragging(event.currentTarget)
+  }
 
   return (
     <div className="translation-shell">
       <section className="translation-panel" ref={panelRef}>
-
         {/* ── Top bar: language selector + actions ── */}
-        <div
-          className="translation-topbar"
-          onPointerDown={handleDragStart}
-          onPointerMove={handleDragMove}
-          onPointerUp={handleDragEnd}
-          onPointerCancel={handleDragEnd}
-        >
+        <div className="translation-topbar">
           <div className="translation-topbar-left">
+            <Button
+              className="translation-drag-handle"
+              variant="ghost"
+              size="icon-sm"
+              onPointerDown={handleDragStart}
+              onPointerMove={handleDragMove}
+              onPointerUp={handleDragEnd}
+              onPointerCancel={handleDragEnd}
+              onLostPointerCapture={(event) => stopDragging(event.currentTarget)}
+              aria-label="拖拽翻译气泡"
+            >
+              <GripHorizontal size={14} />
+            </Button>
+
             <div className="translation-select-wrap">
               <Select value={sourceLanguage} onChange={(event) => setSourceLanguage(event.target.value)}>
                 {state.languages.map((item) => (
@@ -218,7 +240,6 @@ export function TranslationPanel() {
               className={`translation-icon-btn ${state.pinned ? 'is-active' : ''}`}
               variant="ghost"
               size="icon-sm"
-              onPointerDown={stopDragBubble}
               onClick={handlePinToggle}
               aria-label={state.pinned ? 'Unpin translation window' : 'Pin translation window'}
             >
@@ -228,8 +249,10 @@ export function TranslationPanel() {
               className="translation-icon-btn"
               variant="ghost"
               size="icon-sm"
-              onPointerDown={stopDragBubble}
-              onClick={() => void window.translationWindow.closeWindow()}
+              onClick={() => {
+                window.translationWindow.notifyInteraction()
+                void window.translationWindow.closeWindow()
+              }}
               aria-label="Close translation window"
             >
               <X size={14} />

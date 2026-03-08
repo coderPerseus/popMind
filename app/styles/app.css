@@ -7,7 +7,7 @@ body {
   margin: 0;
   overflow: hidden;
   color: var(--window-c-text);
-  background: var(--window-c-background);
+  background: transparent;
 }
 
 html,
@@ -16,4 +16,23 @@ body,
   height: 100%;
   margin: 0;
   line-height: 1.4;
+  background: transparent;
+}
+
+/* On home route: hide titlebar so the search window is borderless */
+body[data-route='home'] .window-titlebar {
+  display: none;
+}
+
+/* On home route: let window-content fill 100% height */
+body[data-route='home'] .window-content {
+  overflow: hidden;
+  height: 100%;
+}
+
+/* On settings route: restore solid background */
+body[data-route='settings'],
+body[data-route='settings'] #app,
+body[data-route='settings'] .window-frame {
+  background: #f2f1f0;
 }

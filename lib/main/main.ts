@@ -1,8 +1,9 @@
-import { app } from 'electron'
+import { app, globalShortcut } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 import { setupApplicationMenu } from './application-menu'
+import { showMainWindow, getOrCreateMainWindow } from './window-manager'
 
 let textPickerFeature: TextPickerFeature | null = null
 
@@ -18,6 +19,14 @@ app.whenReady().then(async () => {
   // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()
   textPickerFeature.initialize()
+
+  // Initialize the main window early so it's ready for shortcut invocation
+  getOrCreateMainWindow()
+
+  // Register global shortcut Option+Space to toggle the main search window
+  globalShortcut.register('Alt+Space', () => {
+    void showMainWindow('home')
+  })
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -39,6 +48,8 @@ app.on('window-all-closed', () => {
 // In this file, you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
 app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
   textPickerFeature?.dispose()
   textPickerFeature = null
 })
+

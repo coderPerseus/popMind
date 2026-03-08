@@ -48,6 +48,8 @@ export const TranslationWindowChannel = {
   GetState: 'translationWindow:getState',
   Retranslate: 'translationWindow:retranslate',
   SetPinned: 'translationWindow:setPinned',
+  SetDragging: 'translationWindow:setDragging',
+  NotifyInteraction: 'translationWindow:notifyInteraction',
   Move: 'translationWindow:move',
   Resize: 'translationWindow:resize',
   Copy: 'translationWindow:copy',

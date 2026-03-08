@@ -20,6 +20,12 @@ const translationWindowApi: TranslationWindowPreloadApi = {
   setPinned(pinned) {
     return ipcRenderer.invoke(TranslationWindowChannel.SetPinned, pinned)
   },
+  setDragging(isDragging) {
+    ipcRenderer.send(TranslationWindowChannel.SetDragging, isDragging)
+  },
+  notifyInteraction(durationMs) {
+    ipcRenderer.send(TranslationWindowChannel.NotifyInteraction, durationMs)
+  },
   moveWindow(deltaX, deltaY) {
     ipcRenderer.send(TranslationWindowChannel.Move, deltaX, deltaY)
   },

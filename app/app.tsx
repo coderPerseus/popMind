@@ -21,5 +21,11 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
+  // Sync route to body for CSS targeting
+  useEffect(() => {
+    document.body.setAttribute('data-route', route)
+  }, [route])
+
   return route === 'settings' ? <SettingsPage /> : <MainSearch />
 }
+

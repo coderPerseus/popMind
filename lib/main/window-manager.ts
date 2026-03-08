@@ -98,7 +98,11 @@ const applyWindowRouteConfig = (window: BrowserWindow, route: MainWindowRoute) =
     window.unmaximize()
   }
 
-  window.setBackgroundColor(config.backgroundColor)
+  // Home route: transparent + no shadow (frosted glass effect via CSS)
+  // Settings route: opaque with system shadow
+  const isHome = route === 'home'
+  window.setBackgroundColor(isHome ? '#00000000' : config.backgroundColor)
+  window.setHasShadow(!isHome)
   window.setResizable(config.resizable)
   window.setMaximizable(config.maximizable)
   window.setMinimumSize(config.minWidth, config.minHeight)
@@ -115,6 +119,7 @@ const applyWindowRouteConfig = (window: BrowserWindow, route: MainWindowRoute) =
     window.center()
   }
 }
+
 
 const ensureMainWindowRoute = async (window: BrowserWindow, route: MainWindowRoute) => {
   if (window.isDestroyed()) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/app/components/ui/badge'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
@@ -7,7 +7,7 @@ import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { translationLanguages } from '@/lib/translation/shared'
 import type { TranslationSettings } from '@/lib/translation/types'
-import { Bot, Languages, LockKeyhole, SearchCheck, Sparkles } from 'lucide-react'
+import { Bot, Languages, LockKeyhole, SearchCheck } from 'lucide-react'
 import './styles.css'
 
 type PermissionStatus = {
@@ -56,6 +56,7 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<TranslationSettings | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
+  const aiSaveTimerRef = useRef<number | null>(null)
 
   const refreshStatus = useCallback(async () => {
     const result = await app.checkAccessibility()
@@ -82,6 +83,20 @@ export function SettingsPage() {
     await app.openAccessibilitySettings()
   }
 
+  const persistPatch = useCallback(
+    async (patch: Parameters<typeof translation.updateSettings>[0]) => {
+      setIsSaving(true)
+
+      try {
+        const next = await translation.updateSettings(patch)
+        setSettings(next)
+      } finally {
+        setIsSaving(false)
+      }
+    },
+    [translation],
+  )
+
   const updateEngine = (engine: keyof TranslationSettings['enabledEngines'], checked: boolean) => {
     setSettings((current) => {
       if (!current) {
@@ -96,10 +111,20 @@ export function SettingsPage() {
         },
       }
     })
+
+    void persistPatch({
+      enabledEngines: {
+        [engine]: checked,
+      },
+    })
   }
 
   const updateField = <K extends keyof TranslationSettings>(key: K, value: TranslationSettings[K]) => {
     setSettings((current) => (current ? { ...current, [key]: value } : current))
+
+    void persistPatch({
+      [key]: value,
+    })
   }
 
   const updateAiField = (key: keyof TranslationSettings['ai'], value: string) => {
@@ -116,27 +141,18 @@ export function SettingsPage() {
         },
       }
     })
-  }
 
-  const saveTranslationSettings = async () => {
-    if (!settings) {
-      return
+    if (aiSaveTimerRef.current) {
+      window.clearTimeout(aiSaveTimerRef.current)
     }
 
-    setIsSaving(true)
-
-    try {
-      const next = await translation.updateSettings({
-        enabledEngines: settings.enabledEngines,
-        firstLanguage: settings.firstLanguage,
-        secondLanguage: settings.secondLanguage,
-        defaultSourceLanguage: settings.defaultSourceLanguage,
-        ai: settings.ai,
+    aiSaveTimerRef.current = window.setTimeout(() => {
+      void persistPatch({
+        ai: {
+          [key]: value,
+        },
       })
-      setSettings(next)
-    } finally {
-      setIsSaving(false)
-    }
+    }, 320)
   }
 
   const enabledEngineEntries = useMemo(() => {
@@ -147,6 +163,14 @@ export function SettingsPage() {
     return Object.entries(settings.enabledEngines) as Array<[keyof TranslationSettings['enabledEngines'], boolean]>
   }, [settings])
 
+  useEffect(() => {
+    return () => {
+      if (aiSaveTimerRef.current) {
+        window.clearTimeout(aiSaveTimerRef.current)
+      }
+    }
+  }, [])
+
   return (
     <div className="settings-shell">
       <div className="settings-backdrop settings-backdrop-one" />
@@ -156,13 +180,13 @@ export function SettingsPage() {
         <aside className="settings-sidebar">
           <div className="settings-sidebar-top">
             <Button variant="ghost" className="settings-back-button" onClick={openHomePage}>
-              返回应用
+              ← 返回应用
             </Button>
 
             <div className="settings-brand-block">
               <div className="settings-eyebrow">Preferences</div>
               <h1>配置中心</h1>
-              <p>保持主窗口极简，把系统权限、翻译偏好和后续能力入口集中收在这里。</p>
+              <p>系统权限、翻译偏好和后续能力入口集中收在这里。</p>
             </div>
           </div>
 
@@ -178,11 +202,10 @@ export function SettingsPage() {
                   onClick={() => setActiveSection(item.id)}
                 >
                   <span className="settings-nav-icon">
-                    <Icon size={16} />
+                    <Icon size={15} />
                   </span>
                   <span>
                     <span className="settings-nav-title">{item.label}</span>
-                    <span className="settings-nav-desc">{item.description}</span>
                   </span>
                 </button>
               )
@@ -192,9 +215,10 @@ export function SettingsPage() {
           <div className="settings-sidebar-card">
             <div className="settings-sidebar-card-title">当前主窗口</div>
             <div className="settings-sidebar-card-value">Raycast 式搜索框</div>
-            <p>默认亮色模式。当前只展示搜索入口和能力占位，不执行实际动作。</p>
+            <p>快捷键 ⌥ Space 呼出，Esc 收起。</p>
           </div>
         </aside>
+
 
         <div className="settings-content">
           <header className="settings-content-header">
@@ -205,9 +229,9 @@ export function SettingsPage() {
             </div>
 
             {(activeSection === 'translation' || activeSection === 'ai') && (
-              <Button onClick={() => void saveTranslationSettings()} disabled={!settings || isSaving}>
-                {isSaving ? '保存中...' : '保存配置'}
-              </Button>
+              <Badge variant="outline" className="settings-inline-badge">
+                {isSaving ? '正在保存' : '自动保存'}
+              </Badge>
             )}
           </header>
 
@@ -296,22 +320,24 @@ export function SettingsPage() {
                 <div className="settings-engine-grid">
                   {enabledEngineEntries.map(([engine, enabled]) => (
                     <div className="settings-engine-item" key={engine}>
-                    <div>
-                      <div className="settings-engine-name">
-                        <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
-                          {engine}
-                        </Badge>
+                      <div>
+                        <div className="settings-engine-name">
+                          <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
+                            {engine}
+                          </Badge>
+                        </div>
+                        <div className="settings-engine-desc">
+                          {engine === 'google'
+                            ? 'MVP default engine'
+                            : engine === 'deepl'
+                              ? 'Available now via DeepL web translate'
+                              : engine === 'bing'
+                                ? 'Available now via Bing web translate'
+                                : engine === 'youdao'
+                                  ? 'Available now via Youdao web translate'
+                                  : 'Reserved for follow-up integration'}
+                        </div>
                       </div>
-                      <div className="settings-engine-desc">
-                        {engine === 'google'
-                          ? 'MVP default engine'
-                          : engine === 'deepl'
-                            ? 'Available now via DeepL web translate'
-                            : engine === 'bing'
-                              ? 'Available now via Bing web translate'
-                            : 'Reserved for follow-up integration'}
-                      </div>
-                    </div>
                       <Switch
                         checked={enabled}
                         onCheckedChange={(checked) => updateEngine(engine, checked)}
@@ -367,9 +393,6 @@ export function SettingsPage() {
                 </div>
 
                 <div className="settings-action-row">
-                  <Button size="sm" onClick={() => void saveTranslationSettings()} disabled={!settings || isSaving}>
-                    {isSaving ? '保存中...' : '保存翻译配置'}
-                  </Button>
                   <Button size="sm" variant="outline" onClick={() => void refreshTranslationSettings()}>
                     重新加载
                   </Button>
@@ -426,10 +449,6 @@ export function SettingsPage() {
                 </div>
 
                 <div className="settings-action-row">
-                  <Button size="sm" onClick={() => void saveTranslationSettings()} disabled={!settings || isSaving}>
-                    <Sparkles />
-                    {isSaving ? '保存中...' : '保存 AI 配置'}
-                  </Button>
                   <Button size="sm" variant="outline" onClick={() => void refreshTranslationSettings()}>
                     重新加载
                   </Button>

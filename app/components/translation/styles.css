@@ -45,12 +45,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 11px 12px 10px;
-  cursor: grab;
   border-bottom: 1px solid rgb(0 0 0 / 0.055);
-}
-
-.translation-topbar:active {
-  cursor: grabbing;
 }
 
 .translation-topbar-left {
@@ -58,7 +53,7 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .translation-topbar-actions {
@@ -69,6 +64,21 @@
 }
 
 /* Language selects in topbar */
+.translation-drag-handle {
+  flex-shrink: 0;
+  border-radius: 10px;
+  color: rgb(150 156 168);
+  cursor: grab;
+}
+
+.translation-drag-handle:hover {
+  color: rgb(86 94 108);
+}
+
+.translation-drag-handle:active {
+  cursor: grabbing;
+}
+
 .translation-select-wrap {
   flex: 1;
   min-width: 0;
