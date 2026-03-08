@@ -64,12 +64,14 @@ export class TranslationWindowManager {
     this.state = {
       status: 'loading',
       pinned: this.state?.pinned ?? false,
+      queryMode: 'text',
       engineId,
       enabledEngineIds,
       sourceLanguage: 'auto',
       targetLanguage: settings.firstLanguage,
       sourceText: payload.text,
       translatedText: '',
+      wordEntry: undefined,
       languages: translationLanguages,
     }
 
@@ -79,7 +81,6 @@ export class TranslationWindowManager {
 
     void this.runTranslation({
       sourceLanguage: 'auto',
-      targetLanguage: settings.firstLanguage,
       engineId,
     })
   }
@@ -148,7 +149,7 @@ export class TranslationWindowManager {
     ipcMain.handle(TranslationWindowChannel.GetState, async () => this.state)
     ipcMain.handle(
       TranslationWindowChannel.Retranslate,
-      async (_event, payload: { sourceLanguage: string; targetLanguage: string; engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek' }) => {
+      async (_event, payload: { sourceLanguage: string; targetLanguage?: string; engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek' }) => {
         this.noteInteraction()
         await this.runTranslation(payload)
         return { ok: true }
@@ -198,7 +199,7 @@ export class TranslationWindowManager {
 
   private async runTranslation(payload: {
     sourceLanguage: string
-    targetLanguage: string
+    targetLanguage?: string
     engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek'
   }) {
     if (!this.pendingRequest || !this.state) {
@@ -218,6 +219,8 @@ export class TranslationWindowManager {
       engineId,
       enabledEngineIds,
       translatedText: '',
+      queryMode: 'text',
+      wordEntry: undefined,
       errorMessage: undefined,
       detectedSourceLanguage: undefined,
     }
@@ -242,11 +245,13 @@ export class TranslationWindowManager {
         status: 'success',
         engineId: result.engineId,
         enabledEngineIds,
+        queryMode: result.queryMode,
         sourceLanguage: payload.sourceLanguage,
         targetLanguage: result.targetLanguage,
         sourceText: result.sourceText,
         translatedText: result.translatedText,
         detectedSourceLanguage: result.detectedSourceLanguage,
+        wordEntry: result.wordEntry,
         errorMessage: undefined,
       }
     } catch (error) {
@@ -260,6 +265,8 @@ export class TranslationWindowManager {
         ...this.state,
         status: 'error',
         enabledEngineIds,
+        queryMode: 'text',
+        wordEntry: undefined,
         errorMessage: message,
       }
     }

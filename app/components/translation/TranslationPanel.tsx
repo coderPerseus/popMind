@@ -10,6 +10,7 @@ import type { TranslationWindowState } from '@/lib/translation/types'
 const emptyState: TranslationWindowState = {
   status: 'idle',
   pinned: false,
+  queryMode: 'text',
   engineId: 'google',
   enabledEngineIds: ['google'],
   sourceLanguage: 'auto',
@@ -85,10 +86,11 @@ export function TranslationPanel() {
 
     const frame = requestAnimationFrame(measure)
     return () => cancelAnimationFrame(frame)
-  }, [state.status, state.translatedText, state.errorMessage, sourceLanguage, targetLanguage, engineId])
+  }, [state.status, state.translatedText, state.errorMessage, state.queryMode, state.wordEntry, sourceLanguage, targetLanguage, engineId])
 
   const isIdle = state.status === 'idle' && !state.translatedText
   const availableEngineIds = state.enabledEngineIds.length ? state.enabledEngineIds : translationEngineOrder.filter((item) => item === state.engineId)
+  const isWordMode = state.queryMode === 'word' && Boolean(state.wordEntry)
 
   const translatedPreview =
     state.status === 'loading'
@@ -125,6 +127,22 @@ export function TranslationPanel() {
       sourceLanguage,
       targetLanguage,
       engineId: nextEngineId,
+    })
+  }
+
+  const handleTargetLanguageChange = async (nextTargetLanguage: string) => {
+    window.translationWindow.notifyInteraction()
+    setTargetLanguage(nextTargetLanguage)
+    setCopied(false)
+
+    if (!state.sourceText) {
+      return
+    }
+
+    await window.translationWindow.retranslate({
+      sourceLanguage,
+      targetLanguage: nextTargetLanguage,
+      engineId,
     })
   }
 
@@ -225,7 +243,7 @@ export function TranslationPanel() {
             </div>
 
             <div className="translation-select-wrap">
-              <Select value={targetLanguage} onChange={(event) => setTargetLanguage(event.target.value)}>
+              <Select value={targetLanguage} onChange={(event) => void handleTargetLanguageChange(event.target.value)}>
                 {state.languages.filter((item) => item.code !== 'auto').map((item) => (
                   <option key={item.code} value={item.code}>
                     {item.label}
@@ -273,6 +291,74 @@ export function TranslationPanel() {
                     <div className="translation-loading-title">翻译中</div>
                     <div className="translation-loading-desc">正在获取译文，请稍候…</div>
                   </div>
+                </div>
+              ) : isWordMode && state.wordEntry ? (
+                <div className="translation-word-card">
+                  <div className="translation-word-head">
+                    <div className="translation-word-title">{state.wordEntry.headword}</div>
+                    {state.wordEntry.phonetics.length > 0 && (
+                      <div className="translation-word-phonetics">
+                        {state.wordEntry.phonetics.map((item) => (
+                          <span key={`${item.label}-${item.value}`} className="translation-word-phonetic">
+                            <span className="translation-word-phonetic-label">{item.label}</span>
+                            <span>{item.value}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {state.wordEntry.definitions.length > 0 && (
+                    <div className="translation-word-section">
+                      {state.wordEntry.definitions.map((item, index) => (
+                        <div key={`${item.part ?? 'def'}-${index}`} className="translation-word-definition">
+                          {item.part ? <span className="translation-word-part">{item.part}</span> : null}
+                          <span className="translation-word-meaning">{item.meaning}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {state.wordEntry.forms.length > 0 && (
+                    <div className="translation-word-section">
+                      <div className="translation-word-section-title">词形变化</div>
+                      <div className="translation-word-tags">
+                        {state.wordEntry.forms.map((item) => (
+                          <span key={`${item.label}-${item.value}`} className="translation-word-tag">
+                            {item.label} · {item.value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {state.wordEntry.phrases.length > 0 && (
+                    <div className="translation-word-section">
+                      <div className="translation-word-section-title">常见短语</div>
+                      <div className="translation-word-list">
+                        {state.wordEntry.phrases.map((item) => (
+                          <div key={`${item.text}-${item.meaning}`} className="translation-word-list-item">
+                            <div className="translation-word-list-title">{item.text}</div>
+                            <div className="translation-word-list-desc">{item.meaning}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {state.wordEntry.examples.length > 0 && (
+                    <div className="translation-word-section">
+                      <div className="translation-word-section-title">双语例句</div>
+                      <div className="translation-word-list">
+                        {state.wordEntry.examples.map((item, index) => (
+                          <div key={`${item.source}-${index}`} className="translation-word-list-item">
+                            <div className="translation-word-example-source">{item.source}</div>
+                            <div className="translation-word-example-target">{item.translated}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 translatedPreview

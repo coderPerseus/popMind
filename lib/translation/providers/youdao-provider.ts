@@ -1,10 +1,20 @@
 import { createDecipheriv, createHash } from 'node:crypto'
 import { trimTranslationText } from '@/lib/translation/shared'
-import type { TranslationProvider, TranslationRequest, TranslationResult } from '@/lib/translation/types'
+import type {
+  TranslationProvider,
+  TranslationRequest,
+  TranslationResult,
+  TranslationWordDefinition,
+  TranslationWordEntry,
+  TranslationWordExample,
+  TranslationWordForm,
+  TranslationWordPhrase,
+} from '@/lib/translation/types'
 
 const YOUDAO_TRANSLATE_BASE_URL = 'https://dict.youdao.com'
 const YOUDAO_TRANSLATE_REFERER = 'https://fanyi.youdao.com'
 const YOUDAO_DEFAULT_SECRET = 'asdjnjfenknafdfsdfsd'
+const YOUDAO_DICT_SECRET = 'Mk6hqtUp33DGGtoS63tTJbMUYjRrG1Lu'
 const YOUDAO_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
@@ -32,6 +42,46 @@ interface YoudaoTranslatePayload {
   code: number
   type?: string
   translateResult: YoudaoTranslateItem[][]
+}
+
+interface YoudaoDictionaryPayload {
+  simple?: {
+    word?: Array<{
+      usphone?: string
+      ukphone?: string
+      ['return-phrase']?: string
+    }>
+  }
+  ec?: {
+    word?: {
+      usphone?: string
+      ukphone?: string
+      ['return-phrase']?: string
+      trs?: Array<{
+        pos?: string
+        tran?: string
+      }>
+      wfs?: Array<{
+        wf?: {
+          name?: string
+          value?: string
+        }
+      }>
+    }
+  }
+  phrs?: {
+    phrs?: Array<{
+      headword?: string
+      translation?: string
+    }>
+  }
+  blng_sents_part?: {
+    ['sentence-pair']?: Array<{
+      ['sentence-eng']?: string
+      sentence?: string
+      ['sentence-translation']?: string
+    }>
+  }
 }
 
 interface YoudaoCachedKey {
@@ -121,6 +171,13 @@ const parseDetectedLanguage = (type?: string) => {
 
   const [sourceLanguage] = type.split('2')
   return mapYoudaoLanguage(sourceLanguage)
+}
+
+const buildWordTranslatedText = (wordEntry: TranslationWordEntry) => {
+  return wordEntry.definitions
+    .map((item) => (item.part ? `${item.part} ${item.meaning}` : item.meaning))
+    .join('\n')
+    .trim()
 }
 
 const isKeyValid = (key: YoudaoCachedKey | null) => {
@@ -234,6 +291,115 @@ const fetchYoudaoPayload = async (request: TranslationRequest, attempt = 0): Pro
   }
 }
 
+const fetchYoudaoDictionaryPayload = async (text: string) => {
+  const ww = `${text}webdict`
+  const t = String(ww.length % 10)
+  const salt = md5(ww)
+  const sign = md5(`web${text}${t}${YOUDAO_DICT_SECRET}${salt}`)
+  const body = new URLSearchParams({
+    q: text,
+    le: 'en',
+    client: 'web',
+    t,
+    sign,
+    keyfrom: 'webdict',
+  })
+
+  const response = await fetch(`${YOUDAO_TRANSLATE_BASE_URL}/jsonapi_s?doctype=json&jsonversion=4`, {
+    method: 'POST',
+    headers: {
+      ...YOUDAO_HEADERS,
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    },
+    body,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Youdao dictionary request failed with status ${response.status}`)
+  }
+
+  return (await response.json()) as YoudaoDictionaryPayload
+}
+
+const parseWordDefinitions = (payload: YoudaoDictionaryPayload): TranslationWordDefinition[] => {
+  return (payload.ec?.word?.trs ?? [])
+    .map((item) => {
+      const meaning = item.tran?.trim()
+      if (!meaning) {
+        return null
+      }
+
+      return {
+        part: item.pos?.trim(),
+        meaning,
+      }
+    })
+    .filter((item): item is TranslationWordDefinition => Boolean(item))
+}
+
+const parseWordForms = (payload: YoudaoDictionaryPayload): TranslationWordForm[] => {
+  return (payload.ec?.word?.wfs ?? [])
+    .map((item) => {
+      const label = item.wf?.name?.trim()
+      const value = item.wf?.value?.trim()
+      if (!label || !value) {
+        return null
+      }
+
+      return { label, value }
+    })
+    .filter((item): item is TranslationWordForm => Boolean(item))
+}
+
+const parseWordPhrases = (payload: YoudaoDictionaryPayload): TranslationWordPhrase[] => {
+  return (payload.phrs?.phrs ?? [])
+    .map((item) => {
+      const text = item.headword?.trim()
+      const meaning = item.translation?.trim()
+      if (!text || !meaning) {
+        return null
+      }
+
+      return { text, meaning }
+    })
+    .filter((item): item is TranslationWordPhrase => Boolean(item))
+    .slice(0, 8)
+}
+
+const parseWordExamples = (payload: YoudaoDictionaryPayload): TranslationWordExample[] => {
+  return (payload.blng_sents_part?.['sentence-pair'] ?? [])
+    .map((item) => {
+      const source = (item['sentence-eng'] ?? item.sentence ?? '').replaceAll(/<[^>]+>/g, '').trim()
+      const translated = item['sentence-translation']?.trim()
+      if (!source || !translated) {
+        return null
+      }
+
+      return { source, translated }
+    })
+    .filter((item): item is TranslationWordExample => Boolean(item))
+    .slice(0, 3)
+}
+
+const buildWordEntry = (text: string, payload: YoudaoDictionaryPayload): TranslationWordEntry => {
+  const ecWord = payload.ec?.word
+  const simpleWord = payload.simple?.word?.[0]
+  const headword = ecWord?.['return-phrase'] ?? simpleWord?.['return-phrase'] ?? text
+  const phonetics = [
+    ecWord?.usphone || simpleWord?.usphone ? { label: 'US', value: ecWord?.usphone ?? simpleWord?.usphone ?? '' } : null,
+    ecWord?.ukphone || simpleWord?.ukphone ? { label: 'UK', value: ecWord?.ukphone ?? simpleWord?.ukphone ?? '' } : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item?.value))
+
+  return {
+    headword,
+    phonetics,
+    definitions: parseWordDefinitions(payload),
+    forms: parseWordForms(payload),
+    phrases: parseWordPhrases(payload),
+    examples: parseWordExamples(payload),
+  }
+}
+
 export const youdaoProvider: TranslationProvider = {
   id: 'youdao',
   isConfigured() {
@@ -250,6 +416,27 @@ export const youdaoProvider: TranslationProvider = {
     return parseDetectedLanguage(payload.type)
   },
   async translate(request: TranslationRequest): Promise<TranslationResult> {
+    if (request.queryMode === 'word') {
+      const payload = await fetchYoudaoDictionaryPayload(request.text)
+      const wordEntry = buildWordEntry(request.text, payload)
+      const translatedText = buildWordTranslatedText(wordEntry)
+
+      if (!wordEntry.definitions.length && !wordEntry.phrases.length) {
+        throw new Error('Youdao dictionary returned an empty result')
+      }
+
+      return {
+        engineId: 'youdao',
+        queryMode: 'word',
+        sourceLanguage: request.sourceLanguage,
+        targetLanguage: request.targetLanguage,
+        sourceText: trimTranslationText(request.text),
+        translatedText,
+        detectedSourceLanguage: 'en',
+        wordEntry,
+      }
+    }
+
     const payload = await fetchYoudaoPayload(request)
 
     if (payload.code !== 0) {
@@ -267,6 +454,7 @@ export const youdaoProvider: TranslationProvider = {
 
     return {
       engineId: 'youdao',
+      queryMode: 'text',
       sourceLanguage: request.sourceLanguage,
       targetLanguage: request.targetLanguage,
       sourceText: trimTranslationText(request.text),

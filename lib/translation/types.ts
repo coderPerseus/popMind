@@ -1,4 +1,5 @@
 export type TranslationEngineId = 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek'
+export type TranslationQueryMode = 'text' | 'word'
 
 export interface TranslationSettings {
   enabledEngines: Record<TranslationEngineId, boolean>
@@ -16,24 +17,62 @@ export interface TranslationRequest {
   text: string
   sourceLanguage: string
   targetLanguage: string
+  queryMode?: TranslationQueryMode
   engineId?: TranslationEngineId
   selectionId?: string
   sourceAppId?: string
 }
 
+export interface TranslationWordPhonetic {
+  label: string
+  value: string
+}
+
+export interface TranslationWordDefinition {
+  part?: string
+  meaning: string
+}
+
+export interface TranslationWordForm {
+  label: string
+  value: string
+}
+
+export interface TranslationWordPhrase {
+  text: string
+  meaning: string
+}
+
+export interface TranslationWordExample {
+  source: string
+  translated: string
+}
+
+export interface TranslationWordEntry {
+  headword: string
+  phonetics: TranslationWordPhonetic[]
+  definitions: TranslationWordDefinition[]
+  forms: TranslationWordForm[]
+  phrases: TranslationWordPhrase[]
+  examples: TranslationWordExample[]
+}
+
 export interface TranslationResult {
   engineId: TranslationEngineId
+  queryMode: TranslationQueryMode
   sourceLanguage: string
   targetLanguage: string
   sourceText: string
   translatedText: string
   detectedSourceLanguage?: string
+  wordEntry?: TranslationWordEntry
 }
 
 export interface TranslateInput {
   text: string
   sourceLanguage?: string
   targetLanguage?: string
+  queryMode?: TranslationQueryMode
   engineId?: TranslationEngineId
   selectionId?: string
   sourceAppId?: string
@@ -62,6 +101,7 @@ export interface TranslationLanguageOption {
 export interface TranslationWindowState {
   status: 'idle' | 'loading' | 'success' | 'error'
   pinned: boolean
+  queryMode: TranslationQueryMode
   engineId: TranslationEngineId
   enabledEngineIds: TranslationEngineId[]
   sourceLanguage: string
@@ -69,6 +109,7 @@ export interface TranslationWindowState {
   sourceText: string
   translatedText: string
   detectedSourceLanguage?: string
+  wordEntry?: TranslationWordEntry
   errorMessage?: string
   languages: TranslationLanguageOption[]
 }

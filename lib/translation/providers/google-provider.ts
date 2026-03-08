@@ -63,6 +63,7 @@ export const googleProvider: TranslationProvider = {
 
     return {
       engineId: 'google',
+      queryMode: 'text',
       sourceLanguage: request.sourceLanguage,
       targetLanguage: request.targetLanguage,
       sourceText: trimTranslationText(request.text),

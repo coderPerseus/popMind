@@ -250,6 +250,7 @@ export const bingProvider: TranslationProvider = {
 
     return {
       engineId: 'bing',
+      queryMode: 'text',
       sourceLanguage: request.sourceLanguage,
       targetLanguage: request.targetLanguage,
       sourceText: trimTranslationText(request.text),

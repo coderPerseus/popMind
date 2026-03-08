@@ -7,8 +7,29 @@ import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { translationLanguages } from '@/lib/translation/shared'
 import type { TranslationSettings } from '@/lib/translation/types'
-import { Bot, Languages, LockKeyhole, SearchCheck } from 'lucide-react'
+import { Bot, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun } from 'lucide-react'
 import './styles.css'
+
+type ThemeMode = 'light' | 'dark' | 'system'
+
+const THEME_KEY = 'popmind-theme'
+
+const applyTheme = (mode: ThemeMode) => {
+  const root = document.documentElement
+  if (mode === 'dark') {
+    root.classList.add('dark')
+  } else if (mode === 'light') {
+    root.classList.remove('dark')
+  } else {
+    // system
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    if (prefersDark) {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
+    }
+  }
+}
 
 type PermissionStatus = {
   granted: boolean
@@ -20,29 +41,13 @@ type SettingsSection = 'general' | 'translation' | 'ai'
 type NavItem = {
   id: SettingsSection
   label: string
-  description: string
   icon: typeof SearchCheck
 }
 
 const navItems: NavItem[] = [
-  {
-    id: 'general',
-    label: '常规',
-    description: '主窗口形态与系统权限',
-    icon: SearchCheck,
-  },
-  {
-    id: 'translation',
-    label: '翻译',
-    description: '引擎与语言偏好',
-    icon: Languages,
-  },
-  {
-    id: 'ai',
-    label: 'AI 配置',
-    description: 'DeepSeek 预留接入信息',
-    icon: Bot,
-  },
+  { id: 'general', label: '常规', icon: SearchCheck },
+  { id: 'translation', label: '翻译', icon: Languages },
+  { id: 'ai', label: 'AI 配置', icon: Bot },
 ]
 
 const openHomePage = () => {
@@ -57,6 +62,19 @@ export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const aiSaveTimerRef = useRef<number | null>(null)
+  const [themeMode, setThemeMode] = useState<ThemeMode>(
+    () => (localStorage.getItem(THEME_KEY) as ThemeMode | null) ?? 'system'
+  )
+
+  const handleThemeChange = (mode: ThemeMode) => {
+    setThemeMode(mode)
+    localStorage.setItem(THEME_KEY, mode)
+    applyTheme(mode)
+  }
+
+  useEffect(() => {
+    applyTheme(themeMode)
+  }, [])
 
   const refreshStatus = useCallback(async () => {
     const result = await app.checkAccessibility()
@@ -184,9 +202,7 @@ export function SettingsPage() {
             </Button>
 
             <div className="settings-brand-block">
-              <div className="settings-eyebrow">Preferences</div>
               <h1>配置中心</h1>
-              <p>系统权限、翻译偏好和后续能力入口集中收在这里。</p>
             </div>
           </div>
 
@@ -212,20 +228,14 @@ export function SettingsPage() {
             })}
           </nav>
 
-          <div className="settings-sidebar-card">
-            <div className="settings-sidebar-card-title">当前主窗口</div>
-            <div className="settings-sidebar-card-value">Raycast 式搜索框</div>
-            <p>快捷键 ⌥ Space 呼出，Esc 收起。</p>
-          </div>
+
         </aside>
 
 
         <div className="settings-content">
           <header className="settings-content-header">
             <div>
-              <div className="settings-section-kicker">{navItems.find((item) => item.id === activeSection)?.label}</div>
               <h2>{getSectionTitle(activeSection)}</h2>
-              <p>{getSectionDescription(activeSection)}</p>
             </div>
 
             {(activeSection === 'translation' || activeSection === 'ai') && (
@@ -240,32 +250,46 @@ export function SettingsPage() {
               <section className="settings-surface">
                 <div className="settings-surface-heading">
                   <div>
-                    <div className="settings-item-title">主窗口逻辑</div>
-                    <div className="settings-item-desc">
-                      默认进入轻量搜索框，小窗用于快速输入，设置页扩展为双栏结构。
-                    </div>
+                    <div className="settings-item-title">外观主题</div>
                   </div>
-                  <Badge variant="outline" className="settings-inline-badge">
-                    Light by default
-                  </Badge>
                 </div>
 
-                <div className="settings-stat-grid">
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">首页模式</div>
-                    <div className="settings-stat-value">搜索框</div>
-                    <div className="settings-stat-meta">匹配 Raycast 的轻量入口感受</div>
-                  </div>
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">默认主题</div>
-                    <div className="settings-stat-value">明亮模式</div>
-                    <div className="settings-stat-meta">仍可通过窗口菜单切换深色</div>
-                  </div>
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">当前能力</div>
-                    <div className="settings-stat-value">占位展示</div>
-                    <div className="settings-stat-meta">结果列表先作为后续动作的承载区</div>
-                  </div>
+                <div className="settings-theme-grid">
+                  <button
+                    type="button"
+                    className={`settings-theme-option ${themeMode === 'light' ? 'is-active' : ''}`}
+                    onClick={() => handleThemeChange('light')}
+                  >
+                    <span className="settings-theme-icon">
+                      <Sun size={18} />
+                    </span>
+                    <span className="settings-theme-label">明亮</span>
+                    {themeMode === 'light' && <span className="settings-theme-dot" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`settings-theme-option ${themeMode === 'dark' ? 'is-active' : ''}`}
+                    onClick={() => handleThemeChange('dark')}
+                  >
+                    <span className="settings-theme-icon">
+                      <Moon size={18} />
+                    </span>
+                    <span className="settings-theme-label">暗黑</span>
+                    {themeMode === 'dark' && <span className="settings-theme-dot" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`settings-theme-option ${themeMode === 'system' ? 'is-active' : ''}`}
+                    onClick={() => handleThemeChange('system')}
+                  >
+                    <span className="settings-theme-icon">
+                      <Monitor size={18} />
+                    </span>
+                    <span className="settings-theme-label">跟随系统</span>
+                    {themeMode === 'system' && <span className="settings-theme-dot" />}
+                  </button>
                 </div>
               </section>
 
@@ -273,9 +297,6 @@ export function SettingsPage() {
                 <div className="settings-row">
                   <div>
                     <div className="settings-item-title">辅助功能权限</div>
-                    <div className="settings-item-desc">
-                      授权后才能启用系统级划词检测。状态会自动轮询刷新，无需重启应用。
-                    </div>
                   </div>
 
                   <div className="settings-row-aside">
@@ -311,9 +332,6 @@ export function SettingsPage() {
                 <div className="settings-surface-heading">
                   <div>
                     <div className="settings-item-title">翻译引擎</div>
-                    <div className="settings-item-desc">
-                      Google 仍是 MVP 默认路径，其他引擎先保留开关，方便后续逐个落地。
-                    </div>
                   </div>
                 </div>
 
@@ -325,17 +343,6 @@ export function SettingsPage() {
                           <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
                             {engine}
                           </Badge>
-                        </div>
-                        <div className="settings-engine-desc">
-                          {engine === 'google'
-                            ? 'MVP default engine'
-                            : engine === 'deepl'
-                              ? 'Available now via DeepL web translate'
-                              : engine === 'bing'
-                                ? 'Available now via Bing web translate'
-                                : engine === 'youdao'
-                                  ? 'Available now via Youdao web translate'
-                                  : 'Reserved for follow-up integration'}
                         </div>
                       </div>
                       <Switch
@@ -352,9 +359,6 @@ export function SettingsPage() {
                 <div className="settings-surface-heading">
                   <div>
                     <div className="settings-item-title">语言偏好</div>
-                    <div className="settings-item-desc">
-                      源语言仍保持自动检测，目标语言只维护最常用的第一语言和第二语言。
-                    </div>
                   </div>
                 </div>
 
@@ -407,13 +411,7 @@ export function SettingsPage() {
                 <div className="settings-surface-heading">
                   <div>
                     <div className="settings-item-title">AI 引擎配置</div>
-                    <div className="settings-item-desc">
-                      当前只预留 DeepSeek 的本地密钥配置，等 AI 翻译或改写能力接入时直接复用。
-                    </div>
                   </div>
-                  <Badge variant="outline" className="settings-inline-badge">
-                    Reserved
-                  </Badge>
                 </div>
 
                 <div className="settings-form-grid">
@@ -464,7 +462,7 @@ export function SettingsPage() {
 
 const getSectionTitle = (section: SettingsSection) => {
   if (section === 'general') {
-    return '主窗口与系统权限'
+    return '常规'
   }
 
   if (section === 'translation') {
@@ -474,14 +472,3 @@ const getSectionTitle = (section: SettingsSection) => {
   return 'AI 预留配置'
 }
 
-const getSectionDescription = (section: SettingsSection) => {
-  if (section === 'general') {
-    return '这里收纳主窗口呈现方式与系统交互相关设置，保持入口极简但状态可控。'
-  }
-
-  if (section === 'translation') {
-    return '当前主要维护翻译引擎开关和语言偏好，方便后续把搜索动作接到翻译链路上。'
-  }
-
-  return 'AI 能力还没有正式上线，先把账号信息和模型名预留出来，后面直接接通。'
-}

@@ -13,6 +13,8 @@ let isQuitting = false
 let currentRoute: MainWindowRoute | null = null
 let routeLoadPromise: Promise<void> | null = null
 let routeLoadTarget: MainWindowRoute | null = null
+const HIDDEN_WINDOW_BUTTON_POSITION = { x: -100, y: -100 }
+const SETTINGS_WINDOW_BUTTON_POSITION = { x: 14, y: 14 }
 
 app.once('before-quit', () => {
   isQuitting = true
@@ -106,6 +108,12 @@ const applyWindowRouteConfig = (window: BrowserWindow, route: MainWindowRoute) =
   window.setResizable(config.resizable)
   window.setMaximizable(config.maximizable)
   window.setMinimumSize(config.minWidth, config.minHeight)
+
+  if (process.platform === 'darwin') {
+    const showWindowButtons = !isHome
+    window.setWindowButtonVisibility(showWindowButtons)
+    window.setWindowButtonPosition(showWindowButtons ? SETTINGS_WINDOW_BUTTON_POSITION : HIDDEN_WINDOW_BUTTON_POSITION)
+  }
 
   if (config.maxWidth && config.maxHeight) {
     window.setMaximumSize(config.maxWidth, config.maxHeight)

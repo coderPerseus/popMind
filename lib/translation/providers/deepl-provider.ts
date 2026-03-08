@@ -180,6 +180,7 @@ export const deeplProvider: TranslationProvider = {
 
     return {
       engineId: 'deepl',
+      queryMode: 'text',
       sourceLanguage: request.sourceLanguage,
       targetLanguage: request.targetLanguage,
       sourceText: trimTranslationText(request.text),

@@ -1,7 +1,7 @@
 import { translationProviders } from '@/lib/translation/providers'
-import { defaultTranslationSettings, translationEngineOrder } from '@/lib/translation/shared'
+import { defaultTranslationSettings, getLanguageFamily, isSameLanguage, translationEngineOrder } from '@/lib/translation/shared'
 import { translationStore } from '@/lib/translation/store'
-import type { TranslateInput, TranslationEngineId, TranslationRequest, TranslationResult } from '@/lib/translation/types'
+import type { TranslateInput, TranslationEngineId, TranslationQueryMode, TranslationRequest, TranslationResult } from '@/lib/translation/types'
 
 const resolveEngineId = (settings: Awaited<ReturnType<typeof translationStore.getSettings>>, preferred?: TranslationEngineId) => {
   if (preferred && settings.enabledEngines[preferred]) {
@@ -11,18 +11,72 @@ const resolveEngineId = (settings: Awaited<ReturnType<typeof translationStore.ge
   return translationEngineOrder.find((engineId) => settings.enabledEngines[engineId])
 }
 
-const resolveTargetLanguage = ({
+const resolveExplicitTargetLanguage = ({
   targetLanguage,
-  firstLanguage,
 }: {
   targetLanguage?: string
-  firstLanguage: string
 }) => {
   if (targetLanguage && targetLanguage !== 'auto') {
     return targetLanguage
   }
 
-  return firstLanguage
+  return null
+}
+
+const resolveAutoTargetLanguage = ({
+  detectedSourceLanguage,
+  settings,
+}: {
+  detectedSourceLanguage?: string
+  settings: Awaited<ReturnType<typeof translationStore.getSettings>>
+}) => {
+  if (detectedSourceLanguage && isSameLanguage(detectedSourceLanguage, settings.firstLanguage)) {
+    return settings.secondLanguage
+  }
+
+  return settings.firstLanguage
+}
+
+const isEnglishWord = (text: string) => {
+  return /^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(text) && text.length <= 48
+}
+
+const resolveQueryMode = (input: TranslateInput, text: string) => {
+  if (input.queryMode) {
+    return input.queryMode
+  }
+
+  const sourceLanguage = input.sourceLanguage ?? defaultTranslationSettings.defaultSourceLanguage
+  const sourceFamily = getLanguageFamily(sourceLanguage)
+  if (sourceLanguage !== 'auto' && sourceFamily !== 'en') {
+    return 'text'
+  }
+
+  return isEnglishWord(text) ? 'word' : 'text'
+}
+
+const resolveWordTargetLanguage = ({
+  queryMode,
+  targetLanguage,
+  settings,
+}: {
+  queryMode: TranslationQueryMode
+  targetLanguage: string
+  settings: Awaited<ReturnType<typeof translationStore.getSettings>>
+}) => {
+  if (queryMode !== 'word') {
+    return targetLanguage
+  }
+
+  if (getLanguageFamily(targetLanguage) === 'zh') {
+    return targetLanguage
+  }
+
+  if (getLanguageFamily(settings.secondLanguage) === 'zh') {
+    return settings.secondLanguage
+  }
+
+  return targetLanguage
 }
 
 export class TranslationService {
@@ -36,7 +90,21 @@ export class TranslationService {
 
   async translate(input: TranslateInput): Promise<TranslationResult> {
     const settings = await this.getSettings()
-    const engineId = resolveEngineId(settings, input.engineId)
+    const text = input.text.trim()
+    if (!text) {
+      throw new Error('Translation text is empty')
+    }
+
+    const requestedSourceLanguage = input.sourceLanguage ?? defaultTranslationSettings.defaultSourceLanguage
+    const requestedQueryMode = resolveQueryMode(input, text)
+
+    const prefersWordProvider =
+      requestedQueryMode === 'word' &&
+      settings.enabledEngines.youdao &&
+      translationProviders.youdao.isConfigured(settings)
+
+    const queryMode: TranslationQueryMode = prefersWordProvider ? 'word' : 'text'
+    const engineId = prefersWordProvider ? 'youdao' : resolveEngineId(settings, input.engineId)
     if (!engineId) {
       throw new Error('No translation engine is enabled')
     }
@@ -47,22 +115,39 @@ export class TranslationService {
       throw new Error(`Translation engine "${engineId}" is not available`)
     }
 
-    const text = input.text.trim()
-    if (!text) {
-      throw new Error('Translation text is empty')
+    const explicitTargetLanguage = resolveExplicitTargetLanguage({
+      targetLanguage: input.targetLanguage,
+    })
+
+    let detectedSourceLanguage =
+      requestedSourceLanguage !== 'auto' ? requestedSourceLanguage : undefined
+
+    if (!explicitTargetLanguage && requestedSourceLanguage === 'auto' && provider.detectLanguage) {
+      try {
+        detectedSourceLanguage = await provider.detectLanguage(text, settings)
+      } catch (error) {
+        console.warn('[TranslationService] detectLanguage failed, fallback to firstLanguage target', error)
+      }
     }
 
-    const requestedSourceLanguage = input.sourceLanguage ?? defaultTranslationSettings.defaultSourceLanguage
+    const resolvedTargetLanguage =
+      explicitTargetLanguage ??
+      resolveAutoTargetLanguage({
+        detectedSourceLanguage,
+        settings,
+      })
 
-    const targetLanguage = resolveTargetLanguage({
-      targetLanguage: input.targetLanguage,
-      firstLanguage: settings.firstLanguage,
+    const targetLanguage = resolveWordTargetLanguage({
+      queryMode,
+      targetLanguage: resolvedTargetLanguage,
+      settings,
     })
 
     const request: TranslationRequest = {
       text,
       sourceLanguage: requestedSourceLanguage,
       targetLanguage,
+      queryMode,
       engineId,
       selectionId: input.selectionId,
       sourceAppId: input.sourceAppId,
@@ -72,9 +157,10 @@ export class TranslationService {
 
     return {
       ...result,
+      queryMode,
       sourceLanguage: requestedSourceLanguage,
       targetLanguage,
-      detectedSourceLanguage: result.detectedSourceLanguage,
+      detectedSourceLanguage: result.detectedSourceLanguage || detectedSourceLanguage,
     }
   }
 }

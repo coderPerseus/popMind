@@ -27,15 +27,15 @@
   border: 1px solid rgb(255 255 255 / 0.55);
   background:
     linear-gradient(160deg,
-      rgb(255 255 255 / 0.92) 0%,
-      rgb(248 249 252 / 0.88) 100%);
+      rgb(255 255 255 / 0.97) 0%,
+      rgb(248 249 252 / 0.95) 100%);
   box-shadow:
     0 0 0 0.5px rgb(0 0 0 / 0.06),
     0 4px 6px rgb(0 0 0 / 0.04),
     0 12px 32px rgb(0 0 0 / 0.10),
     0 24px 56px rgb(0 0 0 / 0.07),
-    inset 0 1px 0 rgb(255 255 255 / 0.9);
-  backdrop-filter: blur(40px) saturate(1.6) brightness(1.02);
+    inset 0 1px 0 rgb(255 255 255 / 0.94);
+  backdrop-filter: blur(28px) saturate(1.4) brightness(1.01);
 }
 
 /* ── Top bar ── */
@@ -91,7 +91,7 @@
   height: 30px;
   border: 1px solid rgb(210 214 222 / 0.9);
   border-radius: 9px;
-  background: rgb(255 255 255 / 0.75);
+  background: rgb(255 255 255 / 0.92);
   color: rgb(40 44 52);
   font-size: 12.5px;
   font-weight: 500;
@@ -182,7 +182,7 @@
   padding: 14px 16px;
   border: 1px solid rgb(230 233 240 / 0.9);
   border-radius: 14px;
-  background: rgb(255 255 255 / 0.85);
+  background: rgb(255 255 255 / 0.94);
   box-shadow:
     0 1px 3px rgb(0 0 0 / 0.05),
     0 4px 14px rgb(0 0 0 / 0.06),
@@ -211,8 +211,140 @@
   color: rgb(188 58 58);
   font-size: 13.5px;
   line-height: 1.65;
-  background: rgb(255 248 248 / 0.85);
+  background: rgb(255 248 248 / 0.94);
   border-color: rgb(220 180 180 / 0.55);
+}
+
+.translation-word-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.translation-word-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.translation-word-title {
+  font-size: 26px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: rgb(24 27 34);
+}
+
+.translation-word-phonetics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.translation-word-phonetic {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(244 246 250);
+  color: rgb(88 95 108);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.translation-word-phonetic-label {
+  color: rgb(128 134 146);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.translation-word-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.translation-word-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgb(144 150 162);
+}
+
+.translation-word-definition {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.translation-word-part {
+  min-width: 32px;
+  flex-shrink: 0;
+  color: rgb(86 103 152);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.translation-word-meaning {
+  color: rgb(38 42 50);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.translation-word-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.translation-word-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgb(247 248 251);
+  border: 1px solid rgb(228 231 238);
+  color: rgb(88 95 108);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.translation-word-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.translation-word-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(248 249 252 / 0.93);
+  border: 1px solid rgb(232 235 241 / 0.9);
+}
+
+.translation-word-list-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(34 38 45);
+  line-height: 1.35;
+}
+
+.translation-word-list-desc,
+.translation-word-example-target {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: rgb(99 104 115);
+}
+
+.translation-word-example-source {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: rgb(34 38 45);
 }
 
 /* Loading state */
@@ -274,7 +406,7 @@
   padding: 3px 22px 3px 9px;
   border-radius: 8px;
   border: 1px solid rgb(210 214 222 / 0.85);
-  background: rgb(248 249 252 / 0.85);
+  background: rgb(248 249 252 / 0.94);
   color: rgb(90 96 108);
   font-size: 11.5px;
   font-weight: 500;
@@ -292,7 +424,7 @@
 
 .translation-engine-select-wrap [data-slot='select']:hover {
   border-color: rgb(180 185 200 / 0.95);
-  background-color: rgb(255 255 255 / 0.85);
+  background-color: rgb(255 255 255 / 0.95);
 }
 
 .translation-engine-select-wrap [data-slot='select']:focus {

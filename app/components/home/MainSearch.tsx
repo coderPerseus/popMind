@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Settings2 } from 'lucide-react'
+import logoUrl from '@/app/assets/logo.png'
 import './styles.css'
 
 const openSettingsPage = () => {
@@ -60,18 +61,13 @@ export function MainSearch() {
 
       {/* Results area */}
       <div className="ms-results">
-        <div className="ms-empty">
-          <div className="ms-empty-emoji">🌸</div>
-          <div className="ms-empty-title">空空如也～</div>
-          <div className="ms-empty-desc">没有可用的插件，请去配置页面进行设置</div>
-        </div>
+        <div className="ms-empty" />
       </div>
 
       {/* Footer bar */}
       <div className="ms-footer">
         <button className="ms-footer-logo" onClick={openSettingsPage} aria-label="打开配置">
-          <span className="ms-logo-mark">P</span>
-          <span className="ms-logo-text">popMind</span>
+          <img src={logoUrl} alt="popMind" className="ms-logo-img" />
           <Settings2 size={13} className="ms-footer-settings-icon" />
         </button>
 
