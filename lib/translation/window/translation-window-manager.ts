@@ -1,11 +1,23 @@
 import { clipboard, ipcMain, screen } from 'electron'
-import { translationLanguages, TranslationWindowChannel } from '@/lib/translation/shared'
+import { translationEngineOrder, translationLanguages, TranslationWindowChannel } from '@/lib/translation/shared'
 import { translationService } from '@/lib/translation/service'
-import type { TranslationAnchorPoint, TranslationWindowState } from '@/lib/translation/types'
+import type { TranslationAnchorPoint, TranslationEngineId, TranslationSettings, TranslationWindowState } from '@/lib/translation/types'
 import type { SelectionBridge } from '@/lib/text-picker/shared'
 import { TranslationWindow } from './translation-window'
 
 const WINDOW_GAP = 14
+
+const resolveEnabledEngineIds = (settings: TranslationSettings) => {
+  return translationEngineOrder.filter((engineId) => settings.enabledEngines[engineId])
+}
+
+const resolveEngineId = (settings: TranslationSettings, preferred?: TranslationEngineId) => {
+  if (preferred && settings.enabledEngines[preferred]) {
+    return preferred
+  }
+
+  return resolveEnabledEngineIds(settings)[0]
+}
 
 export class TranslationWindowManager {
   private window: TranslationWindow | null = null
@@ -18,6 +30,7 @@ export class TranslationWindowManager {
   } | null = null
   private ignoreMoveUntil = 0
   private lastAnchor: TranslationAnchorPoint | null = null
+  private requestVersion = 0
 
   constructor(
     private readonly bridge: SelectionBridge,
@@ -33,6 +46,8 @@ export class TranslationWindowManager {
     anchor: TranslationAnchorPoint | null
   }) {
     const settings = await translationService.getSettings()
+    const enabledEngineIds = resolveEnabledEngineIds(settings)
+    const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
 
     this.pendingRequest = {
       text: payload.text,
@@ -44,7 +59,8 @@ export class TranslationWindowManager {
     this.state = {
       status: 'loading',
       pinned: this.state?.pinned ?? false,
-      engineId: 'google',
+      engineId,
+      enabledEngineIds,
       sourceLanguage: 'auto',
       targetLanguage: settings.firstLanguage,
       sourceText: payload.text,
@@ -59,7 +75,7 @@ export class TranslationWindowManager {
     void this.runTranslation({
       sourceLanguage: 'auto',
       targetLanguage: settings.firstLanguage,
-      engineId: 'google',
+      engineId,
     })
   }
 
@@ -125,8 +141,8 @@ export class TranslationWindowManager {
     ipcMain.handle(
       TranslationWindowChannel.Retranslate,
       async (_event, payload: { sourceLanguage: string; targetLanguage: string; engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek' }) => {
-      await this.runTranslation(payload)
-      return { ok: true }
+        await this.runTranslation(payload)
+        return { ok: true }
       },
     )
     ipcMain.handle(TranslationWindowChannel.SetPinned, async (_event, pinned: boolean) => {
@@ -165,12 +181,18 @@ export class TranslationWindowManager {
       return
     }
 
+    const settings = await translationService.getSettings()
+    const enabledEngineIds = resolveEnabledEngineIds(settings)
+    const engineId = resolveEngineId(settings, payload.engineId) ?? payload.engineId
+    const requestVersion = ++this.requestVersion
+
     this.state = {
       ...this.state,
       status: 'loading',
       sourceLanguage: payload.sourceLanguage,
       targetLanguage: payload.targetLanguage,
-      engineId: payload.engineId,
+      engineId,
+      enabledEngineIds,
       translatedText: '',
       errorMessage: undefined,
       detectedSourceLanguage: undefined,
@@ -182,15 +204,20 @@ export class TranslationWindowManager {
         text: this.pendingRequest.text,
         sourceLanguage: payload.sourceLanguage,
         targetLanguage: payload.targetLanguage,
-        engineId: payload.engineId,
+        engineId,
         selectionId: this.pendingRequest.selectionId,
         sourceAppId: this.pendingRequest.sourceAppId,
       })
+
+      if (requestVersion !== this.requestVersion) {
+        return
+      }
 
       this.state = {
         ...this.state,
         status: 'success',
         engineId: result.engineId,
+        enabledEngineIds,
         sourceLanguage: payload.sourceLanguage,
         targetLanguage: result.targetLanguage,
         sourceText: result.sourceText,
@@ -199,11 +226,16 @@ export class TranslationWindowManager {
         errorMessage: undefined,
       }
     } catch (error) {
+      if (requestVersion !== this.requestVersion) {
+        return
+      }
+
       const message = error instanceof Error ? error.message : 'Translation failed'
       this.logger.error('[TranslationWindowManager] translation failed', error)
       this.state = {
         ...this.state,
         status: 'error',
+        enabledEngineIds,
         errorMessage: message,
       }
     }

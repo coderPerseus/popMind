@@ -296,16 +296,22 @@ export function SettingsPage() {
                 <div className="settings-engine-grid">
                   {enabledEngineEntries.map(([engine, enabled]) => (
                     <div className="settings-engine-item" key={engine}>
-                      <div>
-                        <div className="settings-engine-name">
-                          <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
-                            {engine}
-                          </Badge>
-                        </div>
-                        <div className="settings-engine-desc">
-                          {engine === 'google' ? 'MVP default engine' : 'Reserved for follow-up integration'}
-                        </div>
+                    <div>
+                      <div className="settings-engine-name">
+                        <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
+                          {engine}
+                        </Badge>
                       </div>
+                      <div className="settings-engine-desc">
+                        {engine === 'google'
+                          ? 'MVP default engine'
+                          : engine === 'deepl'
+                            ? 'Available now via DeepL web translate'
+                            : engine === 'bing'
+                              ? 'Available now via Bing web translate'
+                            : 'Reserved for follow-up integration'}
+                      </div>
+                    </div>
                       <Switch
                         checked={enabled}
                         onCheckedChange={(checked) => updateEngine(engine, checked)}

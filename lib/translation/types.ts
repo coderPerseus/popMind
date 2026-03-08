@@ -63,6 +63,7 @@ export interface TranslationWindowState {
   status: 'idle' | 'loading' | 'success' | 'error'
   pinned: boolean
   engineId: TranslationEngineId
+  enabledEngineIds: TranslationEngineId[]
   sourceLanguage: string
   targetLanguage: string
   sourceText: string

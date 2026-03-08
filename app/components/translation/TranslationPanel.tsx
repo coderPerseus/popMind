@@ -13,6 +13,7 @@ const emptyState: TranslationWindowState = {
   status: 'idle',
   pinned: false,
   engineId: 'google',
+  enabledEngineIds: ['google'],
   sourceLanguage: 'auto',
   targetLanguage: 'en',
   sourceText: '',
@@ -91,6 +92,7 @@ export function TranslationPanel() {
   }, [state.status, state.translatedText, state.errorMessage, sourceLanguage, targetLanguage, engineId])
 
   const isIdle = state.status === 'idle' && !state.translatedText
+  const availableEngineIds = state.enabledEngineIds.length ? state.enabledEngineIds : translationEngineOrder.filter((item) => item === state.engineId)
 
   const translatedPreview =
     state.status === 'loading'
@@ -110,6 +112,21 @@ export function TranslationPanel() {
   const handleCopy = async () => {
     await window.translationWindow.copyTranslatedText()
     setCopied(true)
+  }
+
+  const handleEngineChange = async (nextEngineId: TranslationWindowState['engineId']) => {
+    setEngineId(nextEngineId)
+    setCopied(false)
+
+    if (!state.sourceText) {
+      return
+    }
+
+    await window.translationWindow.retranslate({
+      sourceLanguage,
+      targetLanguage,
+      engineId: nextEngineId,
+    })
   }
 
   const stopDragBubble = (event: React.PointerEvent | React.MouseEvent) => {
@@ -244,8 +261,8 @@ export function TranslationPanel() {
         {/* ── Footer: engine selector + copy / retranslate ── */}
         <div className="translation-footer">
           <div className="translation-engine-select-wrap">
-            <Select value={engineId} onChange={(event) => setEngineId(event.target.value as TranslationWindowState['engineId'])}>
-              {translationEngineOrder.map((item) => (
+            <Select value={engineId} onChange={(event) => void handleEngineChange(event.target.value as TranslationWindowState['engineId'])}>
+              {availableEngineIds.map((item) => (
                 <option key={item} value={item}>
                   {translationEngineLabels[item]}
                 </option>

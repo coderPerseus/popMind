@@ -1,4 +1,6 @@
 import type { TranslationProvider } from '@/lib/translation/types'
+import { bingProvider } from './bing-provider'
+import { deeplProvider } from './deepl-provider'
 import { googleProvider } from './google-provider'
 
 const unsupportedProvider = (id: TranslationProvider['id']): TranslationProvider => ({
@@ -13,8 +15,8 @@ const unsupportedProvider = (id: TranslationProvider['id']): TranslationProvider
 
 export const translationProviders: Record<TranslationProvider['id'], TranslationProvider> = {
   google: googleProvider,
-  deepl: unsupportedProvider('deepl'),
-  bing: unsupportedProvider('bing'),
+  deepl: deeplProvider,
+  bing: bingProvider,
   youdao: unsupportedProvider('youdao'),
   deepseek: unsupportedProvider('deepseek'),
 }
