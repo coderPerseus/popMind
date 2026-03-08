@@ -1,6 +1,7 @@
 import { translationProviders } from '@/lib/translation/providers'
 import { defaultTranslationSettings, getLanguageFamily, isSameLanguage, translationEngineOrder } from '@/lib/translation/shared'
 import { translationStore } from '@/lib/translation/store'
+import { normalizeTextForTranslation } from '@/lib/translation/text-normalizer'
 import type { TranslateInput, TranslationEngineId, TranslationQueryMode, TranslationRequest, TranslationResult } from '@/lib/translation/types'
 
 const resolveEngineId = (settings: Awaited<ReturnType<typeof translationStore.getSettings>>, preferred?: TranslationEngineId) => {
@@ -79,6 +80,10 @@ const resolveWordTargetLanguage = ({
   return targetLanguage
 }
 
+const isWordProviderAvailable = (settings: Awaited<ReturnType<typeof translationStore.getSettings>>) => {
+  return settings.enabledEngines.youdao && translationProviders.youdao.isConfigured(settings)
+}
+
 export class TranslationService {
   async getSettings() {
     return translationStore.getSettings()
@@ -90,21 +95,18 @@ export class TranslationService {
 
   async translate(input: TranslateInput): Promise<TranslationResult> {
     const settings = await this.getSettings()
-    const text = input.text.trim()
+    const rawText = input.text.trim()
+    const text = normalizeTextForTranslation(rawText)
     if (!text) {
       throw new Error('Translation text is empty')
     }
 
     const requestedSourceLanguage = input.sourceLanguage ?? defaultTranslationSettings.defaultSourceLanguage
     const requestedQueryMode = resolveQueryMode(input, text)
-
-    const prefersWordProvider =
-      requestedQueryMode === 'word' &&
-      settings.enabledEngines.youdao &&
-      translationProviders.youdao.isConfigured(settings)
-
-    const queryMode: TranslationQueryMode = prefersWordProvider ? 'word' : 'text'
-    const engineId = prefersWordProvider ? 'youdao' : resolveEngineId(settings, input.engineId)
+    const preferredEngineId = resolveEngineId(settings, input.engineId)
+    const shouldUseWordProvider = requestedQueryMode === 'word' && isWordProviderAvailable(settings)
+    const queryMode: TranslationQueryMode = shouldUseWordProvider ? 'word' : 'text'
+    const engineId = shouldUseWordProvider ? 'youdao' : preferredEngineId
     if (!engineId) {
       throw new Error('No translation engine is enabled')
     }
@@ -153,14 +155,42 @@ export class TranslationService {
       sourceAppId: input.sourceAppId,
     }
 
-    const result = await provider.translate(request, settings)
+    try {
+      const result = await provider.translate(request, settings)
 
-    return {
-      ...result,
-      queryMode,
-      sourceLanguage: requestedSourceLanguage,
-      targetLanguage,
-      detectedSourceLanguage: result.detectedSourceLanguage || detectedSourceLanguage,
+      return {
+        ...result,
+        queryMode,
+        sourceLanguage: requestedSourceLanguage,
+        targetLanguage,
+        detectedSourceLanguage: result.detectedSourceLanguage || detectedSourceLanguage,
+      }
+    } catch (error) {
+      const canFallbackToTextTranslation =
+        queryMode === 'word' &&
+        preferredEngineId &&
+        preferredEngineId !== 'youdao' &&
+        translationProviders[preferredEngineId]?.isConfigured(settings)
+
+      if (!canFallbackToTextTranslation) {
+        throw error
+      }
+
+      const fallbackProvider = translationProviders[preferredEngineId]
+      const fallbackRequest: TranslationRequest = {
+        ...request,
+        queryMode: 'text',
+        engineId: preferredEngineId,
+      }
+      const fallbackResult = await fallbackProvider.translate(fallbackRequest, settings)
+
+      return {
+        ...fallbackResult,
+        queryMode: fallbackResult.queryMode,
+        sourceLanguage: requestedSourceLanguage,
+        targetLanguage,
+        detectedSourceLanguage: fallbackResult.detectedSourceLanguage || detectedSourceLanguage,
+      }
     }
   }
 }

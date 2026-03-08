@@ -35,6 +35,10 @@ export const windowIpcSchema = {
     args: z.tuple([]),
     return: z.void(),
   },
+  'window-show-route': {
+    args: z.tuple([z.enum(['home', 'settings'])]),
+    return: z.void(),
+  },
 
   // Web content operations
   'web-undo': {

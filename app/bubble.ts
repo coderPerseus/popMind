@@ -1,5 +1,5 @@
 import '@/app/styles/text-picker-bubble.css'
-import logoUrl from '@/app/assets/logo.png'
+import { getThemeLogoUrl } from '@/app/theme-assets'
 import type { PickedInfo, SelectionSkill } from '@/lib/text-picker/shared'
 import { SystemCommand } from '@/lib/text-picker/shared'
 
@@ -21,9 +21,17 @@ const bubbleLog = (...args: unknown[]) => {
   console.info('[bubble]', new Date().toISOString(), ...args)
 }
 
-if (leadLogoImage) {
-  leadLogoImage.src = logoUrl
+const syncLeadLogo = () => {
+  if (leadLogoImage) {
+    leadLogoImage.src = getThemeLogoUrl()
+  }
 }
+
+syncLeadLogo()
+
+const themeObserver = new MutationObserver(syncLeadLogo)
+themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+window.addEventListener('beforeunload', () => themeObserver.disconnect())
 
 let currentPickedInfo: PickedInfo | null = null
 let busy = false

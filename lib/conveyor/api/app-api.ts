@@ -4,4 +4,6 @@ export class AppApi extends ConveyorApi {
   version = () => this.invoke('version')
   checkAccessibility = () => this.invoke('checkAccessibility')
   openAccessibilitySettings = () => this.invoke('openAccessibilitySettings')
+  getThemeMode = () => this.invoke('getThemeMode')
+  setThemeMode = (mode: 'light' | 'dark' | 'system') => this.invoke('setThemeMode', mode)
 }

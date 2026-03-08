@@ -1,5 +1,6 @@
 import { type App, shell } from 'electron'
 import { handle } from '@/lib/main/shared'
+import { themeStore } from '@/lib/main/theme-store'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 
 export const registerAppHandlers = (app: App) => {
@@ -18,5 +19,11 @@ export const registerAppHandlers = (app: App) => {
       'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
     )
     return true
+  })
+
+  handle('getThemeMode', () => themeStore.getThemeMode())
+
+  handle('setThemeMode', async (mode) => {
+    return themeStore.setThemeMode(mode)
   })
 }

@@ -66,17 +66,28 @@
 /* Language selects in topbar */
 .translation-drag-handle {
   flex-shrink: 0;
+  border: 0 !important;
   border-radius: 10px;
+  background: transparent !important;
+  box-shadow: none !important;
   color: rgb(150 156 168);
   cursor: grab;
 }
 
 .translation-drag-handle:hover {
+  background: transparent !important;
   color: rgb(86 94 108);
 }
 
 .translation-drag-handle:active {
+  background: transparent !important;
   cursor: grabbing;
+}
+
+.translation-drag-handle:focus-visible {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .translation-select-wrap {
@@ -515,4 +526,135 @@
 .translation-result-card ::-webkit-scrollbar-thumb {
   background: rgb(180 185 195 / 0.5);
   border-radius: 2px;
+}
+
+.dark .translation-shell {
+  color: rgb(232 235 241);
+}
+
+.dark .translation-panel {
+  border-color: rgb(255 255 255 / 0.12);
+  background:
+    linear-gradient(160deg,
+      rgb(34 35 40 / 0.96) 0%,
+      rgb(24 25 29 / 0.94) 100%);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.35),
+    0 12px 32px rgb(0 0 0 / 0.42),
+    0 24px 56px rgb(0 0 0 / 0.32),
+    inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.dark .translation-topbar,
+.dark .translation-footer {
+  border-color: rgb(255 255 255 / 0.08);
+}
+
+.dark .translation-drag-handle {
+  color: rgb(164 170 181);
+}
+
+.dark .translation-drag-handle:hover {
+  color: rgb(232 235 241);
+}
+
+.dark .translation-arrow,
+.dark .translation-loading-desc,
+.dark .translation-action-btn,
+.dark .translation-icon-btn {
+  color: rgb(166 171 181);
+}
+
+.dark .translation-select-wrap [data-slot='select'],
+.dark .translation-engine-select-wrap [data-slot='select'] {
+  border-color: rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(240 243 247);
+  box-shadow: none;
+}
+
+.dark .translation-select-wrap [data-slot='select']:focus,
+.dark .translation-engine-select-wrap [data-slot='select']:focus {
+  border-color: rgb(129 140 248 / 0.72);
+  box-shadow: 0 0 0 3px rgb(129 140 248 / 0.18);
+}
+
+.dark .translation-engine-select-wrap [data-slot='select']:hover {
+  border-color: rgb(255 255 255 / 0.16);
+  background: rgb(255 255 255 / 0.12);
+}
+
+.dark .translation-icon-btn:hover,
+.dark .translation-action-btn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(245 247 250);
+}
+
+.dark .translation-icon-btn.is-active,
+.dark .translation-action-btn.is-primary {
+  background: rgb(99 131 210 / 0.24);
+  color: rgb(181 201 255);
+}
+
+.dark .translation-action-btn.is-primary:hover:not(:disabled) {
+  background: rgb(99 131 210 / 0.32);
+  color: rgb(221 230 255);
+  box-shadow: 0 1px 4px rgb(99 131 210 / 0.22);
+}
+
+.dark .translation-result-card {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(236 239 244);
+  box-shadow: none;
+}
+
+.dark .translation-result-card:hover {
+  box-shadow: none;
+}
+
+.dark .translation-result-card.status-idle {
+  color: rgb(142 148 160);
+}
+
+.dark .translation-result-card.status-error {
+  background: rgb(120 36 36 / 0.24);
+  border-color: rgb(255 120 120 / 0.24);
+  color: rgb(255 206 206);
+}
+
+.dark .translation-word-title,
+.dark .translation-word-meaning,
+.dark .translation-word-list-title,
+.dark .translation-word-example-source,
+.dark .translation-loading-title {
+  color: rgb(242 244 247);
+}
+
+.dark .translation-word-phonetic,
+.dark .translation-word-tag,
+.dark .translation-word-list-item {
+  background: rgb(255 255 255 / 0.07);
+  border-color: rgb(255 255 255 / 0.08);
+  color: rgb(205 210 219);
+}
+
+.dark .translation-word-phonetic-label,
+.dark .translation-word-section-title,
+.dark .translation-word-list-desc,
+.dark .translation-word-example-target {
+  color: rgb(154 160 171);
+}
+
+.dark .translation-word-part {
+  color: rgb(155 182 255);
+}
+
+.dark .translation-loading-icon {
+  background: linear-gradient(135deg, rgb(99 131 210 / 0.24), rgb(99 131 210 / 0.12));
+  color: rgb(181 201 255);
+}
+
+.dark .translation-result-card ::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.22);
 }

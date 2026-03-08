@@ -5,31 +5,11 @@ import { Input } from '@/app/components/ui/input'
 import { Select } from '@/app/components/ui/select'
 import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import type { ThemeMode } from '@/lib/theme/shared'
 import { translationLanguages } from '@/lib/translation/shared'
 import type { TranslationSettings } from '@/lib/translation/types'
 import { Bot, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun } from 'lucide-react'
 import './styles.css'
-
-type ThemeMode = 'light' | 'dark' | 'system'
-
-const THEME_KEY = 'popmind-theme'
-
-const applyTheme = (mode: ThemeMode) => {
-  const root = document.documentElement
-  if (mode === 'dark') {
-    root.classList.add('dark')
-  } else if (mode === 'light') {
-    root.classList.remove('dark')
-  } else {
-    // system
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    if (prefersDark) {
-      root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
-    }
-  }
-}
 
 type PermissionStatus = {
   granted: boolean
@@ -50,31 +30,21 @@ const navItems: NavItem[] = [
   { id: 'ai', label: 'AI 配置', icon: Bot },
 ]
 
-const openHomePage = () => {
-  window.location.hash = '#/'
-}
-
 export function SettingsPage() {
   const app = useConveyor('app')
   const translation = useConveyor('translation')
+  const { windowShowRoute } = useConveyor('window')
   const [status, setStatus] = useState<PermissionStatus | null>(null)
   const [settings, setSettings] = useState<TranslationSettings | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const aiSaveTimerRef = useRef<number | null>(null)
-  const [themeMode, setThemeMode] = useState<ThemeMode>(
-    () => (localStorage.getItem(THEME_KEY) as ThemeMode | null) ?? 'system'
-  )
+  const [themeMode, setThemeMode] = useState<ThemeMode>('system')
 
-  const handleThemeChange = (mode: ThemeMode) => {
+  const handleThemeChange = async (mode: ThemeMode) => {
     setThemeMode(mode)
-    localStorage.setItem(THEME_KEY, mode)
-    applyTheme(mode)
+    await app.setThemeMode(mode)
   }
-
-  useEffect(() => {
-    applyTheme(themeMode)
-  }, [])
 
   const refreshStatus = useCallback(async () => {
     const result = await app.checkAccessibility()
@@ -87,6 +57,7 @@ export function SettingsPage() {
   }, [translation])
 
   useEffect(() => {
+    void app.getThemeMode().then(setThemeMode)
     void refreshStatus()
     void refreshTranslationSettings()
 
@@ -95,7 +66,7 @@ export function SettingsPage() {
     }, 2500)
 
     return () => window.clearInterval(timer)
-  }, [refreshStatus, refreshTranslationSettings])
+  }, [app, refreshStatus, refreshTranslationSettings])
 
   const openAccessibilitySettings = async () => {
     await app.openAccessibilitySettings()
@@ -197,7 +168,7 @@ export function SettingsPage() {
       <section className="settings-layout">
         <aside className="settings-sidebar">
           <div className="settings-sidebar-top">
-            <Button variant="ghost" className="settings-back-button" onClick={openHomePage}>
+            <Button variant="ghost" className="settings-back-button" onClick={() => void windowShowRoute('home')}>
               ← 返回应用
             </Button>
 
@@ -471,4 +442,3 @@ const getSectionTitle = (section: SettingsSection) => {
 
   return 'AI 预留配置'
 }
-

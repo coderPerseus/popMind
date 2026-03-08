@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui/button'
 import { ScrollArea } from '@/app/components/ui/scroll-area'
 import { Select } from '@/app/components/ui/select'
 import '@/app/components/translation/styles.css'
+import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import { translationEngineLabels, translationEngineOrder } from '@/lib/translation/shared'
 import type { TranslationWindowState } from '@/lib/translation/types'
 
@@ -36,6 +37,10 @@ export function TranslationPanel() {
     x: 0,
     y: 0,
   })
+
+  useEffect(() => {
+    return syncDocumentThemeWithSystemPreference()
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -229,7 +234,7 @@ export function TranslationPanel() {
             </Button>
 
             <div className="translation-select-wrap">
-              <Select value={sourceLanguage} onChange={(event) => setSourceLanguage(event.target.value)}>
+              <Select value={sourceLanguage} onChange={(event) => setSourceLanguage(event.target.value)} disabled={isWordMode}>
                 {state.languages.map((item) => (
                   <option key={item.code} value={item.code}>
                     {item.label}
@@ -243,7 +248,11 @@ export function TranslationPanel() {
             </div>
 
             <div className="translation-select-wrap">
-              <Select value={targetLanguage} onChange={(event) => void handleTargetLanguageChange(event.target.value)}>
+              <Select
+                value={targetLanguage}
+                onChange={(event) => void handleTargetLanguageChange(event.target.value)}
+                disabled={isWordMode}
+              >
                 {state.languages.filter((item) => item.code !== 'auto').map((item) => (
                   <option key={item.code} value={item.code}>
                     {item.label}
@@ -370,7 +379,11 @@ export function TranslationPanel() {
         {/* ── Footer: engine selector + copy / retranslate ── */}
         <div className="translation-footer">
           <div className="translation-engine-select-wrap">
-            <Select value={engineId} onChange={(event) => void handleEngineChange(event.target.value as TranslationWindowState['engineId'])}>
+            <Select
+              value={engineId}
+              onChange={(event) => void handleEngineChange(event.target.value as TranslationWindowState['engineId'])}
+              disabled={isWordMode}
+            >
               {availableEngineIds.map((item) => (
                 <option key={item} value={item}>
                   {translationEngineLabels[item]}

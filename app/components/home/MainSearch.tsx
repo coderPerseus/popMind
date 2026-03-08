@@ -1,18 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Settings2 } from 'lucide-react'
-import logoUrl from '@/app/assets/logo.png'
+import { useConveyor } from '@/app/hooks/use-conveyor'
+import { getThemeLogoUrl } from '@/app/theme-assets'
 import './styles.css'
 
-const openSettingsPage = () => {
-  window.location.hash = '#/settings'
-}
-
 export function MainSearch() {
+  const { windowShowRoute } = useConveyor('window')
   const [query, setQuery] = useState('')
+  const [logoUrl, setLogoUrl] = useState(() => getThemeLogoUrl())
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const syncLogo = () => setLogoUrl(getThemeLogoUrl())
+    const observer = new MutationObserver(syncLogo)
+
+    syncLogo()
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] })
+
+    return () => observer.disconnect()
   }, [])
 
   // Escape key: hide the main window (window-manager intercepts close → hide)
@@ -66,7 +76,7 @@ export function MainSearch() {
 
       {/* Footer bar */}
       <div className="ms-footer">
-        <button className="ms-footer-logo" onClick={openSettingsPage} aria-label="打开配置">
+        <button className="ms-footer-logo" onClick={() => void windowShowRoute('settings')} aria-label="打开配置">
           <img src={logoUrl} alt="popMind" className="ms-logo-img" />
           <Settings2 size={13} className="ms-footer-settings-icon" />
         </button>

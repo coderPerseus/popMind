@@ -1,9 +1,10 @@
 import { app, globalShortcut } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
+import { themeStore } from '@/lib/main/theme-store'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 import { setupApplicationMenu } from './application-menu'
-import { showMainWindow, getOrCreateMainWindow } from './window-manager'
+import { toggleMainWindow, getOrCreateMainWindow } from './window-manager'
 
 let textPickerFeature: TextPickerFeature | null = null
 
@@ -13,6 +14,7 @@ let textPickerFeature: TextPickerFeature | null = null
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+  await themeStore.initialize()
   setupApplicationMenu()
   registerTranslationHandlers()
 
@@ -25,7 +27,7 @@ app.whenReady().then(async () => {
 
   // Register global shortcut Option+Space to toggle the main search window
   globalShortcut.register('Alt+Space', () => {
-    void showMainWindow('home')
+    void toggleMainWindow('home')
   })
 
   // Default open or close DevTools by F12 in development
@@ -52,4 +54,3 @@ app.on('will-quit', () => {
   textPickerFeature?.dispose()
   textPickerFeature = null
 })
-

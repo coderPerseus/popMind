@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import { shell } from 'electron'
 import { handle } from '@/lib/main/shared'
+import { showMainWindow } from '@/lib/main/window-manager'
 import { electronAPI } from '@electron-toolkit/preload'
 
 export const registerWindowHandlers = (window: BrowserWindow) => {
@@ -20,6 +21,9 @@ export const registerWindowHandlers = (window: BrowserWindow) => {
   handle('window-maximize', () => window.maximize())
   handle('window-close', () => window.close())
   handle('window-maximize-toggle', () => (window.isMaximized() ? window.unmaximize() : window.maximize()))
+  handle('window-show-route', async (route) => {
+    await showMainWindow(route)
+  })
 
   // Web content operations
   const webContents = window.webContents

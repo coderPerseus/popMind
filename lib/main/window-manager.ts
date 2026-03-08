@@ -30,13 +30,12 @@ const presentMainWindow = (window: BrowserWindow) => {
   }
 
   if (process.platform === 'darwin') {
-    // Switch to regular app activation before showing main window, so macOS
-    // changes focus to popMind instead of rendering above a fullscreen app.
+    // Keep the app in accessory mode so showing the main window does not
+    // surface a Dock icon.
     if (selectionBridge.isSupported) {
-      selectionBridge.setActivationPolicy(0)
+      selectionBridge.setActivationPolicy(1)
     }
-    app.setActivationPolicy('regular')
-    app.dock?.show()
+    app.setActivationPolicy('accessory')
     app.focus({ steal: true })
   }
 
@@ -51,6 +50,21 @@ const presentMainWindow = (window: BrowserWindow) => {
   window.focus()
 }
 
+const concealMainWindow = (window: BrowserWindow) => {
+  if (window.isDestroyed()) {
+    return
+  }
+
+  window.hide()
+
+  if (process.platform === 'darwin') {
+    if (selectionBridge.isSupported) {
+      selectionBridge.setActivationPolicy(1)
+    }
+    app.setActivationPolicy('accessory')
+  }
+}
+
 const attachMainWindowLifecycle = (window: BrowserWindow) => {
   window.on('close', (event) => {
     if (isQuitting) {
@@ -58,16 +72,15 @@ const attachMainWindowLifecycle = (window: BrowserWindow) => {
     }
 
     event.preventDefault()
-    window.hide()
+    concealMainWindow(window)
+  })
 
-    if (process.platform === 'darwin') {
-      // Return to tray-style behavior after the main window is hidden.
-      if (selectionBridge.isSupported) {
-        selectionBridge.setActivationPolicy(1)
-      }
-      app.setActivationPolicy('accessory')
-      app.dock?.hide()
+  window.on('blur', () => {
+    if (isQuitting || currentRoute !== 'home') {
+      return
     }
+
+    concealMainWindow(window)
   })
 
   window.on('closed', () => {
@@ -177,8 +190,12 @@ export const getOrCreateMainWindow = () => {
 
 export const showMainWindow = async (route: MainWindowRoute = 'home') => {
   const window = getOrCreateMainWindow()
+  const shouldHideDuringRouteSwitch =
+    window.isVisible() && currentRoute !== null && (currentRoute !== route || !isShowingRoute(window, route))
 
-  presentMainWindow(window)
+  if (shouldHideDuringRouteSwitch) {
+    concealMainWindow(window)
+  }
 
   try {
     await ensureMainWindowRoute(window, route)
@@ -188,4 +205,20 @@ export const showMainWindow = async (route: MainWindowRoute = 'home') => {
 
   presentMainWindow(window)
   return window
+}
+
+export const hideMainWindow = () => {
+  const window = getOrCreateMainWindow()
+  concealMainWindow(window)
+}
+
+export const toggleMainWindow = async (route: MainWindowRoute = 'home') => {
+  const window = getOrCreateMainWindow()
+
+  if (window.isVisible()) {
+    concealMainWindow(window)
+    return window
+  }
+
+  return showMainWindow(route)
 }

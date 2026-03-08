@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { MainSearch } from '@/app/components/home/MainSearch'
 import { SettingsPage } from '@/app/components/settings/SettingsPage'
+import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import './styles/app.css'
 
 type AppRoute = 'home' | 'settings'
@@ -26,6 +27,9 @@ export default function App() {
     document.body.setAttribute('data-route', route)
   }, [route])
 
+  useEffect(() => {
+    return syncDocumentThemeWithSystemPreference()
+  }, [])
+
   return route === 'settings' ? <SettingsPage /> : <MainSearch />
 }
-

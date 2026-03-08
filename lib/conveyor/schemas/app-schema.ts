@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { themeModes } from '@/lib/theme/shared'
 
 export const appIpcSchema = {
   version: {
@@ -12,5 +13,13 @@ export const appIpcSchema = {
   openAccessibilitySettings: {
     args: z.tuple([]),
     return: z.boolean(),
+  },
+  getThemeMode: {
+    args: z.tuple([]),
+    return: z.enum(themeModes),
+  },
+  setThemeMode: {
+    args: z.tuple([z.enum(themeModes)]),
+    return: z.enum(themeModes),
   },
 }
