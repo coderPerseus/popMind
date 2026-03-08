@@ -2,6 +2,7 @@ import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } fr
 import appLogo from '@/app/assets/logo.png?asset'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
+import { showMainWindow } from '@/lib/main/window-manager'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
 
@@ -14,6 +15,7 @@ const IPC_HANDLE_CHANNELS = [
   TextPickerChannel.AddBlockApp,
   TextPickerChannel.RemoveBlockApp,
   TextPickerChannel.GetSkills,
+  TextPickerChannel.OpenMainWindow,
   TextPickerChannel.HideBubble,
 ] as const
 
@@ -31,7 +33,7 @@ export class TextPickerFeature {
 
   constructor(
     private readonly bridge: SelectionBridge = selectionBridge,
-    private readonly logger: Console = console,
+    private readonly logger: Console = console
   ) {}
 
   async initialize() {
@@ -53,7 +55,7 @@ export class TextPickerFeature {
     const trusted = this.manager.ensurePermission({ prompt: false })
     if (!trusted) {
       this.logger.warn(
-        '[TextPickerFeature] accessibility permission not granted, text picker inactive until authorized',
+        '[TextPickerFeature] accessibility permission not granted, text picker inactive until authorized'
       )
       return false
     }
@@ -120,9 +122,10 @@ export class TextPickerFeature {
     this.tray = new Tray(icon)
     this.tray.setToolTip('popMind')
 
-    // Left-click: show text picker context menu
+    // Left-click: open the main window
     this.tray.on('click', () => {
-      this.tray?.popUpContextMenu(this.buildTrayMenu())
+      this.manager?.hideBubble()
+      void showMainWindow()
     })
 
     // Right-click: show text picker context menu
@@ -190,12 +193,8 @@ export class TextPickerFeature {
             : -1
 
         const copiedByMenu =
-          sourceAppPid > 0
-            ? await this.bridge.copySelectionAsync(true, sourceAppPid, pickedInfo.text)
-            : false
-        const copiedByShortcut = copiedByMenu
-          ? false
-          : await this.bridge.copySelectionAsync(false, -1, pickedInfo.text)
+          sourceAppPid > 0 ? await this.bridge.copySelectionAsync(true, sourceAppPid, pickedInfo.text) : false
+        const copiedByShortcut = copiedByMenu ? false : await this.bridge.copySelectionAsync(false, -1, pickedInfo.text)
 
         const nativeStrategy = copiedByMenu ? 'menu_copy' : copiedByShortcut ? 'shortcut_copy' : 'native_failed'
         const clipboardText = clipboard.readText()
@@ -203,17 +202,20 @@ export class TextPickerFeature {
 
         if (!copiedByMenu && !copiedByShortcut) {
           this.logger.warn(
-            `[TextPickerFeature] native copy failed for ${pickedInfo.appId || 'unknown_app'}, falling back to clipboard.writeText`,
+            `[TextPickerFeature] native copy failed for ${pickedInfo.appId || 'unknown_app'}, falling back to clipboard.writeText`
           )
           clipboard.writeText(pickedInfo.text)
         } else if (!clipboardMatches) {
-          this.logger.warn('[TextPickerFeature] native copy reported success but clipboard mismatched, forcing fallback', {
-            appId: pickedInfo.appId || 'unknown_app',
-            nativeStrategy,
-            expectedTextLength: pickedInfo.text.length,
-            clipboardTextLength: clipboardText.length,
-            clipboardPreview: clipboardText.slice(0, 60),
-          })
+          this.logger.warn(
+            '[TextPickerFeature] native copy reported success but clipboard mismatched, forcing fallback',
+            {
+              appId: pickedInfo.appId || 'unknown_app',
+              nativeStrategy,
+              expectedTextLength: pickedInfo.text.length,
+              clipboardTextLength: clipboardText.length,
+              clipboardPreview: clipboardText.slice(0, 60),
+            }
+          )
           clipboard.writeText(pickedInfo.text)
         }
 
@@ -309,6 +311,12 @@ export class TextPickerFeature {
     ipcMain.handle(TextPickerChannel.GetSkills, async () => ({
       skills: this.manager?.getSkills() || [],
     }))
+
+    ipcMain.handle(TextPickerChannel.OpenMainWindow, async () => {
+      this.manager?.hideBubble()
+      await showMainWindow()
+      return { ok: true }
+    })
 
     ipcMain.handle(TextPickerChannel.HideBubble, async () => {
       this.manager?.hideBubble()

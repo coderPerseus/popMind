@@ -85,18 +85,18 @@ body {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  cursor: default;
+  cursor: pointer;
   transition:
     background 0.15s ease,
     opacity 0.15s ease;
 }
 
 .lead-logo:hover {
-  background: transparent;
+  background: rgba(32, 86, 217, 0.08);
 }
 
 .lead-logo.is-pressed {
-  background: transparent;
+  background: rgba(32, 86, 217, 0.14);
 }
 
 .lead-logo img {
@@ -177,11 +177,11 @@ body {
   }
 
   .lead-logo:hover {
-    background: transparent;
+    background: rgba(100, 160, 255, 0.14);
   }
 
   .lead-logo.is-pressed {
-    background: transparent;
+    background: rgba(100, 160, 255, 0.22);
   }
 
   .skill-btn {

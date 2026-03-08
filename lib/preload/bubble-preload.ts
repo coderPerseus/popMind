@@ -23,6 +23,13 @@ const bubbleApi: BubblePreloadApi = {
       return result
     })
   },
+  openMainWindow() {
+    preloadLog('openMainWindow:invoke')
+    return ipcRenderer.invoke(TextPickerChannel.OpenMainWindow).then((result) => {
+      preloadLog('openMainWindow:result', result)
+      return result
+    })
+  },
   hideBubble() {
     preloadLog('hideBubble:invoke')
     return ipcRenderer.invoke(TextPickerChannel.HideBubble).then((result) => {

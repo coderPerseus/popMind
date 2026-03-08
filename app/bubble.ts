@@ -13,6 +13,7 @@ const SKILL_ICONS: Record<string, string> = {
 const skillsContainer = document.querySelector<HTMLDivElement>('#skills')
 const toolbarNode = document.querySelector<HTMLDivElement>('#toolbar')
 const dragHandle = document.querySelector<HTMLButtonElement>('#drag-handle')
+const leadLogoButton = document.querySelector<HTMLButtonElement>('#lead-logo')
 const leadLogoImage = document.querySelector<HTMLImageElement>('#lead-logo-image')
 const SYNTHETIC_CLICK_GUARD_MS = 320
 const BUBBLE_WIDTH_PADDING = 2
@@ -230,6 +231,36 @@ const stopBubbleDrag = () => {
   lastDragPoint = null
   window.textPicker.setBubbleDragging(false)
 }
+
+leadLogoButton?.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) {
+    return
+  }
+
+  bubbleLog('leadLogo:pointerdown')
+  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+  noteBubbleInteraction()
+  leadLogoButton.classList.add('is-pressed')
+  event.stopPropagation()
+})
+
+leadLogoButton?.addEventListener('pointerup', () => {
+  leadLogoButton.classList.remove('is-pressed')
+})
+
+leadLogoButton?.addEventListener('pointercancel', () => {
+  leadLogoButton.classList.remove('is-pressed')
+})
+
+leadLogoButton?.addEventListener('click', async (event) => {
+  event.preventDefault()
+  event.stopPropagation()
+
+  bubbleLog('leadLogo:click:openMainWindow')
+  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+  noteBubbleInteraction()
+  await window.textPicker.openMainWindow()
+})
 
 dragHandle?.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) {
