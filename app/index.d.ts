@@ -1,5 +1,6 @@
 /// <reference types="electron-vite/node" />
 import type { BubblePreloadApi } from '@/lib/text-picker/shared'
+import type { TranslationWindowPreloadApi } from '@/lib/translation/types'
 
 declare module '*.css' {
   const content: string
@@ -34,5 +35,6 @@ declare module '*.web' {
 declare global {
   interface Window {
     textPicker: BubblePreloadApi
+    translationWindow: TranslationWindowPreloadApi
   }
 }

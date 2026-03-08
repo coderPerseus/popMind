@@ -1,5 +1,6 @@
 import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
+import { TranslationWindowManager } from '@/lib/translation/window/translation-window-manager'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { showMainWindow } from '@/lib/main/window-manager'
@@ -29,6 +30,7 @@ const IPC_EVENT_CHANNELS = [
 export class TextPickerFeature {
   private bubbleWindow: SelectionBubbleWindow | null = null
   private manager: TextPickerManager | null = null
+  private translationWindowManager: TranslationWindowManager | null = null
   private tray: Tray | null = null
 
   constructor(
@@ -38,10 +40,30 @@ export class TextPickerFeature {
 
   async initialize() {
     this.bubbleWindow = new SelectionBubbleWindow(this.bridge)
+    this.translationWindowManager = new TranslationWindowManager(this.bridge, this.logger)
     this.manager = new TextPickerManager({
       bubbleWindow: this.bubbleWindow,
       bridge: this.bridge,
       logger: this.logger,
+      onSelectionShown: () => {
+        this.translationWindowManager?.hideIfFloating()
+      },
+      isSecondaryFloatingVisible: () => this.translationWindowManager?.isVisible() ?? false,
+      isEventInsideSecondaryFloating: (event) => {
+        const x = Number(event.x)
+        const y = Number(event.y)
+
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return false
+        }
+
+        return this.translationWindowManager?.containsPoint(x, y) ?? false
+      },
+      hideSecondaryFloating: () => {
+        if (!this.translationWindowManager?.isPinned()) {
+          this.translationWindowManager?.hide()
+        }
+      },
     })
 
     this.createStatusTray()
@@ -104,6 +126,9 @@ export class TextPickerFeature {
     this.manager?.stop()
     this.manager = null
 
+    this.translationWindowManager?.dispose()
+    this.translationWindowManager = null
+
     this.tray?.destroy()
     this.tray = null
 
@@ -122,10 +147,9 @@ export class TextPickerFeature {
     this.tray = new Tray(icon)
     this.tray.setToolTip('popMind')
 
-    // Left-click: open the main window
+    // Left-click: show the status menu
     this.tray.on('click', () => {
-      this.manager?.hideBubble()
-      void showMainWindow()
+      this.tray?.popUpContextMenu(this.buildTrayMenu())
     })
 
     // Right-click: show text picker context menu
@@ -135,14 +159,36 @@ export class TextPickerFeature {
   }
 
   private buildTrayMenu() {
+    const isEnabled = this.manager?.isGlobalEnabled() ?? true
+
     return Menu.buildFromTemplate([
       {
-        label: '划词开关',
-        type: 'checkbox',
-        checked: this.manager?.isGlobalEnabled() ?? true,
-        click: (menuItem) => {
-          this.manager?.setGlobalEnabled(menuItem.checked)
+        label: '打开主页',
+        click: () => {
+          this.manager?.hideBubble()
+          void showMainWindow('home')
         },
+      },
+      {
+        label: isEnabled ? '关闭划词' : '开启划词',
+        click: () => {
+          this.manager?.setGlobalEnabled(!isEnabled)
+        },
+      },
+      {
+        label: '显示配置页面',
+        accelerator: 'Command+,',
+        click: () => {
+          this.manager?.hideBubble()
+          void showMainWindow('settings')
+        },
+      },
+      {
+        type: 'separator',
+      },
+      {
+        label: '退出',
+        role: 'quit',
       },
     ])
   }
@@ -257,6 +303,22 @@ export class TextPickerFeature {
           [SystemCommand.Translate]: 'translate',
           [SystemCommand.Explain]: 'explain',
           [SystemCommand.Search]: 'search',
+        }
+
+        if (commandId === SystemCommand.Translate) {
+          const anchor = this.manager?.getCurrentAnchor() ?? null
+          this.logger.info('[TextPickerFeature] bubble skill clicked: translate', {
+            selectionId: pickedInfo.selectionId,
+            anchor,
+          })
+          this.manager?.hideBubble()
+          await this.translationWindowManager?.showTranslation({
+            text: pickedInfo.text,
+            selectionId: pickedInfo.selectionId,
+            sourceAppId: pickedInfo.appId,
+            anchor,
+          })
+          return { ok: true, commandId }
         }
 
         const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text)

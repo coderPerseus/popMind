@@ -1,6 +1,8 @@
 import { app } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
+import { setupApplicationMenu } from './application-menu'
 
 let textPickerFeature: TextPickerFeature | null = null
 
@@ -10,6 +12,8 @@ let textPickerFeature: TextPickerFeature | null = null
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+  setupApplicationMenu()
+  registerTranslationHandlers()
 
   // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()

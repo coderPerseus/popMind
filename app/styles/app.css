@@ -2,15 +2,12 @@
 @import './window.css';
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    Arial,
-    Helvetica,
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
   font-size: 14px;
   margin: 0;
   overflow: hidden;
+  color: var(--window-c-text);
+  background: var(--window-c-background);
 }
 
 html,

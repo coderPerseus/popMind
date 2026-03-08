@@ -30,6 +30,7 @@ export default defineConfig({
         input: {
           preload: resolve(__dirname, 'lib/preload/preload.ts'),
           bubblePreload: resolve(__dirname, 'lib/preload/bubble-preload.ts'),
+          translationPreload: resolve(__dirname, 'lib/preload/translation-preload.ts'),
         },
       },
     },
@@ -45,6 +46,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'app/index.html'),
           bubble: resolve(__dirname, 'app/bubble.html'),
+          translate: resolve(__dirname, 'app/translate.html'),
         },
       },
     },

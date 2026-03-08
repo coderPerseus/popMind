@@ -39,6 +39,10 @@ interface TextPickerManagerOptions {
   bubbleWindow: BubbleWindowPort
   bridge: SelectionBridge
   logger?: Console
+  onSelectionShown?: (pickedInfo: PickedInfo) => void
+  isSecondaryFloatingVisible?: () => boolean
+  isEventInsideSecondaryFloating?: (event: SelectionActionEvent) => boolean
+  hideSecondaryFloating?: () => void
 }
 
 const DISMISS_SCENES = new Set<SelectionSceneValue>([
@@ -56,6 +60,10 @@ export class TextPickerManager {
   private readonly bubbleWindow: BubbleWindowPort
   private readonly bridge: SelectionBridge
   private readonly logger: Console
+  private readonly onSelectionShown?: (pickedInfo: PickedInfo) => void
+  private readonly isSecondaryFloatingVisible?: () => boolean
+  private readonly isEventInsideSecondaryFloating?: (event: SelectionActionEvent) => boolean
+  private readonly hideSecondaryFloating?: () => void
   private readonly blockedApps = new Set<string>()
   private readonly blockedUrls = new Set<string>()
   private readonly positionMemory = new Map<string, ToolbarPositionMemory>()
@@ -87,10 +95,18 @@ export class TextPickerManager {
     bubbleWindow,
     bridge,
     logger = console,
+    onSelectionShown,
+    isSecondaryFloatingVisible,
+    isEventInsideSecondaryFloating,
+    hideSecondaryFloating,
   }: TextPickerManagerOptions) {
     this.bubbleWindow = bubbleWindow
     this.bridge = bridge
     this.logger = logger
+    this.onSelectionShown = onSelectionShown
+    this.isSecondaryFloatingVisible = isSecondaryFloatingVisible
+    this.isEventInsideSecondaryFloating = isEventInsideSecondaryFloating
+    this.hideSecondaryFloating = hideSecondaryFloating
     this.detachBubbleMoveListener = this.bubbleWindow.onMove((bounds) => {
       this.handleBubbleMoved(bounds)
     })
@@ -218,6 +234,10 @@ export class TextPickerManager {
 
   getCurrentSelectionText() {
     return this.pickedInfo?.text || ''
+  }
+
+  getCurrentAnchor() {
+    return this.currentAnchor
   }
 
   refreshSelection() {
@@ -413,7 +433,7 @@ export class TextPickerManager {
     }
 
     if (
-      this.bubbleWindow.isVisible() &&
+      (this.bubbleWindow.isVisible() || this.isSecondaryFloatingVisible?.()) &&
       (scene === SelectionScene.GESTURE_DISMISS || scene === SelectionScene.KEY_DISMISS)
     ) {
       this.logger.info('[TextPickerManager] transient dismiss scene ignored while bubble is visible', {
@@ -427,6 +447,7 @@ export class TextPickerManager {
       this.logger.info('[TextPickerManager] dismiss scene received', { scene })
       this.noteBubbleInteraction()
       this.hideBubble()
+      this.hideSecondaryFloating?.()
       return
     }
 
@@ -436,7 +457,7 @@ export class TextPickerManager {
       scene === SelectionScene.MULTI_CLICK ||
       scene === SelectionScene.SHIFT_MOUSE_CLICK
 
-    if (isPointerScene && this.isEventInsideBubble(event)) {
+    if (isPointerScene && (this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event))) {
       this.logger.info('[TextPickerManager] pointer scene inside bubble, ignoring', {
         scene,
         x: event.x,
@@ -483,7 +504,10 @@ export class TextPickerManager {
   }
 
   private hideOnOutsideClickIfNeeded(event: SelectionActionEvent) {
-    if (!event || this.bubbleWindow.isDestroyed() || !this.bubbleWindow.isVisible()) {
+    const bubbleVisible = !this.bubbleWindow.isDestroyed() && this.bubbleWindow.isVisible()
+    const secondaryVisible = this.isSecondaryFloatingVisible?.() === true
+
+    if (!event || (!bubbleVisible && !secondaryVisible)) {
       return
     }
 
@@ -493,14 +517,13 @@ export class TextPickerManager {
       return
     }
 
-    const bounds = this.bubbleWindow.getBounds()
-    const right = bounds.x + bounds.width
-    const bottom = bounds.y + bounds.height
-    const isInsideBubble = x >= bounds.x && x <= right && y >= bounds.y && y <= bottom
+    const isInsideBubble = bubbleVisible ? this.isEventInsideBubble(event) : false
+    const isInsideSecondary = this.isEventInsideSecondaryFloating?.(event) === true
 
-    if (!isInsideBubble) {
+    if (!isInsideBubble && !isInsideSecondary) {
       this.noteBubbleInteraction()
       this.hideBubble()
+      this.hideSecondaryFloating?.()
     }
   }
 
@@ -611,6 +634,7 @@ export class TextPickerManager {
       anchor,
       pickedInfo: this.pickedInfo,
     })
+    this.onSelectionShown?.(this.pickedInfo)
   }
 
   private showToolbar({

@@ -105,7 +105,7 @@ export const menuItems: TitlebarMenu[] = [
     name: 'Window',
     items: [
       {
-        name: 'Dark Mode',
+        name: 'Toggle Dark Mode',
         action: 'window-darkmode-toggle',
         shortcut: 'Toggle',
         actionCallback: () => {
