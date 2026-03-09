@@ -297,8 +297,8 @@ export function TranslationPanel() {
                     <LoaderCircle size={16} className="translation-spin" />
                   </div>
                   <div className="translation-loading-text">
-                    <div className="translation-loading-title">翻译中</div>
-                    <div className="translation-loading-desc">正在获取译文，请稍候…</div>
+                    <div className="translation-loading-title">{state.loadingTitle || '翻译中'}</div>
+                    <div className="translation-loading-desc">{state.loadingDescription || '正在获取译文，请稍候…'}</div>
                   </div>
                 </div>
               ) : isWordMode && state.wordEntry ? (

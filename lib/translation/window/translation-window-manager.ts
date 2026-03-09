@@ -20,6 +20,8 @@ const resolveEngineId = (settings: TranslationSettings, preferred?: TranslationE
   return resolveEnabledEngineIds(settings)[0]
 }
 
+type TranslationWindowPresentation = 'anchored' | 'centered'
+
 export class TranslationWindowManager {
   private window: TranslationWindow | null = null
   private detachMoveListener: (() => void) | null = null
@@ -31,6 +33,7 @@ export class TranslationWindowManager {
   } | null = null
   private ignoreMoveUntil = 0
   private lastAnchor: TranslationAnchorPoint | null = null
+  private lastPresentation: TranslationWindowPresentation = 'anchored'
   private requestVersion = 0
 
   constructor(
@@ -49,10 +52,12 @@ export class TranslationWindowManager {
     selectionId?: string
     sourceAppId?: string
     anchor: TranslationAnchorPoint | null
+    presentation?: TranslationWindowPresentation
   }) {
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
+    const presentation = payload.presentation ?? 'anchored'
 
     this.pendingRequest = {
       text: payload.text,
@@ -72,10 +77,12 @@ export class TranslationWindowManager {
       sourceText: payload.text,
       translatedText: '',
       wordEntry: undefined,
+      loadingTitle: '翻译中',
+      loadingDescription: '正在获取译文，请稍候…',
       languages: translationLanguages,
     }
 
-    this.positionWindow(payload.anchor)
+    this.positionWindow(payload.anchor, presentation)
     this.sendState()
     this.showWindow()
 
@@ -83,6 +90,73 @@ export class TranslationWindowManager {
       sourceLanguage: 'auto',
       engineId,
     })
+  }
+
+  async showProcessingState(payload: {
+    presentation?: TranslationWindowPresentation
+    loadingTitle: string
+    loadingDescription?: string
+  }) {
+    const settings = await translationService.getSettings()
+    const enabledEngineIds = resolveEnabledEngineIds(settings)
+    const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
+    const presentation = payload.presentation ?? 'centered'
+
+    this.pendingRequest = null
+    this.ensureWindow()
+    this.state = {
+      status: 'loading',
+      pinned: this.state?.pinned ?? false,
+      queryMode: 'text',
+      engineId,
+      enabledEngineIds,
+      sourceLanguage: this.state?.sourceLanguage ?? 'auto',
+      targetLanguage: this.state?.targetLanguage ?? settings.firstLanguage,
+      sourceText: '',
+      translatedText: '',
+      wordEntry: undefined,
+      errorMessage: undefined,
+      loadingTitle: payload.loadingTitle,
+      loadingDescription: payload.loadingDescription,
+      languages: translationLanguages,
+    }
+
+    this.positionWindow(null, presentation)
+    this.sendState()
+    this.showWindow()
+  }
+
+  async showErrorState(payload: {
+    presentation?: TranslationWindowPresentation
+    errorMessage: string
+  }) {
+    const settings = await translationService.getSettings()
+    const enabledEngineIds = resolveEnabledEngineIds(settings)
+    const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
+    const presentation = payload.presentation ?? this.lastPresentation
+
+    this.pendingRequest = null
+    this.ensureWindow()
+    this.state = {
+      status: 'error',
+      pinned: this.state?.pinned ?? false,
+      queryMode: 'text',
+      engineId,
+      enabledEngineIds,
+      sourceLanguage: this.state?.sourceLanguage ?? 'auto',
+      targetLanguage: this.state?.targetLanguage ?? settings.firstLanguage,
+      sourceText: this.state?.sourceText ?? '',
+      translatedText: '',
+      wordEntry: undefined,
+      errorMessage: payload.errorMessage,
+      loadingTitle: undefined,
+      loadingDescription: undefined,
+      languages: translationLanguages,
+    }
+
+    this.positionWindow(null, presentation)
+    this.sendState()
+    this.showWindow()
   }
 
   hideIfFloating() {
@@ -223,6 +297,8 @@ export class TranslationWindowManager {
       wordEntry: undefined,
       errorMessage: undefined,
       detectedSourceLanguage: undefined,
+      loadingTitle: '翻译中',
+      loadingDescription: '正在获取译文，请稍候…',
     }
     this.sendState()
 
@@ -253,6 +329,8 @@ export class TranslationWindowManager {
         detectedSourceLanguage: result.detectedSourceLanguage,
         wordEntry: result.wordEntry,
         errorMessage: undefined,
+        loadingTitle: undefined,
+        loadingDescription: undefined,
       }
     } catch (error) {
       if (requestVersion !== this.requestVersion) {
@@ -268,6 +346,8 @@ export class TranslationWindowManager {
         queryMode: 'text',
         wordEntry: undefined,
         errorMessage: message,
+        loadingTitle: undefined,
+        loadingDescription: undefined,
       }
     }
 
@@ -275,32 +355,43 @@ export class TranslationWindowManager {
     this.showWindow()
   }
 
-  private positionWindow(anchor: TranslationAnchorPoint | null) {
+  private positionWindow(anchor: TranslationAnchorPoint | null, presentation: TranslationWindowPresentation) {
     const window = this.ensureWindow()
     const [width, height] = window.getSize()
     const cursorPoint = screen.getCursorScreenPoint()
-    const fallbackAnchor: TranslationAnchorPoint = {
-      x: cursorPoint.x,
-      topY: cursorPoint.y,
-      bottomY: cursorPoint.y,
-    }
-    const nextAnchor = anchor ?? fallbackAnchor
-    this.lastAnchor = nextAnchor
-    const display = screen.getDisplayNearestPoint({
-      x: Math.round(nextAnchor.x),
-      y: Math.round(nextAnchor.topY),
-    })
+    const displayPoint = anchor
+      ? {
+          x: Math.round(anchor.x),
+          y: Math.round(anchor.topY),
+        }
+      : cursorPoint
+    const display = screen.getDisplayNearestPoint(displayPoint)
     const { workArea } = display
 
-    let x = nextAnchor.x - width / 2
-    let y = nextAnchor.topY - height - WINDOW_GAP
+    let x = workArea.x + (workArea.width - width) / 2
+    let y = workArea.y + (workArea.height - height) / 2
 
-    x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - width))
+    if (presentation === 'anchored') {
+      const fallbackAnchor: TranslationAnchorPoint = {
+        x: cursorPoint.x,
+        topY: cursorPoint.y,
+        bottomY: cursorPoint.y,
+      }
+      const nextAnchor = anchor ?? fallbackAnchor
+      this.lastAnchor = nextAnchor
+      x = nextAnchor.x - width / 2
+      y = nextAnchor.topY - height - WINDOW_GAP
 
-    if (y < workArea.y) {
-      y = Math.min(nextAnchor.bottomY + WINDOW_GAP, workArea.y + workArea.height - height)
+      x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - width))
+
+      if (y < workArea.y) {
+        y = Math.min(nextAnchor.bottomY + WINDOW_GAP, workArea.y + workArea.height - height)
+      }
+    } else {
+      this.lastAnchor = null
     }
 
+    this.lastPresentation = presentation
     this.ignoreMoveUntil = Date.now() + 120
     window.setBounds({
       x: Math.round(x),
@@ -351,7 +442,12 @@ export class TranslationWindowManager {
       return
     }
 
-    const nextY = this.lastAnchor ? Math.round(this.lastAnchor.topY - nextHeight - WINDOW_GAP) : bounds.y
+    const nextY =
+      this.lastPresentation === 'centered'
+        ? Math.round(bounds.y - (nextHeight - bounds.height) / 2)
+        : this.lastAnchor
+          ? Math.round(this.lastAnchor.topY - nextHeight - WINDOW_GAP)
+          : bounds.y
     const display = screen.getDisplayMatching(bounds)
     const clampedY = Math.max(display.workArea.y, Math.min(nextY, display.workArea.y + display.workArea.height - nextHeight))
 

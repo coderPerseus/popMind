@@ -3,11 +3,14 @@
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <Carbon/Carbon.h>
+#import <Vision/Vision.h>
 
+#include <algorithm>
 #include <cmath>
 #include <mutex>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 namespace {
 
@@ -305,6 +308,104 @@ bool FillRect(AXUIElementRef el, Napi::Object* result, Napi::Env env) {
 
   CFRelease(bv);
   return ok;
+}
+
+struct RecognizedTextLine {
+  std::string text;
+  double top = 0.0;
+  double left = 0.0;
+};
+
+bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outText,
+                                std::string* outError) {
+  if (!outText || !outError) return false;
+
+  *outText = "";
+  *outError = "";
+
+  @autoreleasepool {
+    NSString* nsImagePath = [NSString stringWithUTF8String:imagePath.c_str()];
+    if (!nsImagePath || ![[NSFileManager defaultManager] fileExistsAtPath:nsImagePath]) {
+      *outError = "image_not_found";
+      return false;
+    }
+
+    NSURL* imageURL = [NSURL fileURLWithPath:nsImagePath];
+    if (!imageURL) {
+      *outError = "invalid_image_path";
+      return false;
+    }
+
+    __block std::vector<RecognizedTextLine> lines;
+    __block NSString* requestErrorMessage = nil;
+
+    VNRecognizeTextRequest* request =
+        [[VNRecognizeTextRequest alloc] initWithCompletionHandler:^(
+            VNRequest* _Nonnull req, NSError* _Nullable error) {
+          if (error) {
+            requestErrorMessage = error.localizedDescription ?: @"ocr_request_failed";
+            return;
+          }
+
+          NSArray<VNRecognizedTextObservation*>* observations =
+              req.results ? (NSArray<VNRecognizedTextObservation*>*)req.results : @[];
+          for (VNRecognizedTextObservation* observation in observations) {
+            VNRecognizedText* candidate = [[observation topCandidates:1] firstObject];
+            NSString* recognized = candidate.string;
+            if (!recognized || recognized.length == 0) {
+              continue;
+            }
+
+            CGRect box = observation.boundingBox;
+            RecognizedTextLine line;
+            line.text = ToStdString(recognized);
+            line.top = 1.0 - (box.origin.y + box.size.height);
+            line.left = box.origin.x;
+            lines.push_back(std::move(line));
+          }
+        }];
+
+    request.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
+    request.usesLanguageCorrection = YES;
+
+    NSError* handlerError = nil;
+    VNImageRequestHandler* handler =
+        [[VNImageRequestHandler alloc] initWithURL:imageURL options:@{} error:&handlerError];
+    if (handlerError) {
+      *outError = ToStdString(handlerError.localizedDescription ?: @"ocr_handler_init_failed");
+      return false;
+    }
+
+    BOOL ok = [handler performRequests:@[ request ] error:&handlerError];
+    if (!ok || handlerError) {
+      *outError = ToStdString(handlerError.localizedDescription ?: @"ocr_perform_failed");
+      return false;
+    }
+
+    if (requestErrorMessage) {
+      *outError = ToStdString(requestErrorMessage);
+      return false;
+    }
+
+    std::sort(lines.begin(), lines.end(), [](const RecognizedTextLine& a,
+                                             const RecognizedTextLine& b) {
+      const double rowDiff = std::abs(a.top - b.top);
+      if (rowDiff > 0.018) {
+        return a.top < b.top;
+      }
+      return a.left < b.left;
+    });
+
+    std::string joined;
+    for (const auto& line : lines) {
+      if (line.text.empty()) continue;
+      if (!joined.empty()) joined += "\n";
+      joined += line.text;
+    }
+
+    *outText = joined;
+    return true;
+  }
 }
 
 NSArray* SavePasteboardItems() {
@@ -892,6 +993,37 @@ private:
   bool copied_ = false;
 };
 
+class RecognizeTextInImageWorker : public Napi::AsyncWorker {
+public:
+  RecognizeTextInImageWorker(Napi::Promise::Deferred deferred, std::string imagePath)
+    : Napi::AsyncWorker(deferred.Env()),
+      deferred_(deferred),
+      imagePath_(std::move(imagePath)) {}
+
+  void Execute() override {
+    if (!RecognizeTextFromImagePath(imagePath_, &recognizedText_, &errorMessage_)) {
+      if (errorMessage_.empty()) {
+        errorMessage_ = "ocr_failed";
+      }
+      SetError(errorMessage_);
+    }
+  }
+
+  void OnOK() override {
+    deferred_.Resolve(Napi::String::New(Env(), recognizedText_));
+  }
+
+  void OnError(const Napi::Error& error) override {
+    deferred_.Reject(error.Value());
+  }
+
+private:
+  Napi::Promise::Deferred deferred_;
+  std::string imagePath_;
+  std::string recognizedText_;
+  std::string errorMessage_;
+};
+
 Napi::Value GetTextByClipboardAsync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   bool useMenu = info.Length() >= 1 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
@@ -921,6 +1053,20 @@ Napi::Value CopySelectionAsync(const Napi::CallbackInfo& info) {
 
   auto deferred = Napi::Promise::Deferred::New(env);
   auto* worker = new CopySelectionWorker(deferred, useMenu, pid, expectedText);
+  worker->Queue();
+  return deferred.Promise();
+}
+
+Napi::Value RecognizeTextInImageAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "imagePath required").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  auto deferred = Napi::Promise::Deferred::New(env);
+  auto* worker =
+      new RecognizeTextInImageWorker(deferred, info[0].As<Napi::String>().Utf8Value());
   worker->Queue();
   return deferred.Promise();
 }
@@ -1167,6 +1313,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getSelectionSnapshot", Napi::Function::New(env, GetSelectionSnapshot));
   exports.Set("getTextByClipboardAsync", Napi::Function::New(env, GetTextByClipboardAsync));
   exports.Set("copySelectionAsync", Napi::Function::New(env, CopySelectionAsync));
+  exports.Set("recognizeTextInImageAsync", Napi::Function::New(env, RecognizeTextInImageAsync));
   exports.Set("startActionMonitor", Napi::Function::New(env, StartActionMonitor));
   exports.Set("stopActionMonitor", Napi::Function::New(env, StopActionMonitor));
   exports.Set("getCursorPosition", Napi::Function::New(env, GetCursorPosition));
