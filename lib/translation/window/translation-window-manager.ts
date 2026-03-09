@@ -5,6 +5,7 @@ import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 import type {
   TranslationAnchorPoint,
   TranslationEngineId,
+  TranslationWindowResizeEdge,
   TranslationSettings,
   TranslationWindowResizePayload,
   TranslationWindowState,
@@ -16,9 +17,29 @@ const WINDOW_GAP = 14
 const APP_ACTIVATE_SUPPRESS_MS = 700
 const MIN_WINDOW_WIDTH = 404
 const MAX_WINDOW_WIDTH = 760
-const MIN_MANUAL_WINDOW_HEIGHT = 600
+const MIN_MANUAL_WINDOW_HEIGHT = 320
 const DEFAULT_CONTENT_WINDOW_MIN_HEIGHT = 260
 const MAX_WINDOW_HEIGHT = 680
+
+const clamp = (value: number, min: number, max: number) => {
+  return Math.min(Math.max(value, min), max)
+}
+
+const hasLeftEdge = (edge: TranslationWindowResizeEdge) => {
+  return edge === 'left' || edge === 'top-left' || edge === 'bottom-left'
+}
+
+const hasRightEdge = (edge: TranslationWindowResizeEdge) => {
+  return edge === 'right' || edge === 'top-right' || edge === 'bottom-right'
+}
+
+const hasTopEdge = (edge: TranslationWindowResizeEdge) => {
+  return edge === 'top' || edge === 'top-left' || edge === 'top-right'
+}
+
+const hasBottomEdge = (edge: TranslationWindowResizeEdge) => {
+  return edge === 'bottom' || edge === 'bottom-left' || edge === 'bottom-right'
+}
 
 const resolveEnabledEngineIds = (settings: TranslationSettings) => {
   return translationEngineOrder.filter((engineId) => settings.enabledEngines[engineId])
@@ -477,7 +498,38 @@ export class TranslationWindowManager {
             height: payload.height,
             minHeight: payload.minHeight,
             source: payload.source ?? 'content',
+            edge: payload.edge,
+            deltaX: payload.deltaX,
+            deltaY: payload.deltaY,
           }
+
+    const display = screen.getDisplayMatching(bounds)
+    const { workArea } = display
+
+    if (normalizedPayload.source === 'manual') {
+      const edge = normalizedPayload.edge
+      const deltaX = Number.isFinite(normalizedPayload.deltaX) ? Math.round(normalizedPayload.deltaX as number) : 0
+      const deltaY = Number.isFinite(normalizedPayload.deltaY) ? Math.round(normalizedPayload.deltaY as number) : 0
+
+      if (!edge || (deltaX === 0 && deltaY === 0)) {
+        return
+      }
+
+      const nextBounds = this.resolveManualResizeBounds(bounds, workArea, edge, deltaX, deltaY)
+
+      if (
+        nextBounds.x === bounds.x &&
+        nextBounds.y === bounds.y &&
+        nextBounds.width === bounds.width &&
+        nextBounds.height === bounds.height
+      ) {
+        return
+      }
+
+      this.window.setBounds(nextBounds)
+      this.window.orderFront()
+      return
+    }
 
     const width = normalizedPayload.width
     const height = normalizedPayload.height
@@ -496,24 +548,6 @@ export class TranslationWindowManager {
       return
     }
 
-    const display = screen.getDisplayMatching(bounds)
-    const { workArea } = display
-
-    if (normalizedPayload.source === 'manual') {
-      const maxWidthFromPosition = Math.max(MIN_WINDOW_WIDTH, workArea.x + workArea.width - bounds.x)
-      const maxHeightFromPosition = Math.max(MIN_MANUAL_WINDOW_HEIGHT, workArea.y + workArea.height - bounds.y)
-      const clampedWidth = Math.min(nextWidth, maxWidthFromPosition)
-      const clampedHeight = Math.min(nextHeight, maxHeightFromPosition)
-
-      this.window.setBounds({
-        ...bounds,
-        width: clampedWidth,
-        height: clampedHeight,
-      })
-      this.window.orderFront()
-      return
-    }
-
     const nextY =
       this.lastPresentation === 'centered'
         ? Math.round(bounds.y - (nextHeight - bounds.height) / 2)
@@ -529,6 +563,59 @@ export class TranslationWindowManager {
       height: nextHeight,
     })
     this.window.orderFront()
+  }
+
+  private resolveManualResizeBounds(
+    bounds: Electron.Rectangle,
+    workArea: Electron.Rectangle,
+    edge: TranslationWindowResizeEdge,
+    deltaX: number,
+    deltaY: number
+  ) {
+    const right = bounds.x + bounds.width
+    const bottom = bounds.y + bounds.height
+    const workAreaRight = workArea.x + workArea.width
+    const workAreaBottom = workArea.y + workArea.height
+
+    let nextX = bounds.x
+    let nextY = bounds.y
+    let nextWidth = bounds.width
+    let nextHeight = bounds.height
+
+    if (hasLeftEdge(edge)) {
+      const minLeft = Math.max(workArea.x, right - MAX_WINDOW_WIDTH)
+      const maxLeft = right - MIN_WINDOW_WIDTH
+      const nextLeft = clamp(bounds.x + deltaX, minLeft, maxLeft)
+      nextX = nextLeft
+      nextWidth = right - nextLeft
+    } else if (hasRightEdge(edge)) {
+      nextWidth = clamp(
+        bounds.width + deltaX,
+        MIN_WINDOW_WIDTH,
+        Math.max(MIN_WINDOW_WIDTH, Math.min(MAX_WINDOW_WIDTH, workAreaRight - bounds.x))
+      )
+    }
+
+    if (hasTopEdge(edge)) {
+      const minTop = Math.max(workArea.y, bottom - MAX_WINDOW_HEIGHT)
+      const maxTop = bottom - MIN_MANUAL_WINDOW_HEIGHT
+      const nextTop = clamp(bounds.y + deltaY, minTop, maxTop)
+      nextY = nextTop
+      nextHeight = bottom - nextTop
+    } else if (hasBottomEdge(edge)) {
+      nextHeight = clamp(
+        bounds.height + deltaY,
+        MIN_MANUAL_WINDOW_HEIGHT,
+        Math.max(MIN_MANUAL_WINDOW_HEIGHT, Math.min(MAX_WINDOW_HEIGHT, workAreaBottom - bounds.y))
+      )
+    }
+
+    return {
+      x: Math.round(nextX),
+      y: Math.round(nextY),
+      width: Math.round(nextWidth),
+      height: Math.round(nextHeight),
+    }
   }
 
   private sendState() {

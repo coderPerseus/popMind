@@ -14,6 +14,7 @@ body,
 
 /* Shell */
 .translation-shell {
+  position: relative;
   height: 100%;
   padding: 10px;
   box-sizing: border-box;
@@ -25,11 +26,24 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
+.translation-shell:has(.translation-edge-handle:hover) .translation-panel,
+.translation-shell.is-resizing .translation-panel {
+  border-color: rgb(99 131 210 / 0.32);
+  box-shadow:
+    0 0 0 1px rgb(99 131 210 / 0.08),
+    0 4px 6px rgb(0 0 0 / 0.04),
+    0 12px 32px rgb(0 0 0 / 0.1),
+    0 24px 56px rgb(0 0 0 / 0.07),
+    inset 0 1px 0 rgb(255 255 255 / 0.94);
+}
+
 /* Panel card */
 .translation-panel {
   position: relative;
   display: flex;
+  height: 100%;
   flex-direction: column;
+  box-sizing: border-box;
   max-height: 100%;
   overflow: hidden;
   border-radius: 20px;
@@ -553,33 +567,82 @@ body,
   cursor: not-allowed;
 }
 
-.translation-resize-handle {
+.translation-edge-handle {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
-  z-index: 2;
-  width: 26px !important;
-  height: 26px !important;
-  border: 0 !important;
-  border-radius: 8px;
-  background: transparent !important;
-  color: rgb(162 168 178);
+  z-index: 3;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  outline: none;
+  touch-action: none;
+}
+
+.translation-edge-handle--top,
+.translation-edge-handle--bottom {
+  left: 18px;
+  right: 18px;
+  height: 12px;
+}
+
+.translation-edge-handle--top {
+  top: 0;
+  cursor: ns-resize;
+}
+
+.translation-edge-handle--bottom {
+  bottom: 0;
+  cursor: ns-resize;
+}
+
+.translation-edge-handle--left,
+.translation-edge-handle--right {
+  top: 18px;
+  bottom: 18px;
+  width: 12px;
+}
+
+.translation-edge-handle--left {
+  left: 0;
+  cursor: ew-resize;
+}
+
+.translation-edge-handle--right {
+  right: 0;
+  cursor: ew-resize;
+}
+
+.translation-edge-handle--top-left,
+.translation-edge-handle--top-right,
+.translation-edge-handle--bottom-left,
+.translation-edge-handle--bottom-right {
+  width: 18px;
+  height: 18px;
+}
+
+.translation-edge-handle--top-left {
+  top: 0;
+  left: 0;
   cursor: nwse-resize;
-  box-shadow: none !important;
 }
 
-.translation-resize-handle:hover {
-  background: rgb(0 0 0 / 0.05) !important;
-  color: rgb(72 79 91);
+.translation-edge-handle--top-right {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
 }
 
-.translation-resize-handle:active {
-  background: rgb(0 0 0 / 0.08) !important;
+.translation-edge-handle--bottom-left {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
 }
 
-.translation-resize-handle:focus-visible {
-  border: 0 !important;
-  box-shadow: none !important;
+.translation-edge-handle--bottom-right {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
 }
 
 /* ── Spin animation ── */
@@ -613,6 +676,16 @@ body,
 
 .dark .translation-shell {
   color: rgb(232 235 241);
+}
+
+.dark .translation-shell:has(.translation-edge-handle:hover) .translation-panel,
+.dark .translation-shell.is-resizing .translation-panel {
+  border-color: rgb(129 140 248 / 0.3);
+  box-shadow:
+    0 0 0 1px rgb(129 140 248 / 0.12),
+    0 12px 32px rgb(0 0 0 / 0.42),
+    0 24px 56px rgb(0 0 0 / 0.32),
+    inset 0 1px 0 rgb(255 255 255 / 0.05);
 }
 
 .dark .translation-panel {
@@ -668,19 +741,6 @@ body,
 .dark .translation-action-btn:hover:not(:disabled) {
   background: rgb(255 255 255 / 0.08);
   color: rgb(245 247 250);
-}
-
-.dark .translation-resize-handle {
-  color: rgb(162 168 178);
-}
-
-.dark .translation-resize-handle:hover {
-  background: rgb(255 255 255 / 0.08) !important;
-  color: rgb(236 239 244);
-}
-
-.dark .translation-resize-handle:active {
-  background: rgb(255 255 255 / 0.12) !important;
 }
 
 .dark .translation-icon-btn.is-active,

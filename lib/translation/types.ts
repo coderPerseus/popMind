@@ -122,11 +122,24 @@ export interface TranslationAnchorPoint {
   bottomY: number
 }
 
+export type TranslationWindowResizeEdge =
+  | 'top'
+  | 'right'
+  | 'bottom'
+  | 'left'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right'
+
 export interface TranslationWindowResizePayload {
   width?: number
   height?: number
   minHeight?: number
   source?: 'content' | 'manual'
+  edge?: TranslationWindowResizeEdge
+  deltaX?: number
+  deltaY?: number
 }
 
 export interface TranslationWindowPreloadApi {

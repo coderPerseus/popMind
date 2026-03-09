@@ -1,22 +1,11 @@
-import {
-  Check,
-  Copy,
-  GripHorizontal,
-  LoaderCircle,
-  MoveDiagonal2,
-  Pin,
-  RefreshCw,
-  Square,
-  Volume2,
-  X,
-} from 'lucide-react'
+import { Check, Copy, GripHorizontal, LoaderCircle, Pin, RefreshCw, Square, Volume2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Select } from '@/app/components/ui/select'
 import '@/app/components/translation/styles.css'
 import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import { getLanguageFamily, translationEngineLabels, translationEngineOrder } from '@/lib/translation/shared'
-import type { TranslationWindowState } from '@/lib/translation/types'
+import type { TranslationWindowResizeEdge, TranslationWindowState } from '@/lib/translation/types'
 
 const emptyState: TranslationWindowState = {
   status: 'idle',
@@ -33,6 +22,16 @@ const emptyState: TranslationWindowState = {
 
 const WORD_MODE_MIN_HEIGHT = 600
 const DEFAULT_CONTENT_MIN_HEIGHT = 260
+const resizeHandleConfigs: Array<{ edge: TranslationWindowResizeEdge; label: string }> = [
+  { edge: 'top', label: '从顶部调整翻译窗口大小' },
+  { edge: 'right', label: '从右侧调整翻译窗口大小' },
+  { edge: 'bottom', label: '从底部调整翻译窗口大小' },
+  { edge: 'left', label: '从左侧调整翻译窗口大小' },
+  { edge: 'top-left', label: '从左上角调整翻译窗口大小' },
+  { edge: 'top-right', label: '从右上角调整翻译窗口大小' },
+  { edge: 'bottom-left', label: '从左下角调整翻译窗口大小' },
+  { edge: 'bottom-right', label: '从右下角调整翻译窗口大小' },
+]
 
 const getSpeechLocale = (languageCode: string, phoneticLabel?: string) => {
   const normalizedCode = languageCode.toLowerCase()
@@ -90,6 +89,7 @@ export function TranslationPanel() {
   const [engineId, setEngineId] = useState<TranslationWindowState['engineId']>('google')
   const [copied, setCopied] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const [activeResizeEdge, setActiveResizeEdge] = useState<TranslationWindowResizeEdge | null>(null)
   const panelRef = useRef<HTMLElement | null>(null)
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const speakingRef = useRef(false)
@@ -105,16 +105,20 @@ export function TranslationPanel() {
   })
   const resizeState = useRef<{
     pointerId: number | null
-    width: number
-    height: number
+    edge: TranslationWindowResizeEdge | null
     x: number
     y: number
+    pendingX: number
+    pendingY: number
+    frameId: number | null
   }>({
     pointerId: null,
-    width: 0,
-    height: 0,
+    edge: null,
     x: 0,
     y: 0,
+    pendingX: 0,
+    pendingY: 0,
+    frameId: null,
   })
 
   useEffect(() => {
@@ -170,6 +174,16 @@ export function TranslationPanel() {
     return () => {
       window.speechSynthesis.cancel()
       utteranceRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const resizeTracker = resizeState.current
+
+    return () => {
+      if (resizeTracker.frameId != null) {
+        cancelAnimationFrame(resizeTracker.frameId)
+      }
     }
   }, [])
 
@@ -403,12 +417,32 @@ export function TranslationPanel() {
       return
     }
 
+    if (resizeState.current.frameId != null) {
+      cancelAnimationFrame(resizeState.current.frameId)
+      resizeState.current.frameId = null
+    }
+
+    const deltaX = resizeState.current.pendingX - resizeState.current.x
+    const deltaY = resizeState.current.pendingY - resizeState.current.y
+    if (resizeState.current.edge && (deltaX !== 0 || deltaY !== 0)) {
+      resizeState.current.x = resizeState.current.pendingX
+      resizeState.current.y = resizeState.current.pendingY
+      window.translationWindow.resizeWindow({
+        source: 'manual',
+        edge: resizeState.current.edge,
+        deltaX,
+        deltaY,
+      })
+    }
+
     resizeState.current.pointerId = null
+    resizeState.current.edge = null
 
     if (target?.hasPointerCapture(pointerId)) {
       target.releasePointerCapture(pointerId)
     }
 
+    setActiveResizeEdge(null)
     window.translationWindow.setDragging(false)
   }
 
@@ -420,15 +454,45 @@ export function TranslationPanel() {
     event.preventDefault()
     event.stopPropagation()
 
+    const edge = event.currentTarget.dataset.edge as TranslationWindowResizeEdge | undefined
+    if (!edge) {
+      return
+    }
+
     resizeState.current.pointerId = event.pointerId
-    resizeState.current.width = window.innerWidth
-    resizeState.current.height = window.innerHeight
+    resizeState.current.edge = edge
     resizeState.current.x = event.screenX
     resizeState.current.y = event.screenY
+    resizeState.current.pendingX = event.screenX
+    resizeState.current.pendingY = event.screenY
     hasManualResizeRef.current = true
+    setActiveResizeEdge(edge)
     window.translationWindow.notifyInteraction()
     window.translationWindow.setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const flushResizeFrame = () => {
+    resizeState.current.frameId = null
+
+    if (!resizeState.current.edge) {
+      return
+    }
+
+    const deltaX = resizeState.current.pendingX - resizeState.current.x
+    const deltaY = resizeState.current.pendingY - resizeState.current.y
+    if (deltaX === 0 && deltaY === 0) {
+      return
+    }
+
+    resizeState.current.x = resizeState.current.pendingX
+    resizeState.current.y = resizeState.current.pendingY
+    window.translationWindow.resizeWindow({
+      source: 'manual',
+      edge: resizeState.current.edge,
+      deltaX,
+      deltaY,
+    })
   }
 
   const handleResizeMove = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -436,17 +500,21 @@ export function TranslationPanel() {
       return
     }
 
-    const deltaX = event.screenX - resizeState.current.x
-    const deltaY = event.screenY - resizeState.current.y
-    if (deltaX === 0 && deltaY === 0) {
+    resizeState.current.pendingX = event.screenX
+    resizeState.current.pendingY = event.screenY
+
+    if (
+      resizeState.current.pendingX === resizeState.current.x &&
+      resizeState.current.pendingY === resizeState.current.y
+    ) {
       return
     }
 
-    window.translationWindow.resizeWindow({
-      width: resizeState.current.width + deltaX,
-      height: resizeState.current.height + deltaY,
-      source: 'manual',
-    })
+    if (resizeState.current.frameId != null) {
+      return
+    }
+
+    resizeState.current.frameId = requestAnimationFrame(flushResizeFrame)
   }
 
   const handleResizeEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -458,7 +526,7 @@ export function TranslationPanel() {
   }
 
   return (
-    <div className="translation-shell">
+    <div className={`translation-shell ${activeResizeEdge ? 'is-resizing' : ''}`}>
       <section className={`translation-panel ${isWordMode ? 'is-word-mode' : 'is-text-mode'}`} ref={panelRef}>
         {/* ── Top bar: language selector + actions ── */}
         <div className="translation-topbar">
@@ -682,21 +750,23 @@ export function TranslationPanel() {
             </Button>
           </div>
         </div>
+      </section>
 
-        <Button
-          className="translation-resize-handle"
-          variant="ghost"
-          size="icon-sm"
+      {resizeHandleConfigs.map((handle) => (
+        <button
+          key={handle.edge}
+          type="button"
+          className={`translation-edge-handle translation-edge-handle--${handle.edge}`}
+          data-edge={handle.edge}
           onPointerDown={handleResizeStart}
           onPointerMove={handleResizeMove}
           onPointerUp={handleResizeEnd}
           onPointerCancel={handleResizeEnd}
           onLostPointerCapture={(event) => stopResizing(event.currentTarget)}
-          aria-label="调整翻译窗口大小"
-        >
-          <MoveDiagonal2 size={13} />
-        </Button>
-      </section>
+          aria-label={handle.label}
+          tabIndex={-1}
+        />
+      ))}
     </div>
   )
 }
