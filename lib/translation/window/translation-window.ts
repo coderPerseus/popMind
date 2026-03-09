@@ -28,7 +28,7 @@ export class TranslationWindow implements TranslationWindowPort {
   private createWindow() {
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
       width: 404,
-      height: 600,
+      height: 300,
       show: false,
       frame: false,
       acceptFirstMouse: true,

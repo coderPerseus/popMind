@@ -21,7 +21,7 @@ const emptyState: TranslationWindowState = {
 }
 
 const WORD_MODE_MIN_HEIGHT = 600
-const DEFAULT_CONTENT_MIN_HEIGHT = 260
+const DEFAULT_CONTENT_MIN_HEIGHT = 300
 const resizeHandleConfigs: Array<{ edge: TranslationWindowResizeEdge; label: string }> = [
   { edge: 'top', label: '从顶部调整翻译窗口大小' },
   { edge: 'right', label: '从右侧调整翻译窗口大小' },

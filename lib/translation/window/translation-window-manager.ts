@@ -17,8 +17,8 @@ const WINDOW_GAP = 14
 const APP_ACTIVATE_SUPPRESS_MS = 700
 const MIN_WINDOW_WIDTH = 404
 const MAX_WINDOW_WIDTH = 760
-const MIN_MANUAL_WINDOW_HEIGHT = 320
-const DEFAULT_CONTENT_WINDOW_MIN_HEIGHT = 260
+const MIN_MANUAL_WINDOW_HEIGHT = 300
+const DEFAULT_CONTENT_WINDOW_MIN_HEIGHT = 300
 const MAX_WINDOW_HEIGHT = 680
 
 const clamp = (value: number, min: number, max: number) => {
@@ -481,7 +481,6 @@ export class TranslationWindowManager {
       x: nextX,
       y: nextY,
     })
-    this.window.orderFront()
   }
 
   private resizeWindow(payload: TranslationWindowResizePayload | number) {
@@ -527,7 +526,6 @@ export class TranslationWindowManager {
       }
 
       this.window.setBounds(nextBounds)
-      this.window.orderFront()
       return
     }
 
@@ -562,7 +560,6 @@ export class TranslationWindowManager {
       width: nextWidth,
       height: nextHeight,
     })
-    this.window.orderFront()
   }
 
   private resolveManualResizeBounds(
