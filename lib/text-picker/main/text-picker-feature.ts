@@ -1,5 +1,7 @@
 import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
+import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-service'
+import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
 import { TranslationWindowManager } from '@/lib/translation/window/translation-window-manager'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
@@ -31,6 +33,8 @@ export class TextPickerFeature {
   private bubbleWindow: SelectionBubbleWindow | null = null
   private manager: TextPickerManager | null = null
   private translationWindowManager: TranslationWindowManager | null = null
+  private screenshotTranslationService: ScreenshotTranslationService | null = null
+  private screenshotSearchService: ScreenshotSearchService | null = null
   private tray: Tray | null = null
 
   constructor(
@@ -48,6 +52,8 @@ export class TextPickerFeature {
         this.manager?.setBubbleDragging(isDragging)
       },
     })
+    this.screenshotTranslationService = new ScreenshotTranslationService(this.translationWindowManager)
+    this.screenshotSearchService = new ScreenshotSearchService(undefined, undefined, this.logger)
     this.manager = new TextPickerManager({
       bubbleWindow: this.bubbleWindow,
       bridge: this.bridge,
@@ -135,6 +141,8 @@ export class TextPickerFeature {
 
     this.translationWindowManager?.dispose()
     this.translationWindowManager = null
+    this.screenshotTranslationService = null
+    this.screenshotSearchService = null
 
     this.tray?.destroy()
     this.tray = null
@@ -175,6 +183,21 @@ export class TextPickerFeature {
           this.manager?.hideBubble()
           void showMainWindow('home')
         },
+      },
+      {
+        label: '截图翻译',
+        click: () => {
+          void this.screenshotTranslationService?.start()
+        },
+      },
+      {
+        label: '截图搜索',
+        click: () => {
+          void this.screenshotSearchService?.start()
+        },
+      },
+      {
+        type: 'separator',
       },
       {
         label: isEnabled ? '关闭划词' : '开启划词',

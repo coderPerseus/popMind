@@ -19,7 +19,9 @@
           "-framework",
           "ApplicationServices",
           "-framework",
-          "AppKit"
+          "AppKit",
+          "-framework",
+          "Vision"
         ]
       }
     }

@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "build-native": "node scripts/build-selection-bridge.mjs",
+    "predev": "pnpm install && pnpm run build-native",
     "dev": "cross-env ELECTRON_DISABLE_SANDBOX=1 electron-vite dev -w",
     "format": "prettier --write --list-different .",
     "install": "node scripts/build-selection-bridge.mjs",

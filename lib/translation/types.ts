@@ -111,6 +111,8 @@ export interface TranslationWindowState {
   detectedSourceLanguage?: string
   wordEntry?: TranslationWordEntry
   errorMessage?: string
+  loadingTitle?: string
+  loadingDescription?: string
   languages: TranslationLanguageOption[]
 }
 
