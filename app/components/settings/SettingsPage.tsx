@@ -315,6 +315,17 @@ export function SettingsPage() {
                             {engine}
                           </Badge>
                         </div>
+                        <div className="settings-engine-desc">
+                          {engine === 'google'
+                            ? 'Web translate'
+                            : engine === 'deepl'
+                              ? 'DeepL web translate'
+                              : engine === 'bing'
+                                ? 'Bing web translate'
+                                : engine === 'youdao'
+                                  ? 'Youdao web translate + word mode'
+                                  : 'DeepSeek via Vercel AI SDK'}
+                        </div>
                       </div>
                       <Switch
                         checked={enabled}
