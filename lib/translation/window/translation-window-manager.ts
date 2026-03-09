@@ -1,12 +1,24 @@
 import { clipboard, ipcMain, screen } from 'electron'
 import { translationEngineOrder, translationLanguages, TranslationWindowChannel } from '@/lib/translation/shared'
 import { translationService } from '@/lib/translation/service'
-import type { TranslationAnchorPoint, TranslationEngineId, TranslationSettings, TranslationWindowState } from '@/lib/translation/types'
+import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
+import type {
+  TranslationAnchorPoint,
+  TranslationEngineId,
+  TranslationSettings,
+  TranslationWindowResizePayload,
+  TranslationWindowState,
+} from '@/lib/translation/types'
 import type { SelectionBridge } from '@/lib/text-picker/shared'
 import { TranslationWindow } from './translation-window'
 
 const WINDOW_GAP = 14
 const APP_ACTIVATE_SUPPRESS_MS = 700
+const MIN_WINDOW_WIDTH = 404
+const MAX_WINDOW_WIDTH = 760
+const MIN_MANUAL_WINDOW_HEIGHT = 600
+const DEFAULT_CONTENT_WINDOW_MIN_HEIGHT = 260
+const MAX_WINDOW_HEIGHT = 680
 
 const resolveEnabledEngineIds = (settings: TranslationSettings) => {
   return translationEngineOrder.filter((engineId) => settings.enabledEngines[engineId])
@@ -31,7 +43,6 @@ export class TranslationWindowManager {
     selectionId?: string
     sourceAppId?: string
   } | null = null
-  private ignoreMoveUntil = 0
   private lastAnchor: TranslationAnchorPoint | null = null
   private lastPresentation: TranslationWindowPresentation = 'anchored'
   private requestVersion = 0
@@ -42,7 +53,7 @@ export class TranslationWindowManager {
     private readonly floatingBridge?: {
       noteInteraction?: (durationMs?: number) => void
       setDragging?: (isDragging: boolean) => void
-    },
+    }
   ) {
     this.setupIpc()
   }
@@ -64,6 +75,11 @@ export class TranslationWindowManager {
       selectionId: payload.selectionId,
       sourceAppId: payload.sourceAppId,
     }
+
+    autoDismissController.dispatch({
+      reason: 'surface-opened',
+      target: 'translation',
+    })
 
     this.ensureWindow()
     this.state = {
@@ -103,6 +119,10 @@ export class TranslationWindowManager {
     const presentation = payload.presentation ?? 'centered'
 
     this.pendingRequest = null
+    autoDismissController.dispatch({
+      reason: 'surface-opened',
+      target: 'translation',
+    })
     this.ensureWindow()
     this.state = {
       status: 'loading',
@@ -126,16 +146,17 @@ export class TranslationWindowManager {
     this.showWindow()
   }
 
-  async showErrorState(payload: {
-    presentation?: TranslationWindowPresentation
-    errorMessage: string
-  }) {
+  async showErrorState(payload: { presentation?: TranslationWindowPresentation; errorMessage: string }) {
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
     const presentation = payload.presentation ?? this.lastPresentation
 
     this.pendingRequest = null
+    autoDismissController.dispatch({
+      reason: 'surface-opened',
+      target: 'translation',
+    })
     this.ensureWindow()
     this.state = {
       status: 'error',
@@ -194,6 +215,7 @@ export class TranslationWindowManager {
     ipcMain.removeHandler(TranslationWindowChannel.SetPinned)
     ipcMain.removeHandler(TranslationWindowChannel.Copy)
     ipcMain.removeHandler(TranslationWindowChannel.Close)
+    ipcMain.removeHandler(TranslationWindowChannel.DismissTopmost)
     ipcMain.removeAllListeners(TranslationWindowChannel.SetDragging)
     ipcMain.removeAllListeners(TranslationWindowChannel.NotifyInteraction)
     ipcMain.removeAllListeners(TranslationWindowChannel.Move)
@@ -212,9 +234,7 @@ export class TranslationWindowManager {
     }
 
     this.window = new TranslationWindow(this.bridge)
-    this.detachMoveListener = this.window.onMove(() => {
-      this.ignoreMoveUntil = Date.now() + 120
-    })
+    this.detachMoveListener = this.window.onMove(() => undefined)
 
     return this.window
   }
@@ -223,11 +243,18 @@ export class TranslationWindowManager {
     ipcMain.handle(TranslationWindowChannel.GetState, async () => this.state)
     ipcMain.handle(
       TranslationWindowChannel.Retranslate,
-      async (_event, payload: { sourceLanguage: string; targetLanguage?: string; engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek' }) => {
+      async (
+        _event,
+        payload: {
+          sourceLanguage: string
+          targetLanguage?: string
+          engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek'
+        }
+      ) => {
         this.noteInteraction()
         await this.runTranslation(payload)
         return { ok: true }
-      },
+      }
     )
     ipcMain.handle(TranslationWindowChannel.SetPinned, async (_event, pinned: boolean) => {
       this.noteInteraction()
@@ -251,6 +278,11 @@ export class TranslationWindowManager {
       this.window?.hide()
       return { ok: true }
     })
+    ipcMain.handle(TranslationWindowChannel.DismissTopmost, async () => {
+      this.noteInteraction()
+      autoDismissController.dismissTopmost('escape')
+      return { ok: true }
+    })
     ipcMain.on(TranslationWindowChannel.SetDragging, (_event, isDragging: boolean) => {
       this.floatingBridge?.setDragging?.(isDragging)
     })
@@ -261,9 +293,9 @@ export class TranslationWindowManager {
       this.noteInteraction(1000)
       this.moveWindow(deltaX, deltaY)
     })
-    ipcMain.on(TranslationWindowChannel.Resize, (_event, height: number) => {
+    ipcMain.on(TranslationWindowChannel.Resize, (_event, payload: TranslationWindowResizePayload | number) => {
       this.noteInteraction()
-      this.resizeWindow(height)
+      this.resizeWindow(payload)
     })
   }
 
@@ -284,12 +316,13 @@ export class TranslationWindowManager {
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, payload.engineId) ?? payload.engineId
     const requestVersion = ++this.requestVersion
+    const currentState = this.state
 
     this.state = {
-      ...this.state,
+      ...currentState,
       status: 'loading',
       sourceLanguage: payload.sourceLanguage,
-      targetLanguage: payload.targetLanguage,
+      targetLanguage: payload.targetLanguage ?? currentState.targetLanguage,
       engineId,
       enabledEngineIds,
       translatedText: '',
@@ -317,7 +350,7 @@ export class TranslationWindowManager {
       }
 
       this.state = {
-        ...this.state,
+        ...currentState,
         status: 'success',
         engineId: result.engineId,
         enabledEngineIds,
@@ -340,7 +373,7 @@ export class TranslationWindowManager {
       const message = error instanceof Error ? error.message : 'Translation failed'
       this.logger.error('[TranslationWindowManager] translation failed', error)
       this.state = {
-        ...this.state,
+        ...currentState,
         status: 'error',
         enabledEngineIds,
         queryMode: 'text',
@@ -392,7 +425,6 @@ export class TranslationWindowManager {
     }
 
     this.lastPresentation = presentation
-    this.ignoreMoveUntil = Date.now() + 120
     window.setBounds({
       x: Math.round(x),
       y: Math.round(y),
@@ -414,10 +446,15 @@ export class TranslationWindowManager {
     const display = screen.getDisplayMatching(bounds)
     const { workArea } = display
 
-    const nextX = Math.max(workArea.x, Math.min(bounds.x + Math.round(deltaX), workArea.x + workArea.width - bounds.width))
-    const nextY = Math.max(workArea.y, Math.min(bounds.y + Math.round(deltaY), workArea.y + workArea.height - bounds.height))
+    const nextX = Math.max(
+      workArea.x,
+      Math.min(bounds.x + Math.round(deltaX), workArea.x + workArea.width - bounds.width)
+    )
+    const nextY = Math.max(
+      workArea.y,
+      Math.min(bounds.y + Math.round(deltaY), workArea.y + workArea.height - bounds.height)
+    )
 
-    this.ignoreMoveUntil = Date.now() + 120
     this.window.setBounds({
       ...bounds,
       x: nextX,
@@ -426,19 +463,54 @@ export class TranslationWindowManager {
     this.window.orderFront()
   }
 
-  private resizeWindow(height: number) {
+  private resizeWindow(payload: TranslationWindowResizePayload | number) {
     if (!this.window || this.window.isDestroyed()) {
       return
     }
 
-    if (!Number.isFinite(height)) {
+    const bounds = this.window.getBounds()
+    const normalizedPayload =
+      typeof payload === 'number'
+        ? { height: payload, minHeight: DEFAULT_CONTENT_WINDOW_MIN_HEIGHT, source: 'content' as const }
+        : {
+            width: payload.width,
+            height: payload.height,
+            minHeight: payload.minHeight,
+            source: payload.source ?? 'content',
+          }
+
+    const width = normalizedPayload.width
+    const height = normalizedPayload.height
+    const contentMinHeight = Number.isFinite(normalizedPayload.minHeight)
+      ? Math.round(normalizedPayload.minHeight as number)
+      : DEFAULT_CONTENT_WINDOW_MIN_HEIGHT
+    const minHeight = normalizedPayload.source === 'manual' ? MIN_MANUAL_WINDOW_HEIGHT : contentMinHeight
+    const nextWidth = Number.isFinite(width)
+      ? Math.max(MIN_WINDOW_WIDTH, Math.min(Math.round(width as number), MAX_WINDOW_WIDTH))
+      : bounds.width
+    const nextHeight = Number.isFinite(height)
+      ? Math.max(minHeight, Math.min(Math.round(height as number), MAX_WINDOW_HEIGHT))
+      : bounds.height
+
+    if (Math.abs(bounds.width - nextWidth) < 2 && Math.abs(bounds.height - nextHeight) < 2) {
       return
     }
 
-    const bounds = this.window.getBounds()
-    const nextHeight = Math.max(220, Math.min(Math.round(height), 560))
+    const display = screen.getDisplayMatching(bounds)
+    const { workArea } = display
 
-    if (Math.abs(bounds.height - nextHeight) < 2) {
+    if (normalizedPayload.source === 'manual') {
+      const maxWidthFromPosition = Math.max(MIN_WINDOW_WIDTH, workArea.x + workArea.width - bounds.x)
+      const maxHeightFromPosition = Math.max(MIN_MANUAL_WINDOW_HEIGHT, workArea.y + workArea.height - bounds.y)
+      const clampedWidth = Math.min(nextWidth, maxWidthFromPosition)
+      const clampedHeight = Math.min(nextHeight, maxHeightFromPosition)
+
+      this.window.setBounds({
+        ...bounds,
+        width: clampedWidth,
+        height: clampedHeight,
+      })
+      this.window.orderFront()
       return
     }
 
@@ -448,13 +520,12 @@ export class TranslationWindowManager {
         : this.lastAnchor
           ? Math.round(this.lastAnchor.topY - nextHeight - WINDOW_GAP)
           : bounds.y
-    const display = screen.getDisplayMatching(bounds)
-    const clampedY = Math.max(display.workArea.y, Math.min(nextY, display.workArea.y + display.workArea.height - nextHeight))
+    const clampedY = Math.max(workArea.y, Math.min(nextY, workArea.y + workArea.height - nextHeight))
 
-    this.ignoreMoveUntil = Date.now() + 120
     this.window.setBounds({
       ...bounds,
       y: clampedY,
+      width: nextWidth,
       height: nextHeight,
     })
     this.window.orderFront()

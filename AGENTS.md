@@ -19,3 +19,13 @@ no need test
 ## Commit & Pull Request Guidelines
 
 - ban auto use git modify code status
+
+# 页面开发
+
+尽可能使用 shadcn/ui. 组如果没有安装的，直接安装对应的件开发
+
+# 仓库操作约束
+
+- 不要直接运行会把编译产物输出到源码目录的 TypeScript 命令，例如 `pnpm exec tsc -b`
+- 如果只是做类型检查，先确认 `tsconfig` 的输出行为，避免在 `app/`、`lib/` 下生成 `*.js`、`*.jsx`、`*.d.ts`、`*.tsbuildinfo`
+- 一旦误生成上述文件，先清理这些编译副产物，再继续开发，不能把它们当成源码改动提交

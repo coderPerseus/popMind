@@ -31,6 +31,10 @@ export const windowIpcSchema = {
     args: z.tuple([]),
     return: z.void(),
   },
+  'window-dismiss-topmost': {
+    args: z.tuple([]),
+    return: z.void(),
+  },
   'window-maximize-toggle': {
     args: z.tuple([]),
     return: z.void(),

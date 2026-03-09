@@ -54,6 +54,7 @@ export const TranslationWindowChannel = {
   Resize: 'translationWindow:resize',
   Copy: 'translationWindow:copy',
   Close: 'translationWindow:close',
+  DismissTopmost: 'translationWindow:dismissTopmost',
 } as const
 
 export const getLanguageLabel = (code: string) => {
@@ -82,7 +83,7 @@ export const ensureSelectableLanguage = (code: string) => {
 
 export const mergeSettings = (
   previous: TranslationSettings,
-  patch: Partial<TranslationSettings>,
+  patch: Partial<TranslationSettings>
 ): TranslationSettings => {
   return {
     ...previous,

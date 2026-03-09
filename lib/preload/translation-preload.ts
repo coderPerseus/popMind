@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { TranslationWindowChannel } from '@/lib/translation/shared'
-import type { TranslationWindowPreloadApi, TranslationWindowState } from '@/lib/translation/types'
+import type {
+  TranslationWindowPreloadApi,
+  TranslationWindowResizePayload,
+  TranslationWindowState,
+} from '@/lib/translation/types'
 
 const translationWindowApi: TranslationWindowPreloadApi = {
   onState(handler) {
@@ -29,8 +33,11 @@ const translationWindowApi: TranslationWindowPreloadApi = {
   moveWindow(deltaX, deltaY) {
     ipcRenderer.send(TranslationWindowChannel.Move, deltaX, deltaY)
   },
-  resizeWindow(height) {
-    ipcRenderer.send(TranslationWindowChannel.Resize, height)
+  resizeWindow(payload: TranslationWindowResizePayload) {
+    ipcRenderer.send(TranslationWindowChannel.Resize, payload)
+  },
+  dismissTopmost() {
+    return ipcRenderer.invoke(TranslationWindowChannel.DismissTopmost)
   },
   copyTranslatedText() {
     return ipcRenderer.invoke(TranslationWindowChannel.Copy)

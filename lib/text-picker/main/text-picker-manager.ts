@@ -23,6 +23,7 @@ import {
   TOOLBAR_MIN_WIDTH,
 } from '@/lib/text-picker/shared'
 import type { BubbleWindowPort } from './bubble-window'
+import type { DismissContext } from '@/lib/windowing/auto-dismiss-controller'
 
 interface ToolbarPositionMemory {
   offsetX: number
@@ -43,11 +44,15 @@ interface TextPickerManagerOptions {
   isSecondaryFloatingVisible?: () => boolean
   isEventInsideSecondaryFloating?: (event: SelectionActionEvent) => boolean
   hideSecondaryFloating?: () => void
+  dispatchAutoDismiss?: (context: DismissContext) => void
 }
 
 const DISMISS_SCENES = new Set<SelectionSceneValue>([
   SelectionScene.OTHER_CLICK_DISMISS,
   SelectionScene.WINDOW_FRAME_DISMISS,
+  SelectionScene.GESTURE_DISMISS,
+  SelectionScene.APP_FOCUS_DISMISS,
+  SelectionScene.KEY_DISMISS,
 ])
 
 const APP_ACTIVATE_SUPPRESS_MS = 700
@@ -55,6 +60,7 @@ const PROGRAMMATIC_MOVE_GUARD_MS = 80
 const NATIVE_DRAG_RELEASE_DELAY_MS = 140
 const POST_DRAG_IGNORE_POINTER_MS = 260
 const POST_SHOW_GESTURE_DISMISS_GUARD_MS = 300
+const POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS = 2500
 
 export class TextPickerManager {
   private readonly bubbleWindow: BubbleWindowPort
@@ -64,6 +70,7 @@ export class TextPickerManager {
   private readonly isSecondaryFloatingVisible?: () => boolean
   private readonly isEventInsideSecondaryFloating?: (event: SelectionActionEvent) => boolean
   private readonly hideSecondaryFloating?: () => void
+  private readonly dispatchAutoDismiss?: (context: DismissContext) => void
   private readonly blockedApps = new Set<string>()
   private readonly blockedUrls = new Set<string>()
   private readonly positionMemory = new Map<string, ToolbarPositionMemory>()
@@ -81,6 +88,7 @@ export class TextPickerManager {
   private suppressAppActivationUntil = 0
   private ignoreBubbleMoveUntil = 0
   private ignoreGestureDismissUntil = 0
+  private ignoreAppFocusDismissUntil = 0
   private currentAnchor: AnchorPoint | null = null
   private bubbleWidth = TOOLBAR_MIN_WIDTH
   private pickedInfo: PickedInfo | null = null
@@ -99,6 +107,7 @@ export class TextPickerManager {
     isSecondaryFloatingVisible,
     isEventInsideSecondaryFloating,
     hideSecondaryFloating,
+    dispatchAutoDismiss,
   }: TextPickerManagerOptions) {
     this.bubbleWindow = bubbleWindow
     this.bridge = bridge
@@ -107,6 +116,7 @@ export class TextPickerManager {
     this.isSecondaryFloatingVisible = isSecondaryFloatingVisible
     this.isEventInsideSecondaryFloating = isEventInsideSecondaryFloating
     this.hideSecondaryFloating = hideSecondaryFloating
+    this.dispatchAutoDismiss = dispatchAutoDismiss
     this.detachBubbleMoveListener = this.bubbleWindow.onMove((bounds) => {
       this.handleBubbleMoved(bounds)
     })
@@ -273,12 +283,7 @@ export class TextPickerManager {
   }
 
   moveBubble(deltaX: number, deltaY: number) {
-    if (
-      this.bubbleWindow.isDestroyed() ||
-      !this.bubbleWindow.isVisible() ||
-      !this.currentAnchor ||
-      !this.pickedInfo
-    ) {
+    if (this.bubbleWindow.isDestroyed() || !this.bubbleWindow.isVisible() || !this.currentAnchor || !this.pickedInfo) {
       return
     }
 
@@ -298,11 +303,11 @@ export class TextPickerManager {
 
     const nextX = Math.max(
       workArea.x,
-      Math.min(bounds.x + Math.round(deltaX), workArea.x + workArea.width - bounds.width),
+      Math.min(bounds.x + Math.round(deltaX), workArea.x + workArea.width - bounds.width)
     )
     const nextY = Math.max(
       workArea.y,
-      Math.min(bounds.y + Math.round(deltaY), workArea.y + workArea.height - bounds.height),
+      Math.min(bounds.y + Math.round(deltaY), workArea.y + workArea.height - bounds.height)
     )
 
     this.setBubbleBounds({
@@ -311,11 +316,7 @@ export class TextPickerManager {
       y: nextY,
     })
 
-    this.memorizePosition(
-      this.pickedInfo.appId,
-      nextX - this.currentAnchor.x,
-      nextY - this.currentAnchor.topY,
-    )
+    this.memorizePosition(this.pickedInfo.appId, nextX - this.currentAnchor.x, nextY - this.currentAnchor.topY)
 
     this.bubbleWindow.orderFront()
   }
@@ -377,10 +378,7 @@ export class TextPickerManager {
 
   noteBubbleInteraction(durationMs = APP_ACTIVATE_SUPPRESS_MS) {
     this.logger.info('[TextPickerManager] noteBubbleInteraction', { durationMs })
-    this.suppressAppActivationUntil = Math.max(
-      this.suppressAppActivationUntil,
-      Date.now() + durationMs,
-    )
+    this.suppressAppActivationUntil = Math.max(this.suppressAppActivationUntil, Date.now() + durationMs)
   }
 
   shouldSuppressAppActivation() {
@@ -396,14 +394,12 @@ export class TextPickerManager {
 
     if (selectionId && this.pickedInfo.selectionId !== selectionId) {
       this.logger.warn(
-        `[TextPickerManager] stale selection rejected: current=${this.pickedInfo.selectionId}, requested=${selectionId}`,
+        `[TextPickerManager] stale selection rejected: current=${this.pickedInfo.selectionId}, requested=${selectionId}`
       )
       return { ok: false, reason: 'stale_selection' }
     }
 
-    this.logger.info(
-      `[TextPickerManager] triggerCommand: ${commandId}, text: ${this.pickedInfo.text.slice(0, 60)}`,
-    )
+    this.logger.info(`[TextPickerManager] triggerCommand: ${commandId}, text: ${this.pickedInfo.text.slice(0, 60)}`)
 
     return {
       ok: true,
@@ -423,6 +419,16 @@ export class TextPickerManager {
     }
 
     const scene = (event.scene || SelectionScene.NONE) as SelectionSceneValue | string
+    const floatingVisible = this.bubbleWindow.isVisible() || this.isSecondaryFloatingVisible?.() === true
+    const insideFloatingSurface = this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event) === true
+
+    if (scene === SelectionScene.APP_FOCUS_DISMISS && Date.now() < this.ignoreAppFocusDismissUntil) {
+      this.logger.info('[TextPickerManager] app focus dismiss ignored by post-show guard', {
+        event,
+        ignoreAppFocusDismissUntil: this.ignoreAppFocusDismissUntil,
+      })
+      return
+    }
 
     if (scene === SelectionScene.GESTURE_DISMISS && Date.now() < this.ignoreGestureDismissUntil) {
       this.logger.info('[TextPickerManager] gesture dismiss ignored by post-show guard', {
@@ -432,13 +438,17 @@ export class TextPickerManager {
       return
     }
 
-    if (
-      (this.bubbleWindow.isVisible() || this.isSecondaryFloatingVisible?.()) &&
-      (scene === SelectionScene.GESTURE_DISMISS || scene === SelectionScene.KEY_DISMISS)
-    ) {
-      this.logger.info('[TextPickerManager] transient dismiss scene ignored while bubble is visible', {
-        scene,
+    if (scene === SelectionScene.GESTURE_DISMISS && floatingVisible && insideFloatingSurface) {
+      this.logger.info('[TextPickerManager] gesture dismiss ignored inside floating surface', {
         event,
+      })
+      return
+    }
+
+    if (scene === SelectionScene.KEY_DISMISS && floatingVisible && this.shouldSuppressAppActivation()) {
+      this.logger.info('[TextPickerManager] key dismiss ignored during floating-surface interaction', {
+        event,
+        suppressAppActivationUntil: this.suppressAppActivationUntil,
       })
       return
     }
@@ -446,8 +456,15 @@ export class TextPickerManager {
     if (DISMISS_SCENES.has(scene as SelectionSceneValue)) {
       this.logger.info('[TextPickerManager] dismiss scene received', { scene })
       this.noteBubbleInteraction()
-      this.hideBubble()
-      this.hideSecondaryFloating?.()
+      if (this.dispatchAutoDismiss) {
+        this.dispatchAutoDismiss({
+          reason: 'dismiss-scene',
+          source: 'bubble',
+        })
+      } else {
+        this.hideBubble()
+        this.hideSecondaryFloating?.()
+      }
       return
     }
 
@@ -479,9 +496,7 @@ export class TextPickerManager {
     }
 
     const delay =
-      scene === SelectionScene.SHIFT_ARROW || scene === SelectionScene.CTRL_A
-        ? KEYBOARD_CHECK_DELAY_MS
-        : CHECK_DELAY_MS
+      scene === SelectionScene.SHIFT_ARROW || scene === SelectionScene.CTRL_A ? KEYBOARD_CHECK_DELAY_MS : CHECK_DELAY_MS
 
     this.scheduleSelectionCheck(scene, delay)
   }
@@ -522,8 +537,17 @@ export class TextPickerManager {
 
     if (!isInsideBubble && !isInsideSecondary) {
       this.noteBubbleInteraction()
-      this.hideBubble()
-      this.hideSecondaryFloating?.()
+      if (this.dispatchAutoDismiss) {
+        this.dispatchAutoDismiss({
+          reason: 'outside-pointer',
+          source: 'bubble',
+          x,
+          y,
+        })
+      } else {
+        this.hideBubble()
+        this.hideSecondaryFloating?.()
+      }
     }
   }
 
@@ -542,11 +566,7 @@ export class TextPickerManager {
     }, delay)
   }
 
-  private async refreshSelectionWithRetries(
-    token: number,
-    scene: SelectionSceneValue | string,
-    attempt: number,
-  ) {
+  private async refreshSelectionWithRetries(token: number, scene: SelectionSceneValue | string, attempt: number) {
     this.logger.info('[TextPickerManager] refreshSelectionWithRetries', {
       token,
       scene,
@@ -637,13 +657,7 @@ export class TextPickerManager {
     this.onSelectionShown?.(this.pickedInfo)
   }
 
-  private showToolbar({
-    anchor,
-    pickedInfo,
-  }: {
-    anchor: AnchorPoint
-    pickedInfo: PickedInfo
-  }) {
+  private showToolbar({ anchor, pickedInfo }: { anchor: AnchorPoint; pickedInfo: PickedInfo }) {
     if (this.bubbleWindow.isDestroyed()) {
       return
     }
@@ -680,6 +694,7 @@ export class TextPickerManager {
 
     this.currentAnchor = anchor
     this.ignoreGestureDismissUntil = Date.now() + POST_SHOW_GESTURE_DISMISS_GUARD_MS
+    this.ignoreAppFocusDismissUntil = Date.now() + POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS
     this.logger.info('[TextPickerManager] showToolbar', {
       selectionId: pickedInfo.selectionId,
       bounds: {
@@ -691,6 +706,7 @@ export class TextPickerManager {
       appId: pickedInfo.appId,
       scene: pickedInfo.scene,
       ignoreGestureDismissUntil: this.ignoreGestureDismissUntil,
+      ignoreAppFocusDismissUntil: this.ignoreAppFocusDismissUntil,
     })
 
     this.bubbleWindow.sendUpdate({
@@ -767,9 +783,7 @@ export class TextPickerManager {
     const topYFlipped = display.bounds.y + display.bounds.height - (rawRect.y + rawRect.height)
 
     const normalizedTopY =
-      Math.abs(topYAsIs - cursorPoint.y) <= Math.abs(topYFlipped - cursorPoint.y)
-        ? topYAsIs
-        : topYFlipped
+      Math.abs(topYAsIs - cursorPoint.y) <= Math.abs(topYFlipped - cursorPoint.y) ? topYAsIs : topYFlipped
 
     return {
       x: rawRect.x + rawRect.width / 2,
@@ -801,11 +815,7 @@ export class TextPickerManager {
       bounds,
       selectionId: this.pickedInfo.selectionId,
     })
-    this.memorizePosition(
-      this.pickedInfo.appId,
-      bounds.x - this.currentAnchor.x,
-      bounds.y - this.currentAnchor.topY,
-    )
+    this.memorizePosition(this.pickedInfo.appId, bounds.x - this.currentAnchor.x, bounds.y - this.currentAnchor.topY)
   }
 
   private markBubbleDragging() {

@@ -23,6 +23,7 @@ export const SelectionScene = {
   MANUAL: 'manual_trigger',
   GESTURE_DISMISS: 'gesture_dismiss',
   OTHER_CLICK_DISMISS: 'other_click_dismiss',
+  APP_FOCUS_DISMISS: 'app_focus_dismiss',
   KEY_DISMISS: 'key_dismiss',
   WINDOW_FRAME_DISMISS: 'window_frame_dismiss',
 } as const
@@ -51,6 +52,7 @@ export const TextPickerChannel = {
   GetSkills: 'textPicker:getSkills',
   OpenMainWindow: 'textPicker:openMainWindow',
   HideBubble: 'textPicker:hideBubble',
+  DismissTopmost: 'textPicker:dismissTopmost',
   MoveBubble: 'bubble:move',
   ResizeBubble: 'bubble:resize',
   SetBubbleDragging: 'bubble:setDragging',
@@ -140,6 +142,7 @@ export interface BubblePreloadApi {
   triggerCommand(commandId: string, selectionId: string): Promise<{ ok: boolean; reason?: string; commandId?: string }>
   openMainWindow(): Promise<{ ok: boolean }>
   hideBubble(): Promise<{ ok: boolean }>
+  dismissTopmost(): Promise<{ ok: boolean }>
   moveBubble(deltaX: number, deltaY: number): void
   resizeBubble(width: number): void
   setBubbleDragging(isDragging: boolean): void

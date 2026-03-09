@@ -6,6 +6,7 @@
 #import <Vision/Vision.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <mutex>
 #include <string>
@@ -24,8 +25,9 @@ enum class SelectionScene {
   kManualTrigger = 6,
   kGestureDismiss = 7,
   kOtherClickDismiss = 8,
-  kKeyDismiss = 9,
-  kWindowFrameDismiss = 10
+  kAppFocusDismiss = 9,
+  kKeyDismiss = 10,
+  kWindowFrameDismiss = 11
 };
 
 const char* SceneToString(SelectionScene s) {
@@ -38,6 +40,7 @@ const char* SceneToString(SelectionScene s) {
     case SelectionScene::kManualTrigger: return "manual_trigger";
     case SelectionScene::kGestureDismiss: return "gesture_dismiss";
     case SelectionScene::kOtherClickDismiss: return "other_click_dismiss";
+    case SelectionScene::kAppFocusDismiss: return "app_focus_dismiss";
     case SelectionScene::kKeyDismiss: return "key_dismiss";
     case SelectionScene::kWindowFrameDismiss: return "window_frame_dismiss";
     default: return "none";
@@ -53,6 +56,7 @@ SelectionScene SceneFromString(const std::string& v) {
   if (v == "manual_trigger") return SelectionScene::kManualTrigger;
   if (v == "gesture_dismiss") return SelectionScene::kGestureDismiss;
   if (v == "other_click_dismiss") return SelectionScene::kOtherClickDismiss;
+  if (v == "app_focus_dismiss") return SelectionScene::kAppFocusDismiss;
   if (v == "key_dismiss") return SelectionScene::kKeyDismiss;
   if (v == "window_frame_dismiss") return SelectionScene::kWindowFrameDismiss;
   return SelectionScene::kNone;
@@ -310,11 +314,214 @@ bool FillRect(AXUIElementRef el, Napi::Object* result, Napi::Env env) {
   return ok;
 }
 
-struct RecognizedTextLine {
+struct RecognizedTextFragment {
   std::string text;
   double top = 0.0;
+  double bottom = 0.0;
   double left = 0.0;
+  double right = 0.0;
+  double width = 0.0;
+  double height = 0.0;
+  double centerY = 0.0;
 };
+
+struct OCRMergedLine {
+  std::vector<RecognizedTextFragment> fragments;
+  double top = 0.0;
+  double bottom = 0.0;
+  double left = 0.0;
+  double right = 0.0;
+  double avgHeight = 0.0;
+};
+
+std::string TrimAsciiWhitespace(const std::string& input) {
+  size_t start = 0;
+  while (start < input.size() && std::isspace(static_cast<unsigned char>(input[start]))) {
+    start++;
+  }
+
+  size_t end = input.size();
+  while (end > start && std::isspace(static_cast<unsigned char>(input[end - 1]))) {
+    end--;
+  }
+
+  return input.substr(start, end - start);
+}
+
+bool IsSentenceBreakChar(char c) {
+  switch (c) {
+    case '.':
+    case '!':
+    case '?':
+    case ':':
+    case ';':
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool ContainsCJKCharacter(const std::string& text) {
+  NSString* nsText = [NSString stringWithUTF8String:text.c_str()];
+  if (!nsText) return false;
+
+  for (NSUInteger i = 0; i < nsText.length; i++) {
+    unichar ch = [nsText characterAtIndex:i];
+    if ((ch >= 0x4E00 && ch <= 0x9FFF) || (ch >= 0x3400 && ch <= 0x4DBF) ||
+        (ch >= 0x3040 && ch <= 0x30FF) || (ch >= 0xAC00 && ch <= 0xD7AF) ||
+        (ch >= 0xF900 && ch <= 0xFAFF)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool StartsWithLatinLower(const std::string& text) {
+  for (char c : text) {
+    if (std::isspace(static_cast<unsigned char>(c))) {
+      continue;
+    }
+    return std::islower(static_cast<unsigned char>(c)) != 0;
+  }
+  return false;
+}
+
+double VerticalOverlapRatio(const RecognizedTextFragment& a, const RecognizedTextFragment& b) {
+  const double overlap = std::max(0.0, std::min(a.bottom, b.bottom) - std::max(a.top, b.top));
+  const double minHeight = std::max(0.0001, std::min(a.height, b.height));
+  return overlap / minHeight;
+}
+
+bool ShouldBelongToSameLine(const OCRMergedLine& line, const RecognizedTextFragment& fragment) {
+  const double lineCenterY = (line.top + line.bottom) / 2.0;
+  const double centerDiff = std::abs(lineCenterY - fragment.centerY);
+  const double heightRef = std::max(line.avgHeight, fragment.height);
+
+  if (centerDiff <= heightRef * 0.6) {
+    return true;
+  }
+
+  for (const auto& existing : line.fragments) {
+    if (VerticalOverlapRatio(existing, fragment) >= 0.35) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void UpdateMergedLineMetrics(OCRMergedLine* line) {
+  if (!line || line->fragments.empty()) return;
+
+  double top = line->fragments.front().top;
+  double bottom = line->fragments.front().bottom;
+  double left = line->fragments.front().left;
+  double right = line->fragments.front().right;
+  double totalHeight = 0.0;
+
+  for (const auto& fragment : line->fragments) {
+    top = std::min(top, fragment.top);
+    bottom = std::max(bottom, fragment.bottom);
+    left = std::min(left, fragment.left);
+    right = std::max(right, fragment.right);
+    totalHeight += fragment.height;
+  }
+
+  line->top = top;
+  line->bottom = bottom;
+  line->left = left;
+  line->right = right;
+  line->avgHeight = totalHeight / static_cast<double>(line->fragments.size());
+}
+
+bool ShouldJoinWithoutSpace(const std::string& lhs, const std::string& rhs, double gap,
+                            double avgHeight) {
+  if (lhs.empty() || rhs.empty()) return true;
+
+  const bool lhsHasCJK = ContainsCJKCharacter(lhs);
+  const bool rhsHasCJK = ContainsCJKCharacter(rhs);
+  if (lhsHasCJK || rhsHasCJK) {
+    return true;
+  }
+
+  const char last = lhs.back();
+  const char first = rhs.front();
+
+  if (std::ispunct(static_cast<unsigned char>(first)) || std::ispunct(static_cast<unsigned char>(last))) {
+    return true;
+  }
+
+  return gap <= std::max(0.008, avgHeight * 0.14);
+}
+
+std::string JoinLineFragments(const OCRMergedLine& line) {
+  if (line.fragments.empty()) return "";
+
+  std::vector<RecognizedTextFragment> fragments = line.fragments;
+  std::sort(fragments.begin(), fragments.end(), [](const RecognizedTextFragment& a,
+                                                   const RecognizedTextFragment& b) {
+    if (std::abs(a.left - b.left) > 0.002) {
+      return a.left < b.left;
+    }
+    return a.top < b.top;
+  });
+
+  std::string merged = TrimAsciiWhitespace(fragments.front().text);
+  for (size_t i = 1; i < fragments.size(); i++) {
+    const auto& previous = fragments[i - 1];
+    const auto& current = fragments[i];
+    std::string currentText = TrimAsciiWhitespace(current.text);
+    if (currentText.empty()) continue;
+
+    const double gap = std::max(0.0, current.left - previous.right);
+    if (!merged.empty() && merged.back() == '-' && StartsWithLatinLower(currentText)) {
+      merged.pop_back();
+      merged += currentText;
+      continue;
+    }
+
+    if (ShouldJoinWithoutSpace(merged, currentText, gap, line.avgHeight)) {
+      merged += currentText;
+    } else {
+      merged += " ";
+      merged += currentText;
+    }
+  }
+
+  return merged;
+}
+
+std::string NormalizeMergedOCRText(const std::string& text) {
+  NSString* nsText = [NSString stringWithUTF8String:text.c_str()];
+  if (!nsText) return text;
+
+  NSError* error = nil;
+  NSRegularExpression* collapseSpaces =
+      [NSRegularExpression regularExpressionWithPattern:@"[ \\t]+" options:0 error:&error];
+  NSString* normalized = error ? nsText : [collapseSpaces stringByReplacingMatchesInString:nsText
+                                                                                     options:0
+                                                                                       range:NSMakeRange(0, nsText.length)
+                                                                                withTemplate:@" "];
+
+  error = nil;
+  NSRegularExpression* trimLineSpaces =
+      [NSRegularExpression regularExpressionWithPattern:@" *\\n *" options:0 error:&error];
+  normalized = error ? normalized : [trimLineSpaces stringByReplacingMatchesInString:normalized
+                                                                              options:0
+                                                                                range:NSMakeRange(0, normalized.length)
+                                                                         withTemplate:@"\n"];
+
+  error = nil;
+  NSRegularExpression* collapseBlankLines =
+      [NSRegularExpression regularExpressionWithPattern:@"\\n{3,}" options:0 error:&error];
+  normalized = error ? normalized : [collapseBlankLines stringByReplacingMatchesInString:normalized
+                                                                                  options:0
+                                                                                    range:NSMakeRange(0, normalized.length)
+                                                                             withTemplate:@"\n\n"];
+
+  return TrimAsciiWhitespace(ToStdString(normalized));
+}
 
 bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outText,
                                 std::string* outError) {
@@ -330,13 +537,7 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
       return false;
     }
 
-    NSURL* imageURL = [NSURL fileURLWithPath:nsImagePath];
-    if (!imageURL) {
-      *outError = "invalid_image_path";
-      return false;
-    }
-
-    __block std::vector<RecognizedTextLine> lines;
+    __block std::vector<RecognizedTextFragment> fragments;
     __block NSString* requestErrorMessage = nil;
 
     VNRecognizeTextRequest* request =
@@ -357,20 +558,32 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
             }
 
             CGRect box = observation.boundingBox;
-            RecognizedTextLine line;
-            line.text = ToStdString(recognized);
-            line.top = 1.0 - (box.origin.y + box.size.height);
-            line.left = box.origin.x;
-            lines.push_back(std::move(line));
+            RecognizedTextFragment fragment;
+            fragment.text = ToStdString(recognized);
+            fragment.top = 1.0 - (box.origin.y + box.size.height);
+            fragment.bottom = 1.0 - box.origin.y;
+            fragment.left = box.origin.x;
+            fragment.right = box.origin.x + box.size.width;
+            fragment.width = box.size.width;
+            fragment.height = box.size.height;
+            fragment.centerY = (fragment.top + fragment.bottom) / 2.0;
+            fragments.push_back(std::move(fragment));
           }
         }];
 
     request.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
     request.usesLanguageCorrection = YES;
+    request.recognitionLanguages = @[ @"zh-Hans", @"zh-Hant", @"en-US", @"ja-JP", @"ko-KR" ];
 
     NSError* handlerError = nil;
+    NSData* imageData = [NSData dataWithContentsOfFile:nsImagePath options:0 error:&handlerError];
+    if (!imageData || handlerError) {
+      *outError = ToStdString(handlerError.localizedDescription ?: @"ocr_image_read_failed");
+      return false;
+    }
+
     VNImageRequestHandler* handler =
-        [[VNImageRequestHandler alloc] initWithURL:imageURL options:@{} error:&handlerError];
+        [[VNImageRequestHandler alloc] initWithData:imageData options:@{}];
     if (handlerError) {
       *outError = ToStdString(handlerError.localizedDescription ?: @"ocr_handler_init_failed");
       return false;
@@ -387,8 +600,39 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
       return false;
     }
 
-    std::sort(lines.begin(), lines.end(), [](const RecognizedTextLine& a,
-                                             const RecognizedTextLine& b) {
+    std::sort(fragments.begin(), fragments.end(), [](const RecognizedTextFragment& a,
+                                                     const RecognizedTextFragment& b) {
+      const double rowDiff = std::abs(a.top - b.top);
+      if (rowDiff > 0.018) {
+        return a.top < b.top;
+      }
+      return a.left < b.left;
+    });
+
+    std::vector<OCRMergedLine> mergedLines;
+    for (const auto& fragment : fragments) {
+      if (TrimAsciiWhitespace(fragment.text).empty()) continue;
+
+      bool appended = false;
+      for (auto& line : mergedLines) {
+        if (ShouldBelongToSameLine(line, fragment)) {
+          line.fragments.push_back(fragment);
+          UpdateMergedLineMetrics(&line);
+          appended = true;
+          break;
+        }
+      }
+
+      if (!appended) {
+        OCRMergedLine newLine;
+        newLine.fragments.push_back(fragment);
+        UpdateMergedLineMetrics(&newLine);
+        mergedLines.push_back(std::move(newLine));
+      }
+    }
+
+    std::sort(mergedLines.begin(), mergedLines.end(), [](const OCRMergedLine& a,
+                                                         const OCRMergedLine& b) {
       const double rowDiff = std::abs(a.top - b.top);
       if (rowDiff > 0.018) {
         return a.top < b.top;
@@ -397,13 +641,50 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
     });
 
     std::string joined;
-    for (const auto& line : lines) {
-      if (line.text.empty()) continue;
-      if (!joined.empty()) joined += "\n";
-      joined += line.text;
+    double previousBottom = 0.0;
+    double previousHeight = 0.0;
+    double previousLeft = 0.0;
+    std::string previousLineText;
+    bool hasPreviousLine = false;
+
+    for (const auto& line : mergedLines) {
+        const std::string mergedLineText = JoinLineFragments(line);
+        if (mergedLineText.empty()) continue;
+
+      if (!hasPreviousLine) {
+        joined = mergedLineText;
+      } else {
+        const double verticalGap = std::max(0.0, line.top - previousBottom);
+        const double heightRef = std::max(previousHeight, line.avgHeight);
+        const bool forceParagraphBreak = verticalGap > heightRef * 0.9;
+        const bool shouldKeepLineBreak =
+            forceParagraphBreak || std::abs(line.left - previousLeft) > heightRef * 1.2 ||
+            (!previousLineText.empty() &&
+             IsSentenceBreakChar(previousLineText.back()));
+
+        if (!previousLineText.empty() && previousLineText.back() == '-' &&
+            StartsWithLatinLower(mergedLineText)) {
+          joined.pop_back();
+          joined += mergedLineText;
+        } else if (shouldKeepLineBreak) {
+          joined += forceParagraphBreak ? "\n\n" : "\n";
+          joined += mergedLineText;
+        } else if (ShouldJoinWithoutSpace(previousLineText, mergedLineText, 0.0, heightRef)) {
+          joined += mergedLineText;
+        } else {
+          joined += " ";
+          joined += mergedLineText;
+        }
+      }
+
+      hasPreviousLine = true;
+      previousBottom = line.bottom;
+      previousHeight = line.avgHeight;
+      previousLeft = line.left;
+      previousLineText = mergedLineText;
     }
 
-    *outText = joined;
+    *outText = NormalizeMergedOCRText(joined);
     return true;
   }
 }
@@ -652,11 +933,13 @@ bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGo
 
   if (scene == SelectionScene::kManualTrigger) return true;
 
-  // Passive selection tracking must not mutate the user's clipboard. Only the
-  // explicit manual refresh path is allowed to fall back to synthesizing copy.
-  (void)axGotFocusedElement;
-  (void)hasNonEmptyRange;
-  return false;
+  if (!axGotFocusedElement) return true;
+  if (hasNonEmptyRange) return true;
+
+  // Some apps expose a focused element but do not provide selection text via
+  // AX APIs. Fall back to a synthesized copy so passive text picking still
+  // works for browser, canvas, and hybrid surfaces.
+  return true;
 }
 
 bool IsTrusted(bool prompt) {
@@ -719,6 +1002,8 @@ void StopWindowObserver() {
 }
 
 void OnWindowFrameChanged(AXObserverRef, AXUIElementRef, CFStringRef, void*) {
+  NSPoint loc = [NSEvent mouseLocation];
+  NSLog(@"[selection_bridge] window frame changed mouse=(%.1f, %.1f)", loc.x, loc.y);
   EmitAction(SelectionScene::kWindowFrameDismiss, [NSEvent mouseLocation]);
 }
 
@@ -1118,6 +1403,13 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
       }
 
       if (event.type == NSEventTypeScrollWheel) {
+        NSPoint loc = [NSEvent mouseLocation];
+        const bool insideBubble = IsPointInsideBubbleWindow(loc);
+        if (insideBubble) {
+          NSLog(@"[selection_bridge] scroll inside bubble ignored mouse=(%.1f, %.1f)", loc.x, loc.y);
+          return;
+        }
+
         const bool precise = [event hasPreciseScrollingDeltas];
         const NSEventPhase phase = [event phase];
         const double dx = std::abs([event scrollingDeltaX]);
@@ -1125,7 +1417,9 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         if (precise &&
             (phase == NSEventPhaseBegan || phase == NSEventPhaseChanged) &&
             (dx > kScrollGestureDeltaThreshold || dy > kScrollGestureDeltaThreshold)) {
-          EmitAction(SelectionScene::kGestureDismiss, [NSEvent mouseLocation]);
+          NSLog(@"[selection_bridge] scroll gesture dismiss mouse=(%.1f, %.1f) dx=%.2f dy=%.2f phase=%ld",
+                loc.x, loc.y, dx, dy, (long)phase);
+          EmitAction(SelectionScene::kGestureDismiss, loc);
         }
         return;
       }
@@ -1133,12 +1427,14 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
       if (event.type == NSEventTypeLeftMouseDown) {
         NSPoint loc = [NSEvent mouseLocation];
         if (IsPointInsideBubbleWindow(loc)) {
+          NSLog(@"[selection_bridge] leftMouseDown inside bubble mouse=(%.1f, %.1f)", loc.x, loc.y);
           gLeftMouseDownOnBubble = true;
           gIsLeftMouseDown = false;
           gShiftHeldOnMouseDown = false;
           return;
         }
 
+        NSLog(@"[selection_bridge] leftMouseDown outside bubble mouse=(%.1f, %.1f)", loc.x, loc.y);
         gLeftMouseDownOnBubble = false;
         gIsLeftMouseDown = true;
         gMouseDownPoint = loc;
@@ -1148,6 +1444,8 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
 
       if (event.type == NSEventTypeLeftMouseUp) {
         if (gLeftMouseDownOnBubble) {
+          NSLog(@"[selection_bridge] leftMouseUp after bubble mouse down mouse=(%.1f, %.1f)",
+                [NSEvent mouseLocation].x, [NSEvent mouseLocation].y);
           gLeftMouseDownOnBubble = false;
           gIsLeftMouseDown = false;
           return;
@@ -1155,6 +1453,8 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
 
         NSPoint loc = [NSEvent mouseLocation];
         SelectionScene scene = DetectMouseUpScene(event, loc);
+        NSLog(@"[selection_bridge] leftMouseUp outside bubble mouse=(%.1f, %.1f) scene=%s",
+              loc.x, loc.y, SceneToString(scene));
         gIsLeftMouseDown = false;
         EmitAction(scene, loc);
         return;
@@ -1174,7 +1474,9 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
                     object:nil
                      queue:[NSOperationQueue mainQueue]
                 usingBlock:^(__unused NSNotification*) {
-      EmitAction(SelectionScene::kGestureDismiss, [NSEvent mouseLocation]);
+      NSPoint loc = [NSEvent mouseLocation];
+      NSLog(@"[selection_bridge] active space changed mouse=(%.1f, %.1f)", loc.x, loc.y);
+      EmitAction(SelectionScene::kAppFocusDismiss, [NSEvent mouseLocation]);
     }];
 
     gAppActivatedObserver = [workspaceNC
@@ -1187,10 +1489,15 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
       if (activatedApp &&
           activatedApp.processIdentifier ==
               NSRunningApplication.currentApplication.processIdentifier) {
+        NSLog(@"[selection_bridge] app activated self ignored");
         return;
       }
+      NSLog(@"[selection_bridge] app activated bundle=%@ name=%@ pid=%d",
+            activatedApp.bundleIdentifier ?: @"",
+            activatedApp.localizedName ?: @"",
+            activatedApp.processIdentifier);
       StartWindowObserver();
-      EmitAction(SelectionScene::kGestureDismiss, [NSEvent mouseLocation]);
+      EmitAction(SelectionScene::kAppFocusDismiss, [NSEvent mouseLocation]);
     }];
 
     gAppDeactivatedObserver = [workspaceNC
@@ -1198,7 +1505,9 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
                     object:nil
                      queue:[NSOperationQueue mainQueue]
                 usingBlock:^(__unused NSNotification*) {
-      EmitAction(SelectionScene::kGestureDismiss, [NSEvent mouseLocation]);
+      NSPoint loc = [NSEvent mouseLocation];
+      NSLog(@"[selection_bridge] app deactivated mouse=(%.1f, %.1f)", loc.x, loc.y);
+      EmitAction(SelectionScene::kAppFocusDismiss, [NSEvent mouseLocation]);
     }];
 
     StartWindowObserver();
@@ -1263,11 +1572,17 @@ Napi::Value ConfigureBubbleWindow(const Napi::CallbackInfo& info) {
   if (!nsWindow) return Napi::Boolean::New(env, false);
   gBubbleWindowNumbers.insert(nsWindow.windowNumber);
 
-  [nsWindow setStyleMask:([nsWindow styleMask] | NSWindowStyleMaskNonactivatingPanel)];
+  [nsWindow setIgnoresMouseEvents:NO];
   [nsWindow setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces |
                                  NSWindowCollectionBehaviorFullScreenAuxiliary |
                                  NSWindowCollectionBehaviorStationary];
   [nsWindow setLevel:NSPopUpMenuWindowLevel];
+  NSLog(@"[selection_bridge] configureBubbleWindow class=%@ windowNumber=%ld ignoresMouse=%d styleMask=0x%lx level=%ld",
+        NSStringFromClass([nsWindow class]),
+        (long)nsWindow.windowNumber,
+        [nsWindow ignoresMouseEvents],
+        (unsigned long)[nsWindow styleMask],
+        (long)[nsWindow level]);
 
   return Napi::Boolean::New(env, true);
 }
@@ -1290,6 +1605,12 @@ Napi::Value OrderBubbleFront(const Napi::CallbackInfo& info) {
   NSWindow* nsWindow = [nsView window];
   if (!nsWindow) return Napi::Boolean::New(env, false);
 
+  [nsWindow setIgnoresMouseEvents:NO];
+  NSLog(@"[selection_bridge] orderBubbleFront class=%@ windowNumber=%ld ignoresMouse=%d isVisible=%d",
+        NSStringFromClass([nsWindow class]),
+        (long)nsWindow.windowNumber,
+        [nsWindow ignoresMouseEvents],
+        [nsWindow isVisible]);
   [nsWindow orderFrontRegardless];
   return Napi::Boolean::New(env, true);
 }

@@ -28,7 +28,7 @@ export class TranslationWindow implements TranslationWindowPort {
   private createWindow() {
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
       width: 404,
-      height: 248,
+      height: 600,
       show: false,
       frame: false,
       acceptFirstMouse: true,
@@ -58,7 +58,9 @@ export class TranslationWindow implements TranslationWindowPort {
       visibleOnFullScreen: true,
     })
 
-    this.bridge.configureBubbleWindow(translationWindow.getNativeWindowHandle())
+    translationWindow.once('ready-to-show', () => {
+      this.bridge.configureBubbleWindow(translationWindow.getNativeWindowHandle())
+    })
 
     if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
       void translationWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/translate.html`)
@@ -94,7 +96,7 @@ export class TranslationWindow implements TranslationWindowPort {
   }
 
   getSize() {
-    return this.window.getSize()
+    return this.window.getSize() as [number, number]
   }
 
   orderFront() {

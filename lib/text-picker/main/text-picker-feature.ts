@@ -4,8 +4,10 @@ import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-serv
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
 import { TranslationWindowManager } from '@/lib/translation/window/translation-window-manager'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
+import type { PickedInfo } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { showMainWindow } from '@/lib/main/window-manager'
+import { autoDismissController, type DismissContext } from '@/lib/windowing/auto-dismiss-controller'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
 
@@ -20,6 +22,7 @@ const IPC_HANDLE_CHANNELS = [
   TextPickerChannel.GetSkills,
   TextPickerChannel.OpenMainWindow,
   TextPickerChannel.HideBubble,
+  TextPickerChannel.DismissTopmost,
 ] as const
 
 const IPC_EVENT_CHANNELS = [
@@ -29,6 +32,23 @@ const IPC_EVENT_CHANNELS = [
   TextPickerChannel.NotifyBubbleInteraction,
 ] as const
 
+const REFRESH_SELECTION_SHORTCUT = 'CommandOrControl+Shift+E'
+const HIDE_BUBBLE_SHORTCUT = 'CommandOrControl+Shift+X'
+const SCREENSHOT_TRANSLATE_SHORTCUT = 'CommandOrControl+Alt+T'
+const SCREENSHOT_SEARCH_SHORTCUT = 'CommandOrControl+Alt+S'
+const MAX_COMMAND_CONTEXTS = 12
+const COMMAND_CONTEXT_TTL_MS = 2 * 60 * 1000
+
+interface CommandContextSnapshot {
+  pickedInfo: PickedInfo
+  anchor: {
+    x: number
+    topY: number
+    bottomY: number
+  } | null
+  createdAt: number
+}
+
 export class TextPickerFeature {
   private bubbleWindow: SelectionBubbleWindow | null = null
   private manager: TextPickerManager | null = null
@@ -36,6 +56,7 @@ export class TextPickerFeature {
   private screenshotTranslationService: ScreenshotTranslationService | null = null
   private screenshotSearchService: ScreenshotSearchService | null = null
   private tray: Tray | null = null
+  private readonly commandContexts = new Map<string, CommandContextSnapshot>()
 
   constructor(
     private readonly bridge: SelectionBridge = selectionBridge,
@@ -59,7 +80,11 @@ export class TextPickerFeature {
       bridge: this.bridge,
       logger: this.logger,
       onSelectionShown: () => {
-        this.translationWindowManager?.hideIfFloating()
+        this.rememberCommandContext()
+        this.dispatchAutoDismiss({
+          reason: 'selection-changed',
+          source: 'bubble',
+        })
       },
       isSecondaryFloatingVisible: () => this.translationWindowManager?.isVisible() ?? false,
       isEventInsideSecondaryFloating: (event) => {
@@ -77,8 +102,12 @@ export class TextPickerFeature {
           this.translationWindowManager?.hide()
         }
       },
+      dispatchAutoDismiss: (context) => {
+        this.dispatchAutoDismiss(context)
+      },
     })
 
+    this.registerAutoDismissSurfaces()
     this.createStatusTray()
     this.setupIpc()
 
@@ -125,8 +154,10 @@ export class TextPickerFeature {
   }
 
   dispose() {
-    globalShortcut.unregister('CommandOrControl+Shift+E')
-    globalShortcut.unregister('CommandOrControl+Shift+X')
+    globalShortcut.unregister(REFRESH_SELECTION_SHORTCUT)
+    globalShortcut.unregister(HIDE_BUBBLE_SHORTCUT)
+    globalShortcut.unregister(SCREENSHOT_TRANSLATE_SHORTCUT)
+    globalShortcut.unregister(SCREENSHOT_SEARCH_SHORTCUT)
 
     for (const channel of IPC_HANDLE_CHANNELS) {
       ipcMain.removeHandler(channel)
@@ -147,8 +178,154 @@ export class TextPickerFeature {
     this.tray?.destroy()
     this.tray = null
 
+    autoDismissController.unregister('bubble')
+    autoDismissController.unregister('translation')
     this.bubbleWindow?.destroy()
     this.bubbleWindow = null
+  }
+
+  private dispatchAutoDismiss(context: DismissContext) {
+    autoDismissController.dispatch(context)
+  }
+
+  private rememberCommandContext() {
+    const pickedInfo = this.manager?.getPickedInfo()
+    if (!pickedInfo?.selectionId || !pickedInfo.text) {
+      return
+    }
+
+    this.commandContexts.set(pickedInfo.selectionId, {
+      pickedInfo,
+      anchor: this.manager?.getCurrentAnchor() ?? null,
+      createdAt: Date.now(),
+    })
+
+    for (const [selectionId, snapshot] of this.commandContexts) {
+      if (this.commandContexts.size <= MAX_COMMAND_CONTEXTS && Date.now() - snapshot.createdAt <= COMMAND_CONTEXT_TTL_MS) {
+        continue
+      }
+
+      this.commandContexts.delete(selectionId)
+    }
+  }
+
+  private resolveCommandContext(selectionId?: string) {
+    const livePickedInfo = this.manager?.getPickedInfo() ?? null
+    const liveAnchor = this.manager?.getCurrentAnchor() ?? null
+
+    if (selectionId && livePickedInfo?.selectionId === selectionId && livePickedInfo.text) {
+      return {
+        source: 'live' as const,
+        pickedInfo: livePickedInfo,
+        anchor: liveAnchor,
+      }
+    }
+
+    if (!selectionId) {
+      return livePickedInfo?.text
+        ? {
+            source: 'live' as const,
+            pickedInfo: livePickedInfo,
+            anchor: liveAnchor,
+          }
+        : null
+    }
+
+    const cached = this.commandContexts.get(selectionId)
+    if (!cached) {
+      return null
+    }
+
+    if (Date.now() - cached.createdAt > COMMAND_CONTEXT_TTL_MS) {
+      this.commandContexts.delete(selectionId)
+      return null
+    }
+
+    return {
+      source: 'cached' as const,
+      pickedInfo: cached.pickedInfo,
+      anchor: cached.anchor,
+    }
+  }
+
+  private registerAutoDismissSurfaces() {
+    autoDismissController.register({
+      id: 'bubble',
+      priority: 200,
+      isVisible: () => this.bubbleWindow?.isVisible() ?? false,
+      hide: () => {
+        this.manager?.hideBubble()
+      },
+      shouldDismiss: (context) => {
+        if (!this.bubbleWindow || this.bubbleWindow.isDestroyed() || !this.bubbleWindow.isVisible()) {
+          return false
+        }
+
+        if (context.reason === 'escape' || context.reason === 'dismiss-scene') {
+          return true
+        }
+
+        if (context.reason === 'surface-opened') {
+          return context.target === 'translation' || context.target === 'main'
+        }
+
+        if (context.reason !== 'outside-pointer') {
+          return false
+        }
+
+        const { x, y } = context
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return false
+        }
+
+        const bounds = this.bubbleWindow.getBounds()
+        const right = bounds.x + bounds.width
+        const bottom = bounds.y + bounds.height
+        return x! < bounds.x || x! > right || y! < bounds.y || y! > bottom
+      },
+    })
+
+    autoDismissController.register({
+      id: 'translation',
+      priority: 300,
+      isVisible: () => this.translationWindowManager?.isVisible() ?? false,
+      hide: () => {
+        this.translationWindowManager?.hide()
+      },
+      shouldDismiss: (context) => {
+        const manager = this.translationWindowManager
+        if (!manager?.isVisible()) {
+          return false
+        }
+
+        if (context.reason === 'escape') {
+          return true
+        }
+
+        if (manager.isPinned()) {
+          return false
+        }
+
+        if (context.reason === 'selection-changed' || context.reason === 'dismiss-scene') {
+          return true
+        }
+
+        if (context.reason === 'surface-opened') {
+          return context.target !== 'translation'
+        }
+
+        if (context.reason !== 'outside-pointer') {
+          return false
+        }
+
+        const { x, y } = context
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return false
+        }
+
+        return !manager.containsPoint(x!, y!)
+      },
+    })
   }
 
   private createStatusTray() {
@@ -186,14 +363,16 @@ export class TextPickerFeature {
       },
       {
         label: '截图翻译',
+        accelerator: SCREENSHOT_TRANSLATE_SHORTCUT,
         click: () => {
-          void this.screenshotTranslationService?.start()
+          void this.triggerScreenshotTranslation()
         },
       },
       {
         label: '截图搜索',
+        accelerator: SCREENSHOT_SEARCH_SHORTCUT,
         click: () => {
-          void this.screenshotSearchService?.start()
+          void this.triggerScreenshotSearch()
         },
       },
       {
@@ -224,13 +403,31 @@ export class TextPickerFeature {
   }
 
   private registerShortcuts() {
-    globalShortcut.register('CommandOrControl+Shift+E', () => {
+    globalShortcut.register(REFRESH_SELECTION_SHORTCUT, () => {
       this.manager?.refreshSelection()
     })
 
-    globalShortcut.register('CommandOrControl+Shift+X', () => {
+    globalShortcut.register(HIDE_BUBBLE_SHORTCUT, () => {
       this.manager?.hideBubble()
     })
+
+    globalShortcut.register(SCREENSHOT_TRANSLATE_SHORTCUT, () => {
+      void this.triggerScreenshotTranslation()
+    })
+
+    globalShortcut.register(SCREENSHOT_SEARCH_SHORTCUT, () => {
+      void this.triggerScreenshotSearch()
+    })
+  }
+
+  private async triggerScreenshotTranslation() {
+    this.manager?.hideBubble()
+    await this.screenshotTranslationService?.start()
+  }
+
+  private async triggerScreenshotSearch() {
+    this.manager?.hideBubble()
+    await this.screenshotSearchService?.start()
   }
 
   private setupIpc() {
@@ -241,15 +438,17 @@ export class TextPickerFeature {
       })
       this.manager?.noteBubbleInteraction()
 
-      const pickedInfo = this.manager?.getPickedInfo()
-      if (!pickedInfo?.text) {
+      const commandContext = this.resolveCommandContext(selectionId)
+      if (!commandContext?.pickedInfo.text) {
         this.logger.warn('[TextPickerFeature] ipc command rejected: empty_selection', {
           commandId,
           selectionId,
+          liveSelectionId: this.manager?.getPickedInfo()?.selectionId ?? null,
         })
         return { ok: false, reason: 'empty_selection' }
       }
 
+      const { pickedInfo } = commandContext
       if (selectionId && pickedInfo.selectionId !== selectionId) {
         this.logger.warn('[TextPickerFeature] ipc command rejected: stale_selection', {
           commandId,
@@ -259,6 +458,12 @@ export class TextPickerFeature {
         this.manager?.hideBubble()
         return { ok: false, reason: 'stale_selection' }
       }
+
+      this.logger.info('[TextPickerFeature] ipc command context resolved', {
+        commandId,
+        selectionId: pickedInfo.selectionId,
+        source: commandContext.source,
+      })
 
       if (commandId === SystemCommand.Copy) {
         this.manager?.hideBubble()
@@ -336,12 +541,11 @@ export class TextPickerFeature {
         }
 
         if (commandId === SystemCommand.Translate) {
-          const anchor = this.manager?.getCurrentAnchor() ?? null
+          const anchor = commandContext.anchor
           this.logger.info('[TextPickerFeature] bubble skill clicked: translate', {
             selectionId: pickedInfo.selectionId,
             anchor,
           })
-          this.manager?.hideBubble()
           await this.translationWindowManager?.showTranslation({
             text: pickedInfo.text,
             selectionId: pickedInfo.selectionId,
@@ -405,13 +609,16 @@ export class TextPickerFeature {
     }))
 
     ipcMain.handle(TextPickerChannel.OpenMainWindow, async () => {
-      this.manager?.hideBubble()
       await showMainWindow()
       return { ok: true }
     })
 
     ipcMain.handle(TextPickerChannel.HideBubble, async () => {
       this.manager?.hideBubble()
+      return { ok: true }
+    })
+    ipcMain.handle(TextPickerChannel.DismissTopmost, async () => {
+      autoDismissController.dismissTopmost('escape')
       return { ok: true }
     })
 

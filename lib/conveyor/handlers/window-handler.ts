@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import { shell } from 'electron'
 import { handle } from '@/lib/main/shared'
 import { showMainWindow } from '@/lib/main/window-manager'
+import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 import { electronAPI } from '@electron-toolkit/preload'
 
 export const registerWindowHandlers = (window: BrowserWindow) => {
@@ -20,6 +21,9 @@ export const registerWindowHandlers = (window: BrowserWindow) => {
   handle('window-minimize', () => window.minimize())
   handle('window-maximize', () => window.maximize())
   handle('window-close', () => window.close())
+  handle('window-dismiss-topmost', () => {
+    autoDismissController.dismissTopmost('escape')
+  })
   handle('window-maximize-toggle', () => (window.isMaximized() ? window.unmaximize() : window.maximize()))
   handle('window-show-route', async (route) => {
     await showMainWindow(route)

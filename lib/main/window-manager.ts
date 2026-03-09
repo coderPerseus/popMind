@@ -7,6 +7,7 @@ import {
   type MainWindowRoute,
 } from './app'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
+import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
@@ -65,6 +66,40 @@ const concealMainWindow = (window: BrowserWindow) => {
   }
 }
 
+const registerMainWindowSurface = (window: BrowserWindow) => {
+  autoDismissController.register({
+    id: 'main',
+    priority: 100,
+    isVisible: () => !window.isDestroyed() && window.isVisible(),
+    hide: () => {
+      concealMainWindow(window)
+    },
+    shouldDismiss: (context) => {
+      if (window.isDestroyed() || !window.isVisible()) {
+        return false
+      }
+
+      if (context.reason === 'escape') {
+        return true
+      }
+
+      if (context.reason === 'blur') {
+        return currentRoute === 'home'
+      }
+
+      if (window.isFocused()) {
+        return false
+      }
+
+      if (context.reason === 'surface-opened') {
+        return context.target !== 'main'
+      }
+
+      return context.reason === 'selection-changed' || context.reason === 'dismiss-scene'
+    },
+  })
+}
+
 const attachMainWindowLifecycle = (window: BrowserWindow) => {
   window.on('close', (event) => {
     if (isQuitting) {
@@ -76,11 +111,14 @@ const attachMainWindowLifecycle = (window: BrowserWindow) => {
   })
 
   window.on('blur', () => {
-    if (isQuitting || currentRoute !== 'home') {
+    if (isQuitting) {
       return
     }
 
-    concealMainWindow(window)
+    autoDismissController.dispatch({
+      reason: 'blur',
+      source: 'main',
+    })
   })
 
   window.on('closed', () => {
@@ -90,6 +128,7 @@ const attachMainWindowLifecycle = (window: BrowserWindow) => {
     currentRoute = null
     routeLoadPromise = null
     routeLoadTarget = null
+    autoDismissController.unregister('main')
   })
 }
 
@@ -141,7 +180,6 @@ const applyWindowRouteConfig = (window: BrowserWindow, route: MainWindowRoute) =
   }
 }
 
-
 const ensureMainWindowRoute = async (window: BrowserWindow, route: MainWindowRoute) => {
   if (window.isDestroyed()) {
     return
@@ -183,6 +221,7 @@ export const getOrCreateMainWindow = () => {
   }
 
   const window = createAppWindow()
+  registerMainWindowSurface(window)
   attachMainWindowLifecycle(window)
   mainWindow = window
   return window
@@ -203,6 +242,10 @@ export const showMainWindow = async (route: MainWindowRoute = 'home') => {
     console.error('[window-manager] failed to load main window route', { route, error })
   }
 
+  autoDismissController.dispatch({
+    reason: 'surface-opened',
+    target: 'main',
+  })
   presentMainWindow(window)
   return window
 }

@@ -122,15 +122,27 @@ export interface TranslationAnchorPoint {
   bottomY: number
 }
 
+export interface TranslationWindowResizePayload {
+  width?: number
+  height?: number
+  minHeight?: number
+  source?: 'content' | 'manual'
+}
+
 export interface TranslationWindowPreloadApi {
   onState(handler: (state: TranslationWindowState) => void): () => void
   getState(): Promise<TranslationWindowState | null>
-  retranslate(payload: { sourceLanguage: string; targetLanguage: string; engineId: TranslationEngineId }): Promise<{ ok: boolean }>
+  retranslate(payload: {
+    sourceLanguage: string
+    targetLanguage: string
+    engineId: TranslationEngineId
+  }): Promise<{ ok: boolean }>
   setPinned(pinned: boolean): Promise<{ ok: boolean; pinned: boolean }>
   setDragging(isDragging: boolean): void
   notifyInteraction(durationMs?: number): void
   moveWindow(deltaX: number, deltaY: number): void
-  resizeWindow(height: number): void
+  resizeWindow(payload: TranslationWindowResizePayload): void
+  dismissTopmost(): Promise<{ ok: boolean }>
   copyTranslatedText(): Promise<{ ok: boolean }>
   closeWindow(): Promise<{ ok: boolean }>
 }

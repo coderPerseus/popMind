@@ -23,22 +23,24 @@ export class GoogleLensService {
     const response = await fetch(GOOGLE_LENS_UPLOAD_URL, {
       method: 'POST',
       body: formData,
-      redirect: 'manual',
+      redirect: 'follow',
       headers: {
         'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
       },
     })
 
-    const location = response.headers.get('location')
     if (!response.ok && !isRedirectStatus(response.status)) {
       throw new Error(`Google Lens upload failed with status ${response.status}`)
     }
 
-    if (!location) {
+    const targetUrl = response.url
+    if (!targetUrl || !targetUrl.startsWith('https://www.google.com/search?')) {
       throw new Error('Google Lens did not return a result URL')
     }
 
-    return location
+    return targetUrl
   }
 }
 

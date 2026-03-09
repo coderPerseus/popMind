@@ -8,6 +8,7 @@ export class WindowApi extends ConveyorApi {
   windowMinimize = () => this.invoke('window-minimize')
   windowMaximize = () => this.invoke('window-maximize')
   windowClose = () => this.invoke('window-close')
+  windowDismissTopmost = () => this.invoke('window-dismiss-topmost')
   windowMaximizeToggle = () => this.invoke('window-maximize-toggle')
   windowShowRoute = (route: 'home' | 'settings') => this.invoke('window-show-route', route)
 

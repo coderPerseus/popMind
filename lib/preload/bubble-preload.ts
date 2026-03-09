@@ -37,6 +37,13 @@ const bubbleApi: BubblePreloadApi = {
       return result
     })
   },
+  dismissTopmost() {
+    preloadLog('dismissTopmost:invoke')
+    return ipcRenderer.invoke(TextPickerChannel.DismissTopmost).then((result) => {
+      preloadLog('dismissTopmost:result', result)
+      return result
+    })
+  },
   moveBubble(deltaX, deltaY) {
     preloadLog('moveBubble', { deltaX, deltaY })
     ipcRenderer.send(TextPickerChannel.MoveBubble, deltaX, deltaY)

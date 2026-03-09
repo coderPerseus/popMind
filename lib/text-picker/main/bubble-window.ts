@@ -58,9 +58,9 @@ export class SelectionBubbleWindow implements BubbleWindowPort {
       visibleOnFullScreen: true,
     })
 
-    // Set NSWindowStyleMaskNonactivatingPanel immediately so the panel never
-    // activates the app — even if a drag / click happens before ready-to-show.
-    this.bridge.configureBubbleWindow(bubbleWindow.getNativeWindowHandle())
+    bubbleWindow.once('ready-to-show', () => {
+      this.bridge.configureBubbleWindow(bubbleWindow.getNativeWindowHandle())
+    })
 
     if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
       void bubbleWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/bubble.html`)

@@ -386,8 +386,12 @@ const buildWordEntry = (text: string, payload: YoudaoDictionaryPayload): Transla
   const simpleWord = payload.simple?.word?.[0]
   const headword = ecWord?.['return-phrase'] ?? simpleWord?.['return-phrase'] ?? text
   const phonetics = [
-    ecWord?.usphone || simpleWord?.usphone ? { label: 'US', value: ecWord?.usphone ?? simpleWord?.usphone ?? '' } : null,
-    ecWord?.ukphone || simpleWord?.ukphone ? { label: 'UK', value: ecWord?.ukphone ?? simpleWord?.ukphone ?? '' } : null,
+    ecWord?.usphone || simpleWord?.usphone
+      ? { label: 'US', value: ecWord?.usphone ?? simpleWord?.usphone ?? '' }
+      : null,
+    ecWord?.ukphone || simpleWord?.ukphone
+      ? { label: 'UK', value: ecWord?.ukphone ?? simpleWord?.ukphone ?? '' }
+      : null,
   ].filter((item): item is { label: string; value: string } => Boolean(item?.value))
 
   return {
@@ -422,7 +426,7 @@ export const youdaoProvider: TranslationProvider = {
       const translatedText = buildWordTranslatedText(wordEntry)
 
       if (!wordEntry.definitions.length && !wordEntry.phrases.length) {
-        throw new Error('Youdao dictionary returned an empty result')
+        throw new Error('查无此词～')
       }
 
       return {

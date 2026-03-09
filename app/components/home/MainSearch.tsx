@@ -5,7 +5,7 @@ import { getThemeLogoUrl } from '@/app/theme-assets'
 import './styles.css'
 
 export function MainSearch() {
-  const { windowShowRoute } = useConveyor('window')
+  const { windowDismissTopmost, windowShowRoute } = useConveyor('window')
   const [query, setQuery] = useState('')
   const [logoUrl, setLogoUrl] = useState(() => getThemeLogoUrl())
   const inputRef = useRef<HTMLInputElement>(null)
@@ -25,16 +25,16 @@ export function MainSearch() {
     return () => observer.disconnect()
   }, [])
 
-  // Escape key: hide the main window (window-manager intercepts close → hide)
+  // Escape key: go through the shared auto-dismiss controller.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        window.close()
+        void windowDismissTopmost()
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [windowDismissTopmost])
 
   return (
     <div className="ms-root">

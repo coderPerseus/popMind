@@ -33,6 +33,15 @@ const themeObserver = new MutationObserver(syncLeadLogo)
 themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 window.addEventListener('beforeunload', () => themeObserver.disconnect())
 
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') {
+    return
+  }
+
+  event.preventDefault()
+  void window.textPicker.dismissTopmost()
+})
+
 let currentPickedInfo: PickedInfo | null = null
 let busy = false
 let activePointerId: number | null = null
@@ -80,6 +89,47 @@ const queueBubbleWidthMeasurement = () => {
   })
 }
 
+const invokeSkillCommand = async (skill: SelectionSkill, origin: 'pointerdown' | 'keyboard') => {
+  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+  noteBubbleInteraction()
+
+  if (!currentPickedInfo || busy) {
+    bubbleLog('skill:invoke:ignored', {
+      commandId: skill.commandId,
+      origin,
+      hasPickedInfo: Boolean(currentPickedInfo),
+      busy,
+    })
+    return
+  }
+
+  setBusy(true)
+  try {
+    bubbleLog('skill:invoke', {
+      commandId: skill.commandId,
+      origin,
+      selectionId: currentPickedInfo.selectionId,
+      textPreview: currentPickedInfo.text.slice(0, 40),
+    })
+    const result = await window.textPicker.triggerCommand(skill.commandId, currentPickedInfo.selectionId)
+    bubbleLog('skill:invoke:result', {
+      commandId: skill.commandId,
+      origin,
+      selectionId: currentPickedInfo.selectionId,
+      result,
+    })
+  } finally {
+    setBusy(false)
+  }
+}
+
+const invokeLeadLogo = async (origin: 'pointerdown' | 'keyboard') => {
+  bubbleLog('leadLogo:invoke', { origin })
+  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
+  noteBubbleInteraction()
+  await window.textPicker.openMainWindow()
+}
+
 const renderSkills = (skills: SelectionSkill[] | undefined) => {
   if (!skillsContainer) {
     return
@@ -122,47 +172,29 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
         return
       }
 
+      event.preventDefault()
+      event.stopPropagation()
+
       bubbleLog('skill:pointerdown', {
         commandId: skill.commandId,
         selectionId: currentPickedInfo?.selectionId ?? null,
         textLength: currentPickedInfo?.text.length ?? 0,
       })
-      suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
-      noteBubbleInteraction()
-      event.stopPropagation()
+      void invokeSkillCommand(skill, 'pointerdown')
     })
 
     button.addEventListener('click', async (event) => {
       event.preventDefault()
       event.stopPropagation()
-      suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
-      noteBubbleInteraction()
 
-      if (!currentPickedInfo || busy) {
-        bubbleLog('skill:click:ignored', {
+      if (event.detail !== 0) {
+        bubbleLog('skill:click:suppressed', {
           commandId: skill.commandId,
-          hasPickedInfo: Boolean(currentPickedInfo),
-          busy,
         })
         return
       }
 
-      setBusy(true)
-      try {
-        bubbleLog('skill:click:invoke', {
-          commandId: skill.commandId,
-          selectionId: currentPickedInfo.selectionId,
-          textPreview: currentPickedInfo.text.slice(0, 40),
-        })
-        const result = await window.textPicker.triggerCommand(skill.commandId, currentPickedInfo.selectionId)
-        bubbleLog('skill:click:result', {
-          commandId: skill.commandId,
-          selectionId: currentPickedInfo.selectionId,
-          result,
-        })
-      } finally {
-        setBusy(false)
-      }
+      void invokeSkillCommand(skill, 'keyboard')
     })
 
     skillsContainer.appendChild(button)
@@ -245,11 +277,12 @@ leadLogoButton?.addEventListener('pointerdown', (event) => {
     return
   }
 
-  bubbleLog('leadLogo:pointerdown')
-  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
-  noteBubbleInteraction()
-  leadLogoButton.classList.add('is-pressed')
+  event.preventDefault()
   event.stopPropagation()
+
+  bubbleLog('leadLogo:pointerdown')
+  leadLogoButton.classList.add('is-pressed')
+  void invokeLeadLogo('pointerdown')
 })
 
 leadLogoButton?.addEventListener('pointerup', () => {
@@ -264,10 +297,12 @@ leadLogoButton?.addEventListener('click', async (event) => {
   event.preventDefault()
   event.stopPropagation()
 
-  bubbleLog('leadLogo:click:openMainWindow')
-  suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
-  noteBubbleInteraction()
-  await window.textPicker.openMainWindow()
+  if (event.detail !== 0) {
+    bubbleLog('leadLogo:click:suppressed')
+    return
+  }
+
+  await invokeLeadLogo('keyboard')
 })
 
 dragHandle?.addEventListener('pointerdown', (event) => {
