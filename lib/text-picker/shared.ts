@@ -17,10 +17,6 @@ export const SelectionScene = {
   NONE: 'none',
   BOX_SELECT: 'box_select',
   MULTI_CLICK: 'multi_click_select',
-  SHIFT_ARROW: 'shift_arrow_select',
-  SHIFT_MOUSE_CLICK: 'shift_mouse_click',
-  CTRL_A: 'ctrl_a_select',
-  MANUAL: 'manual_trigger',
   GESTURE_DISMISS: 'gesture_dismiss',
   OTHER_CLICK_DISMISS: 'other_click_dismiss',
   APP_FOCUS_DISMISS: 'app_focus_dismiss',
@@ -33,9 +29,6 @@ export type SelectionSceneValue = (typeof SelectionScene)[keyof typeof Selection
 export const DEFAULT_SCENE_ENABLE = {
   [SelectionScene.BOX_SELECT]: true,
   [SelectionScene.MULTI_CLICK]: true,
-  [SelectionScene.SHIFT_ARROW]: true,
-  [SelectionScene.SHIFT_MOUSE_CLICK]: true,
-  [SelectionScene.CTRL_A]: true,
 } as const
 
 export type EnabledSelectionScene = keyof typeof DEFAULT_SCENE_ENABLE
@@ -63,7 +56,6 @@ export const TextPickerChannel = {
 export const CHECK_DELAY_MS = 70
 export const RETRY_DELAY_MS = 65
 export const MAX_RETRIES = 2
-export const KEYBOARD_CHECK_DELAY_MS = 150
 export const TOOLBAR_MIN_WIDTH = 350
 export const TOOLBAR_HEIGHT = 36
 export const TOOLBAR_GAP = 12

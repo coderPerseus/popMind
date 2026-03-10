@@ -32,7 +32,6 @@ const IPC_EVENT_CHANNELS = [
   TextPickerChannel.NotifyBubbleInteraction,
 ] as const
 
-const REFRESH_SELECTION_SHORTCUT = 'CommandOrControl+Shift+E'
 const HIDE_BUBBLE_SHORTCUT = 'CommandOrControl+Shift+X'
 const SCREENSHOT_TRANSLATE_SHORTCUT = 'CommandOrControl+Alt+T'
 const SCREENSHOT_SEARCH_SHORTCUT = 'CommandOrControl+Alt+S'
@@ -154,7 +153,6 @@ export class TextPickerFeature {
   }
 
   dispose() {
-    globalShortcut.unregister(REFRESH_SELECTION_SHORTCUT)
     globalShortcut.unregister(HIDE_BUBBLE_SHORTCUT)
     globalShortcut.unregister(SCREENSHOT_TRANSLATE_SHORTCUT)
     globalShortcut.unregister(SCREENSHOT_SEARCH_SHORTCUT)
@@ -403,10 +401,6 @@ export class TextPickerFeature {
   }
 
   private registerShortcuts() {
-    globalShortcut.register(REFRESH_SELECTION_SHORTCUT, () => {
-      this.manager?.refreshSelection()
-    })
-
     globalShortcut.register(HIDE_BUBBLE_SHORTCUT, () => {
       this.manager?.hideBubble()
     })
@@ -500,12 +494,6 @@ export class TextPickerFeature {
                 : 'clipboard_write'
             : 'clipboard_write_failed'
 
-        this.logger.info('[TextPickerFeature] ipc command handled: copy', {
-          commandId,
-          selectionId: pickedInfo.selectionId,
-          nativeStrategy,
-          clipboardMatchesAfterWrite: finalClipboardText === pickedInfo.text,
-        })
         return {
           ok: true,
           commandId,
@@ -515,7 +503,6 @@ export class TextPickerFeature {
 
       if (commandId === SystemCommand.HideTextPicker) {
         this.manager?.hideBubble()
-        this.logger.info('[TextPickerFeature] ipc command handled: hide')
         return { ok: true, commandId }
       }
 
@@ -524,18 +511,8 @@ export class TextPickerFeature {
         commandId === SystemCommand.Explain ||
         commandId === SystemCommand.Search
       ) {
-        const commandNameMap: Record<string, string> = {
-          [SystemCommand.Translate]: 'translate',
-          [SystemCommand.Explain]: 'explain',
-          [SystemCommand.Search]: 'search',
-        }
-
         if (commandId === SystemCommand.Translate) {
           const anchor = commandContext.anchor
-          this.logger.info('[TextPickerFeature] bubble skill clicked: translate', {
-            selectionId: pickedInfo.selectionId,
-            anchor,
-          })
           await this.translationWindowManager?.showTranslation({
             text: pickedInfo.text,
             selectionId: pickedInfo.selectionId,
@@ -546,11 +523,6 @@ export class TextPickerFeature {
         }
 
         const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text)
-        this.logger.info(`[TextPickerFeature] bubble skill clicked: ${commandNameMap[commandId]}`, {
-          selectionId: pickedInfo.selectionId,
-          targetUrl,
-        })
-
         if (!targetUrl) {
           this.logger.warn('[TextPickerFeature] ipc command rejected: missing_target_url', {
             commandId,
@@ -613,22 +585,18 @@ export class TextPickerFeature {
     })
 
     ipcMain.on(TextPickerChannel.MoveBubble, (_event, deltaX: number, deltaY: number) => {
-      this.logger.info('[TextPickerFeature] ipc move bubble', { deltaX, deltaY })
       this.manager?.moveBubble(deltaX, deltaY)
     })
 
     ipcMain.on(TextPickerChannel.ResizeBubble, (_event, width: number) => {
-      this.logger.info('[TextPickerFeature] ipc resize bubble', { width })
       this.manager?.resizeBubble(width)
     })
 
     ipcMain.on(TextPickerChannel.SetBubbleDragging, (_event, isDragging: boolean) => {
-      this.logger.info('[TextPickerFeature] ipc set bubble dragging', { isDragging })
       this.manager?.setBubbleDragging(isDragging)
     })
 
     ipcMain.on(TextPickerChannel.NotifyBubbleInteraction, () => {
-      this.logger.info('[TextPickerFeature] ipc notify bubble interaction')
       this.manager?.noteBubbleInteraction()
     })
   }

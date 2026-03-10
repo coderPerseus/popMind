@@ -19,25 +19,17 @@ enum class SelectionScene {
   kNone = 0,
   kBoxSelect = 1,
   kMultiClickSelect = 2,
-  kShiftArrowSelect = 3,
-  kShiftMouseClick = 4,
-  kCtrlASelect = 5,
-  kManualTrigger = 6,
-  kGestureDismiss = 7,
-  kOtherClickDismiss = 8,
-  kAppFocusDismiss = 9,
-  kKeyDismiss = 10,
-  kWindowFrameDismiss = 11
+  kGestureDismiss = 3,
+  kOtherClickDismiss = 4,
+  kAppFocusDismiss = 5,
+  kKeyDismiss = 6,
+  kWindowFrameDismiss = 7
 };
 
 const char* SceneToString(SelectionScene s) {
   switch (s) {
     case SelectionScene::kBoxSelect: return "box_select";
     case SelectionScene::kMultiClickSelect: return "multi_click_select";
-    case SelectionScene::kShiftArrowSelect: return "shift_arrow_select";
-    case SelectionScene::kShiftMouseClick: return "shift_mouse_click";
-    case SelectionScene::kCtrlASelect: return "ctrl_a_select";
-    case SelectionScene::kManualTrigger: return "manual_trigger";
     case SelectionScene::kGestureDismiss: return "gesture_dismiss";
     case SelectionScene::kOtherClickDismiss: return "other_click_dismiss";
     case SelectionScene::kAppFocusDismiss: return "app_focus_dismiss";
@@ -50,10 +42,6 @@ const char* SceneToString(SelectionScene s) {
 SelectionScene SceneFromString(const std::string& v) {
   if (v == "box_select") return SelectionScene::kBoxSelect;
   if (v == "multi_click_select") return SelectionScene::kMultiClickSelect;
-  if (v == "shift_arrow_select") return SelectionScene::kShiftArrowSelect;
-  if (v == "shift_mouse_click") return SelectionScene::kShiftMouseClick;
-  if (v == "ctrl_a_select") return SelectionScene::kCtrlASelect;
-  if (v == "manual_trigger") return SelectionScene::kManualTrigger;
   if (v == "gesture_dismiss") return SelectionScene::kGestureDismiss;
   if (v == "other_click_dismiss") return SelectionScene::kOtherClickDismiss;
   if (v == "app_focus_dismiss") return SelectionScene::kAppFocusDismiss;
@@ -82,10 +70,7 @@ std::unordered_set<NSInteger> gBubbleWindowNumbers;
 bool gIsLeftMouseDown = false;
 bool gLeftMouseDownOnBubble = false;
 NSPoint gMouseDownPoint = NSZeroPoint;
-bool gShiftHeldOnMouseDown = false;
 
-bool gShiftKeyDown = false;
-bool gArrowAfterShift = false;
 
 static constexpr double kScrollGestureDeltaThreshold = 4.0;
 static constexpr double kDragThreshold = 3.0;
@@ -125,6 +110,21 @@ bool GetAXStringAttr(AXUIElementRef el, CFStringRef attr, std::string* out) {
   }
   CFRelease(val);
   return ok;
+}
+
+std::string GetAXRoleDebug(AXUIElementRef el) {
+  if (!el) return "";
+
+  std::string role;
+  std::string subrole;
+  GetAXStringAttr(el, kAXRoleAttribute, &role);
+  GetAXStringAttr(el, kAXSubroleAttribute, &subrole);
+
+  if (!subrole.empty()) {
+    return role + "/" + subrole;
+  }
+
+  return role;
 }
 
 bool GetAXBoolAttr(AXUIElementRef el, CFStringRef attr, bool def) {
@@ -931,8 +931,6 @@ bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGo
     return false;
   }
 
-  if (scene == SelectionScene::kManualTrigger) return true;
-
   if (!axGotFocusedElement) return true;
   if (hasNonEmptyRange) return true;
 
@@ -940,6 +938,38 @@ bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGo
   // AX APIs. Fall back to a synthesized copy so passive text picking still
   // works for browser, canvas, and hybrid surfaces.
   return true;
+}
+
+bool HasTextSelectionForDrag(AXUIElementRef focusedElem) {
+  if (!focusedElem) return false;
+  if (HasNonEmptyRange(focusedElem)) return true;
+
+  std::string text;
+  if (GetAXSelectedText(focusedElem, &text) && !text.empty()) {
+    return true;
+  }
+
+  return GetTextByRange(focusedElem, &text) && !text.empty();
+}
+
+bool DragPasteboardHasFilePayload() {
+  NSPasteboard* dragPasteboard = [NSPasteboard pasteboardWithName:NSPasteboardNameDrag];
+  if (!dragPasteboard) return false;
+
+  NSArray<NSPasteboardType>* types = [dragPasteboard types];
+  if (!types || types.count == 0) return false;
+
+  for (NSPasteboardType type in types) {
+    if ([type isEqualToString:NSPasteboardTypeFileURL] ||
+        [type isEqualToString:NSFilenamesPboardType] ||
+        [type isEqualToString:@"public.file-url"] ||
+        [type isEqualToString:@"com.apple.pasteboard.promised-file-url"] ||
+        [type isEqualToString:@"com.apple.finder.pboard"]) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 bool IsTrusted(bool prompt) {
@@ -957,14 +987,53 @@ bool IsTrusted(bool prompt) {
 
 SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   if (!gIsLeftMouseDown) return SelectionScene::kNone;
-  if (gShiftHeldOnMouseDown) return SelectionScene::kShiftMouseClick;
   if ([event clickCount] >= 2) return SelectionScene::kMultiClickSelect;
 
   double dx = loc.x - gMouseDownPoint.x;
   double dy = loc.y - gMouseDownPoint.y;
-  if (sqrt(dx * dx + dy * dy) > kDragThreshold) return SelectionScene::kBoxSelect;
+  double dist = sqrt(dx * dx + dy * dy);
+  if (dist <= kDragThreshold) return SelectionScene::kNone;
 
-  return SelectionScene::kNone;
+  // Distinguish text drag-selection from file/icon drag-and-drop using the
+  // same selection signals that the snapshot path understands.
+  AXUIElementRef sysWide = AXUIElementCreateSystemWide();
+  AXUIElementRef focusedElem = nullptr;
+  AXUIElementRef focusedApp = nullptr;
+  bool hasFocusedElem = false;
+  bool hasSelection = false;
+  const bool hasFileDragPayload = DragPasteboardHasFilePayload();
+
+  if (sysWide) {
+    AXUIElementCopyAttributeValue(sysWide, kAXFocusedApplicationAttribute, (CFTypeRef*)&focusedApp);
+    if (focusedApp) {
+      AXUIElementCopyAttributeValue(focusedApp, kAXFocusedUIElementAttribute, (CFTypeRef*)&focusedElem);
+    }
+    CFRelease(sysWide);
+  }
+
+  if (focusedElem) {
+    hasFocusedElem = true;
+    std::string roleDebug = GetAXRoleDebug(focusedElem);
+    const bool editable = GetAXBoolAttr(focusedElem, CFSTR("AXEditable"), false);
+    hasSelection = HasTextSelectionForDrag(focusedElem);
+    NSLog(@"[selection_bridge] drag focused role=%s editable=%d", roleDebug.c_str(), editable);
+    CFRelease(focusedElem);
+  }
+  if (focusedApp) CFRelease(focusedApp);
+
+  SelectionScene scene = SelectionScene::kNone;
+  if (hasSelection) {
+    scene = SelectionScene::kBoxSelect;
+  } else if (!hasFocusedElem && !hasFileDragPayload) {
+    // Some Chromium/native editors lose the focused AX element on mouseUp, but
+    // the later snapshot/clipboard fallback can still recover selected text.
+    scene = SelectionScene::kBoxSelect;
+  }
+
+  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f hasFocusedElem=%d hasSelection=%d hasFileDragPayload=%d scene=%s",
+        dist, hasFocusedElem, hasSelection, hasFileDragPayload, SceneToString(scene));
+
+  return scene;
 }
 
 void EmitAction(SelectionScene scene, NSPoint pt) {
@@ -1002,8 +1071,6 @@ void StopWindowObserver() {
 }
 
 void OnWindowFrameChanged(AXObserverRef, AXUIElementRef, CFStringRef, void*) {
-  NSPoint loc = [NSEvent mouseLocation];
-  NSLog(@"[selection_bridge] window frame changed mouse=(%.1f, %.1f)", loc.x, loc.y);
   EmitAction(SelectionScene::kWindowFrameDismiss, [NSEvent mouseLocation]);
 }
 
@@ -1084,44 +1151,10 @@ void RemoveMonitors() {
   }
 }
 
-bool IsArrowKey(unsigned short kc) {
-  return kc == kVK_LeftArrow || kc == kVK_RightArrow || kc == kVK_UpArrow ||
-         kc == kVK_DownArrow || kc == kVK_Home || kc == kVK_End;
-}
-
 void HandleKeyEvent(NSEvent* event) {
-  if (event.type == NSEventTypeFlagsChanged) {
-    bool shiftNow = (event.modifierFlags & NSEventModifierFlagShift) != 0;
-
-    if (shiftNow && !gShiftKeyDown) {
-      gShiftKeyDown = true;
-      gArrowAfterShift = false;
-    } else if (!shiftNow && gShiftKeyDown) {
-      gShiftKeyDown = false;
-      if (gArrowAfterShift) {
-        gArrowAfterShift = false;
-        EmitAction(SelectionScene::kShiftArrowSelect, [NSEvent mouseLocation]);
-      }
-    }
-    return;
-  }
-
   if (event.type == NSEventTypeKeyDown) {
     NSEventModifierFlags flags = event.modifierFlags;
     unsigned short kc = event.keyCode;
-
-    if ((flags & NSEventModifierFlagShift) && IsArrowKey(kc)) {
-      gArrowAfterShift = true;
-      return;
-    }
-
-    if ((flags & NSEventModifierFlagCommand) && kc == kVK_ANSI_A) {
-      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(150 * NSEC_PER_MSEC)),
-                     dispatch_get_main_queue(), ^{
-        EmitAction(SelectionScene::kCtrlASelect, [NSEvent mouseLocation]);
-      });
-      return;
-    }
 
     if ((flags & NSEventModifierFlagCommand) && kc == kVK_ANSI_C) {
       return;
@@ -1201,7 +1234,22 @@ Napi::Value GetSelectionSnapshot(const Napi::CallbackInfo& info) {
     result.Set("fallbackAppPid", (double)pid);
   }
 
+  std::string strategy = "none";
+  if (result.Has("strategy") && result.Get("strategy").IsString()) {
+    strategy = result.Get("strategy").As<Napi::String>().Utf8Value();
+  }
+
   result.Set("text", text);
+  NSLog(@"[selection_bridge] snapshot scene=%s app=%@ bundle=%@ focused=%d hasNonEmpty=%d textLen=%lu strategy=%s fallback=%d hasRect=%d",
+        SceneToString(scene),
+        appName,
+        bundleId,
+        gotFocusedElement,
+        hasNonEmpty,
+        (unsigned long)text.size(),
+        strategy.c_str(),
+        result.Has("needsClipboardFallback"),
+        result.Get("hasRect").As<Napi::Boolean>().Value());
   ReleaseAX(&focusedElem);
   ReleaseAX(&focusedApp);
   return result;
@@ -1406,7 +1454,6 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         NSPoint loc = [NSEvent mouseLocation];
         const bool insideBubble = IsPointInsideBubbleWindow(loc);
         if (insideBubble) {
-          NSLog(@"[selection_bridge] scroll inside bubble ignored mouse=(%.1f, %.1f)", loc.x, loc.y);
           return;
         }
 
@@ -1417,8 +1464,6 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         if (precise &&
             (phase == NSEventPhaseBegan || phase == NSEventPhaseChanged) &&
             (dx > kScrollGestureDeltaThreshold || dy > kScrollGestureDeltaThreshold)) {
-          NSLog(@"[selection_bridge] scroll gesture dismiss mouse=(%.1f, %.1f) dx=%.2f dy=%.2f phase=%ld",
-                loc.x, loc.y, dx, dy, (long)phase);
           EmitAction(SelectionScene::kGestureDismiss, loc);
         }
         return;
@@ -1427,25 +1472,19 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
       if (event.type == NSEventTypeLeftMouseDown) {
         NSPoint loc = [NSEvent mouseLocation];
         if (IsPointInsideBubbleWindow(loc)) {
-          NSLog(@"[selection_bridge] leftMouseDown inside bubble mouse=(%.1f, %.1f)", loc.x, loc.y);
           gLeftMouseDownOnBubble = true;
           gIsLeftMouseDown = false;
-          gShiftHeldOnMouseDown = false;
           return;
         }
 
-        NSLog(@"[selection_bridge] leftMouseDown outside bubble mouse=(%.1f, %.1f)", loc.x, loc.y);
         gLeftMouseDownOnBubble = false;
         gIsLeftMouseDown = true;
         gMouseDownPoint = loc;
-        gShiftHeldOnMouseDown = (event.modifierFlags & NSEventModifierFlagShift) != 0;
         return;
       }
 
       if (event.type == NSEventTypeLeftMouseUp) {
         if (gLeftMouseDownOnBubble) {
-          NSLog(@"[selection_bridge] leftMouseUp after bubble mouse down mouse=(%.1f, %.1f)",
-                [NSEvent mouseLocation].x, [NSEvent mouseLocation].y);
           gLeftMouseDownOnBubble = false;
           gIsLeftMouseDown = false;
           return;
@@ -1453,8 +1492,6 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
 
         NSPoint loc = [NSEvent mouseLocation];
         SelectionScene scene = DetectMouseUpScene(event, loc);
-        NSLog(@"[selection_bridge] leftMouseUp outside bubble mouse=(%.1f, %.1f) scene=%s",
-              loc.x, loc.y, SceneToString(scene));
         gIsLeftMouseDown = false;
         EmitAction(scene, loc);
         return;
@@ -1474,8 +1511,6 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
                     object:nil
                      queue:[NSOperationQueue mainQueue]
                 usingBlock:^(__unused NSNotification*) {
-      NSPoint loc = [NSEvent mouseLocation];
-      NSLog(@"[selection_bridge] active space changed mouse=(%.1f, %.1f)", loc.x, loc.y);
       EmitAction(SelectionScene::kAppFocusDismiss, [NSEvent mouseLocation]);
     }];
 
@@ -1489,13 +1524,8 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
       if (activatedApp &&
           activatedApp.processIdentifier ==
               NSRunningApplication.currentApplication.processIdentifier) {
-        NSLog(@"[selection_bridge] app activated self ignored");
         return;
       }
-      NSLog(@"[selection_bridge] app activated bundle=%@ name=%@ pid=%d",
-            activatedApp.bundleIdentifier ?: @"",
-            activatedApp.localizedName ?: @"",
-            activatedApp.processIdentifier);
       StartWindowObserver();
       EmitAction(SelectionScene::kAppFocusDismiss, [NSEvent mouseLocation]);
     }];
@@ -1505,8 +1535,6 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
                     object:nil
                      queue:[NSOperationQueue mainQueue]
                 usingBlock:^(__unused NSNotification*) {
-      NSPoint loc = [NSEvent mouseLocation];
-      NSLog(@"[selection_bridge] app deactivated mouse=(%.1f, %.1f)", loc.x, loc.y);
       EmitAction(SelectionScene::kAppFocusDismiss, [NSEvent mouseLocation]);
     }];
 
@@ -1606,11 +1634,6 @@ Napi::Value OrderBubbleFront(const Napi::CallbackInfo& info) {
   if (!nsWindow) return Napi::Boolean::New(env, false);
 
   [nsWindow setIgnoresMouseEvents:NO];
-  NSLog(@"[selection_bridge] orderBubbleFront class=%@ windowNumber=%ld ignoresMouse=%d isVisible=%d",
-        NSStringFromClass([nsWindow class]),
-        (long)nsWindow.windowNumber,
-        [nsWindow ignoresMouseEvents],
-        [nsWindow isVisible]);
   [nsWindow orderFrontRegardless];
   return Napi::Boolean::New(env, true);
 }

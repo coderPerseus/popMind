@@ -13,7 +13,6 @@ import type {
 import {
   CHECK_DELAY_MS,
   DEFAULT_SCENE_ENABLE,
-  KEYBOARD_CHECK_DELAY_MS,
   MAX_RETRIES,
   RETRY_DELAY_MS,
   SelectionScene,
@@ -191,10 +190,6 @@ export class TextPickerManager {
   }
 
   isSceneEnabled(scene: SelectionSceneValue | string) {
-    if (scene === SelectionScene.MANUAL) {
-      return true
-    }
-
     if (!(scene in this.sceneEnable)) {
       return false
     }
@@ -250,16 +245,7 @@ export class TextPickerManager {
     return this.currentAnchor
   }
 
-  refreshSelection() {
-    this.refreshToken += 1
-    this.refreshSelectionWithRetries(this.refreshToken, SelectionScene.MANUAL, 0)
-  }
-
   hideBubble() {
-    this.logger.info('[TextPickerManager] hideBubble', {
-      isVisible: !this.bubbleWindow.isDestroyed() && this.bubbleWindow.isVisible(),
-      selectionId: this.pickedInfo?.selectionId ?? null,
-    })
     if (this.bubbleDragReleaseTimer) {
       clearTimeout(this.bubbleDragReleaseTimer)
       this.bubbleDragReleaseTimer = null
@@ -290,12 +276,6 @@ export class TextPickerManager {
     if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY) || (deltaX === 0 && deltaY === 0)) {
       return
     }
-
-    this.logger.info('[TextPickerManager] moveBubble', {
-      deltaX,
-      deltaY,
-      selectionId: this.pickedInfo.selectionId,
-    })
 
     const bounds = this.bubbleWindow.getBounds()
     const display = screen.getDisplayMatching(bounds)
@@ -330,12 +310,6 @@ export class TextPickerManager {
     if (nextWidth === this.bubbleWidth) {
       return
     }
-
-    this.logger.info('[TextPickerManager] resizeBubble', {
-      requestedWidth,
-      nextWidth,
-      prevWidth: this.bubbleWidth,
-    })
 
     this.bubbleWidth = nextWidth
 
@@ -377,7 +351,6 @@ export class TextPickerManager {
   }
 
   noteBubbleInteraction(durationMs = APP_ACTIVATE_SUPPRESS_MS) {
-    this.logger.info('[TextPickerManager] noteBubbleInteraction', { durationMs })
     this.suppressAppActivationUntil = Math.max(this.suppressAppActivationUntil, Date.now() + durationMs)
   }
 
@@ -399,8 +372,6 @@ export class TextPickerManager {
       return { ok: false, reason: 'stale_selection' }
     }
 
-    this.logger.info(`[TextPickerManager] triggerCommand: ${commandId}, text: ${this.pickedInfo.text.slice(0, 60)}`)
-
     return {
       ok: true,
       commandId,
@@ -409,7 +380,7 @@ export class TextPickerManager {
   }
 
   private onActionEvent(event: SelectionActionEvent) {
-    this.logger.info('[TextPickerManager] onActionEvent', event)
+    this.logger.info('[TextPickerManager] action', event)
     if (!this.globalEnabled) {
       return
     }
@@ -423,38 +394,22 @@ export class TextPickerManager {
     const insideFloatingSurface = this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event) === true
 
     if (scene === SelectionScene.APP_FOCUS_DISMISS && Date.now() < this.ignoreAppFocusDismissUntil) {
-      this.logger.info('[TextPickerManager] app focus dismiss ignored by post-show guard', {
-        event,
-        ignoreAppFocusDismissUntil: this.ignoreAppFocusDismissUntil,
-      })
       return
     }
 
     if (scene === SelectionScene.GESTURE_DISMISS && Date.now() < this.ignoreGestureDismissUntil) {
-      this.logger.info('[TextPickerManager] gesture dismiss ignored by post-show guard', {
-        event,
-        ignoreGestureDismissUntil: this.ignoreGestureDismissUntil,
-      })
       return
     }
 
     if (scene === SelectionScene.GESTURE_DISMISS && floatingVisible && insideFloatingSurface) {
-      this.logger.info('[TextPickerManager] gesture dismiss ignored inside floating surface', {
-        event,
-      })
       return
     }
 
     if (scene === SelectionScene.KEY_DISMISS && floatingVisible && this.shouldSuppressAppActivation()) {
-      this.logger.info('[TextPickerManager] key dismiss ignored during floating-surface interaction', {
-        event,
-        suppressAppActivationUntil: this.suppressAppActivationUntil,
-      })
       return
     }
 
     if (DISMISS_SCENES.has(scene as SelectionSceneValue)) {
-      this.logger.info('[TextPickerManager] dismiss scene received', { scene })
       this.noteBubbleInteraction()
       if (this.dispatchAutoDismiss) {
         this.dispatchAutoDismiss({
@@ -471,15 +426,9 @@ export class TextPickerManager {
     const isPointerScene =
       scene === SelectionScene.NONE ||
       scene === SelectionScene.BOX_SELECT ||
-      scene === SelectionScene.MULTI_CLICK ||
-      scene === SelectionScene.SHIFT_MOUSE_CLICK
+      scene === SelectionScene.MULTI_CLICK
 
     if (isPointerScene && (this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event))) {
-      this.logger.info('[TextPickerManager] pointer scene inside bubble, ignoring', {
-        scene,
-        x: event.x,
-        y: event.y,
-      })
       return
     }
 
@@ -491,14 +440,11 @@ export class TextPickerManager {
       return
     }
 
-    if (scene !== SelectionScene.MANUAL && !this.isSceneEnabled(scene)) {
+    if (!this.isSceneEnabled(scene)) {
       return
     }
 
-    const delay =
-      scene === SelectionScene.SHIFT_ARROW || scene === SelectionScene.CTRL_A ? KEYBOARD_CHECK_DELAY_MS : CHECK_DELAY_MS
-
-    this.scheduleSelectionCheck(scene, delay)
+    this.scheduleSelectionCheck(scene, CHECK_DELAY_MS)
   }
 
   private isEventInsideBubble(event: SelectionActionEvent) {
@@ -567,18 +513,24 @@ export class TextPickerManager {
   }
 
   private async refreshSelectionWithRetries(token: number, scene: SelectionSceneValue | string, attempt: number) {
-    this.logger.info('[TextPickerManager] refreshSelectionWithRetries', {
-      token,
-      scene,
-      attempt,
-      currentRefreshToken: this.refreshToken,
-    })
     if (token !== this.refreshToken || !this.bridge.isSupported) {
       return
     }
 
     const snapshot = this.bridge.getSelectionSnapshot(scene)
-    this.logger.info('[TextPickerManager] selection snapshot', snapshot)
+    this.logger.info('[TextPickerManager] selection snapshot', {
+      token,
+      scene,
+      attempt,
+      textLength: snapshot.text?.length ?? 0,
+      strategy: snapshot.strategy,
+      hasRect: snapshot.hasRect,
+      needsClipboardFallback: snapshot.needsClipboardFallback,
+      fallbackAppPid: snapshot.fallbackAppPid,
+      sourceApp: snapshot.sourceApp,
+      sourceBundleId: snapshot.sourceBundleId,
+      error: snapshot.error,
+    })
     if (token !== this.refreshToken) {
       return
     }
@@ -587,6 +539,12 @@ export class TextPickerManager {
 
     if (!text && snapshot.needsClipboardFallback && snapshot.fallbackAppPid != null) {
       const menuText = await this.bridge.getTextByClipboardAsync(true, snapshot.fallbackAppPid)
+      this.logger.info('[TextPickerManager] clipboard fallback menu', {
+        token,
+        scene,
+        attempt,
+        textLength: menuText?.trim().length ?? 0,
+      })
       if (token !== this.refreshToken) return
 
       if (menuText?.trim()) {
@@ -594,6 +552,12 @@ export class TextPickerManager {
         snapshot.strategy = 'menu_copy'
       } else {
         const shortcutText = await this.bridge.getTextByClipboardAsync(false, -1)
+        this.logger.info('[TextPickerManager] clipboard fallback shortcut', {
+          token,
+          scene,
+          attempt,
+          textLength: shortcutText?.trim().length ?? 0,
+        })
         if (token !== this.refreshToken) return
 
         if (shortcutText?.trim()) {
@@ -606,6 +570,7 @@ export class TextPickerManager {
 
     if (!text) {
       if (attempt < MAX_RETRIES) {
+        this.logger.info('[TextPickerManager] empty selection retry', { token, scene, attempt })
         setTimeout(() => {
           this.refreshSelectionWithRetries(token, scene, attempt + 1)
         }, RETRY_DELAY_MS)
@@ -641,14 +606,19 @@ export class TextPickerManager {
       hasRect: snapshot.hasRect || false,
       rect: snapshot.rect || null,
     }
+    this.logger.info('[TextPickerManager] selection resolved', {
+      token,
+      scene,
+      attempt,
+      textLength: text.length,
+      strategy: snapshot.strategy,
+      sourceApp: snapshot.sourceApp,
+      sourceBundleId: snapshot.sourceBundleId,
+      hasRect: snapshot.hasRect,
+    })
 
     const cursorPoint = screen.getCursorScreenPoint()
     const anchor = this.resolveAnchor(snapshot, cursorPoint)
-    this.logger.info('[TextPickerManager] selection resolved', {
-      pickedInfo: this.pickedInfo,
-      anchor,
-      cursorPoint,
-    })
 
     this.showToolbar({
       anchor,
@@ -695,19 +665,6 @@ export class TextPickerManager {
     this.currentAnchor = anchor
     this.ignoreGestureDismissUntil = Date.now() + POST_SHOW_GESTURE_DISMISS_GUARD_MS
     this.ignoreAppFocusDismissUntil = Date.now() + POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS
-    this.logger.info('[TextPickerManager] showToolbar', {
-      selectionId: pickedInfo.selectionId,
-      bounds: {
-        x: Math.round(x),
-        y: Math.round(y),
-        width: this.bubbleWidth,
-        height: TOOLBAR_HEIGHT,
-      },
-      appId: pickedInfo.appId,
-      scene: pickedInfo.scene,
-      ignoreGestureDismissUntil: this.ignoreGestureDismissUntil,
-      ignoreAppFocusDismissUntil: this.ignoreAppFocusDismissUntil,
-    })
 
     this.bubbleWindow.sendUpdate({
       sourceApp: pickedInfo.appName,
@@ -811,10 +768,6 @@ export class TextPickerManager {
     this.markBubbleDragging()
     this.scheduleBubbleDragRelease(NATIVE_DRAG_RELEASE_DELAY_MS)
     this.noteBubbleInteraction(1000)
-    this.logger.info('[TextPickerManager] handleBubbleMoved', {
-      bounds,
-      selectionId: this.pickedInfo.selectionId,
-    })
     this.memorizePosition(this.pickedInfo.appId, bounds.x - this.currentAnchor.x, bounds.y - this.currentAnchor.topY)
   }
 
