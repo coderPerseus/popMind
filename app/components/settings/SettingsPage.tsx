@@ -5,10 +5,11 @@ import { Input } from '@/app/components/ui/input'
 import { Select } from '@/app/components/ui/select'
 import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import type { SearchHistorySummary } from '@/lib/search-history/types'
 import type { ThemeMode } from '@/lib/theme/shared'
 import { translationLanguages } from '@/lib/translation/shared'
 import type { TranslationSettings } from '@/lib/translation/types'
-import { Bot, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun } from 'lucide-react'
+import { Bot, Database, Download, History, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun, Trash2 } from 'lucide-react'
 import './styles.css'
 
 type PermissionStatus = {
@@ -16,7 +17,7 @@ type PermissionStatus = {
   supported: boolean
 }
 
-type SettingsSection = 'general' | 'translation' | 'ai'
+type SettingsSection = 'general' | 'translation' | 'ai' | 'history'
 
 type NavItem = {
   id: SettingsSection
@@ -28,15 +29,21 @@ const navItems: NavItem[] = [
   { id: 'general', label: '常规', icon: SearchCheck },
   { id: 'translation', label: '翻译', icon: Languages },
   { id: 'ai', label: 'AI 配置', icon: Bot },
+  { id: 'history', label: '历史记录', icon: History },
 ]
 
 export function SettingsPage() {
   const app = useConveyor('app')
   const translation = useConveyor('translation')
+  const search = useConveyor('search')
   const { windowShowRoute } = useConveyor('window')
   const [status, setStatus] = useState<PermissionStatus | null>(null)
   const [settings, setSettings] = useState<TranslationSettings | null>(null)
+  const [historySummary, setHistorySummary] = useState<SearchHistorySummary | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isExportingHistory, setIsExportingHistory] = useState(false)
+  const [isClearingHistory, setIsClearingHistory] = useState(false)
+  const [historyMessage, setHistoryMessage] = useState('')
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const aiSaveTimerRef = useRef<number | null>(null)
   const [themeMode, setThemeMode] = useState<ThemeMode>('system')
@@ -56,17 +63,23 @@ export function SettingsPage() {
     setSettings(result)
   }, [translation])
 
+  const refreshHistorySummary = useCallback(async () => {
+    const result = await search.getHistorySummary()
+    setHistorySummary(result)
+  }, [search])
+
   useEffect(() => {
     void app.getThemeMode().then(setThemeMode)
     void refreshStatus()
     void refreshTranslationSettings()
+    void refreshHistorySummary()
 
     const timer = window.setInterval(() => {
       void refreshStatus()
     }, 2500)
 
     return () => window.clearInterval(timer)
-  }, [app, refreshStatus, refreshTranslationSettings])
+  }, [app, refreshHistorySummary, refreshStatus, refreshTranslationSettings])
 
   const openAccessibilitySettings = async () => {
     await app.openAccessibilitySettings()
@@ -159,6 +172,45 @@ export function SettingsPage() {
       }
     }
   }, [])
+
+  const exportHistory = async () => {
+    setHistoryMessage('')
+    setIsExportingHistory(true)
+
+    try {
+      const result = await search.exportHistory()
+      if (result.canceled) {
+        setHistoryMessage('已取消导出')
+        return
+      }
+
+      setHistoryMessage(`已导出 ${result.count} 条记录`)
+      await refreshHistorySummary()
+    } catch (error) {
+      setHistoryMessage(`导出失败：${getErrorMessage(error)}`)
+    } finally {
+      setIsExportingHistory(false)
+    }
+  }
+
+  const clearHistory = async () => {
+    if (!window.confirm('确认清空所有搜索历史记录？此操作不可撤销。')) {
+      return
+    }
+
+    setHistoryMessage('')
+    setIsClearingHistory(true)
+
+    try {
+      const result = await search.clearHistory()
+      setHistoryMessage(`已清空 ${result.deletedCount} 条记录`)
+      await refreshHistorySummary()
+    } catch (error) {
+      setHistoryMessage(`清空失败：${getErrorMessage(error)}`)
+    } finally {
+      setIsClearingHistory(false)
+    }
+  }
 
   return (
     <div className="settings-shell">
@@ -436,6 +488,80 @@ export function SettingsPage() {
               </section>
             </div>
           )}
+
+          {activeSection === 'history' && (
+            <div className="settings-content-stack">
+              <section className="settings-surface">
+                <div className="settings-surface-heading">
+                  <div>
+                    <div className="settings-item-title">搜索历史概览</div>
+                    <div className="settings-item-desc">默认保留 1 年数据，超期记录会在日常使用时自动清理。</div>
+                  </div>
+                </div>
+
+                <div className="settings-stat-grid">
+                  <div className="settings-stat-card">
+                    <div className="settings-stat-label">历史条数</div>
+                    <div className="settings-stat-value">{historySummary?.totalCount ?? 0}</div>
+                    <div className="settings-stat-meta">插件执行与命令执行都会记录在这里</div>
+                  </div>
+
+                  <div className="settings-stat-card">
+                    <div className="settings-stat-label">保留周期</div>
+                    <div className="settings-stat-value">{historySummary?.retentionDays ?? 365} 天</div>
+                    <div className="settings-stat-meta">超过期限的记录会从本地 SQLite 自动删除</div>
+                  </div>
+
+                  <div className="settings-stat-card">
+                    <div className="settings-stat-label">最近搜索</div>
+                    <div className="settings-stat-value">{formatHistoryTime(historySummary?.lastSearchedAt)}</div>
+                    <div className="settings-stat-meta">用于确认主窗口写入流程是否正常</div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="settings-surface">
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-item-title">历史数据库</div>
+                    <div className="settings-item-desc">可以导出为 JSON 文件，或直接清空本地历史。</div>
+                  </div>
+
+                  <div className="settings-row-aside">
+                    <span className="settings-pill is-on">SQLite</span>
+                  </div>
+                </div>
+
+                <div className="settings-history-path">
+                  <span className="settings-history-path-icon">
+                    <Database size={15} />
+                  </span>
+                  <span>{historySummary?.storagePath ?? '加载中...'}</span>
+                </div>
+
+                <div className="settings-action-row">
+                  <Button size="sm" onClick={() => void exportHistory()} disabled={isExportingHistory || isClearingHistory}>
+                    <Download size={14} />
+                    {isExportingHistory ? '正在导出' : '导出历史'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void clearHistory()}
+                    disabled={isExportingHistory || isClearingHistory}
+                  >
+                    <Trash2 size={14} />
+                    {isClearingHistory ? '正在清空' : '清空历史'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => void refreshHistorySummary()}>
+                    重新加载
+                  </Button>
+                </div>
+
+                {historyMessage && <div className="settings-history-message">{historyMessage}</div>}
+              </section>
+            </div>
+          )}
         </div>
       </section>
     </div>
@@ -451,5 +577,30 @@ const getSectionTitle = (section: SettingsSection) => {
     return '翻译能力配置'
   }
 
+  if (section === 'history') {
+    return '搜索历史管理'
+  }
+
   return 'AI 预留配置'
+}
+
+const formatHistoryTime = (timestamp?: number) => {
+  if (!timestamp) {
+    return '暂无'
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(timestamp)
+}
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return '请稍后重试'
 }

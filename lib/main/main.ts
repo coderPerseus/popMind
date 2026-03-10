@@ -1,5 +1,6 @@
 import { app, globalShortcut } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
 import { themeStore } from '@/lib/main/theme-store'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
@@ -17,6 +18,7 @@ app.whenReady().then(async () => {
   await themeStore.initialize()
   setupApplicationMenu()
   registerTranslationHandlers()
+  registerSearchHandlers()
 
   // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()

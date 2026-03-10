@@ -432,10 +432,6 @@ export class TextPickerFeature {
 
   private setupIpc() {
     ipcMain.handle(TextPickerChannel.Command, async (_event, commandId: string, selectionId?: string) => {
-      this.logger.info('[TextPickerFeature] ipc command received', {
-        commandId,
-        selectionId,
-      })
       this.manager?.noteBubbleInteraction()
 
       const commandContext = this.resolveCommandContext(selectionId)
@@ -458,12 +454,6 @@ export class TextPickerFeature {
         this.manager?.hideBubble()
         return { ok: false, reason: 'stale_selection' }
       }
-
-      this.logger.info('[TextPickerFeature] ipc command context resolved', {
-        commandId,
-        selectionId: pickedInfo.selectionId,
-        source: commandContext.source,
-      })
 
       if (commandId === SystemCommand.Copy) {
         this.manager?.hideBubble()
