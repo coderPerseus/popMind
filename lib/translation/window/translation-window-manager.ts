@@ -1,10 +1,18 @@
 import { clipboard, ipcMain, screen } from 'electron'
-import { translationEngineOrder, translationLanguages, TranslationWindowChannel } from '@/lib/translation/shared'
+import {
+  DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT,
+  getTranslationWindowMinHeight,
+  resolveTranslationQueryMode,
+  translationEngineOrder,
+  translationLanguages,
+  TranslationWindowChannel,
+} from '@/lib/translation/shared'
 import { translationService } from '@/lib/translation/service'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 import type {
   TranslationAnchorPoint,
   TranslationEngineId,
+  TranslationQueryMode,
   TranslationWindowResizeEdge,
   TranslationSettings,
   TranslationWindowResizePayload,
@@ -18,7 +26,6 @@ const APP_ACTIVATE_SUPPRESS_MS = 700
 const MIN_WINDOW_WIDTH = 404
 const MAX_WINDOW_WIDTH = 760
 const MIN_MANUAL_WINDOW_HEIGHT = 300
-const DEFAULT_CONTENT_WINDOW_MIN_HEIGHT = 300
 const MAX_WINDOW_HEIGHT = 680
 
 const clamp = (value: number, min: number, max: number) => {
@@ -90,6 +97,10 @@ export class TranslationWindowManager {
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
     const presentation = payload.presentation ?? 'anchored'
+    const initialQueryMode = resolveTranslationQueryMode({
+      text: payload.text,
+      sourceLanguage: 'auto',
+    })
 
     this.pendingRequest = {
       text: payload.text,
@@ -106,7 +117,7 @@ export class TranslationWindowManager {
     this.state = {
       status: 'loading',
       pinned: this.state?.pinned ?? false,
-      queryMode: 'text',
+      queryMode: initialQueryMode,
       engineId,
       enabledEngineIds,
       sourceLanguage: 'auto',
@@ -119,6 +130,7 @@ export class TranslationWindowManager {
       languages: translationLanguages,
     }
 
+    this.applyDefaultContentHeight(initialQueryMode)
     this.positionWindow(payload.anchor, presentation)
     this.sendState()
     this.showWindow()
@@ -338,6 +350,10 @@ export class TranslationWindowManager {
     const engineId = resolveEngineId(settings, payload.engineId) ?? payload.engineId
     const requestVersion = ++this.requestVersion
     const currentState = this.state
+    const previewQueryMode = resolveTranslationQueryMode({
+      text: this.pendingRequest.text,
+      sourceLanguage: payload.sourceLanguage,
+    })
 
     this.state = {
       ...currentState,
@@ -347,7 +363,7 @@ export class TranslationWindowManager {
       engineId,
       enabledEngineIds,
       translatedText: '',
-      queryMode: 'text',
+      queryMode: previewQueryMode,
       wordEntry: undefined,
       errorMessage: undefined,
       detectedSourceLanguage: undefined,
@@ -491,7 +507,7 @@ export class TranslationWindowManager {
     const bounds = this.window.getBounds()
     const normalizedPayload =
       typeof payload === 'number'
-        ? { height: payload, minHeight: DEFAULT_CONTENT_WINDOW_MIN_HEIGHT, source: 'content' as const }
+        ? { height: payload, minHeight: DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT, source: 'content' as const }
         : {
             width: payload.width,
             height: payload.height,
@@ -533,8 +549,8 @@ export class TranslationWindowManager {
     const height = normalizedPayload.height
     const contentMinHeight = Number.isFinite(normalizedPayload.minHeight)
       ? Math.round(normalizedPayload.minHeight as number)
-      : DEFAULT_CONTENT_WINDOW_MIN_HEIGHT
-    const minHeight = normalizedPayload.source === 'manual' ? MIN_MANUAL_WINDOW_HEIGHT : contentMinHeight
+      : DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT
+    const minHeight = contentMinHeight
     const nextWidth = Number.isFinite(width)
       ? Math.max(MIN_WINDOW_WIDTH, Math.min(Math.round(width as number), MAX_WINDOW_WIDTH))
       : bounds.width
@@ -558,6 +574,24 @@ export class TranslationWindowManager {
       ...bounds,
       y: clampedY,
       width: nextWidth,
+      height: nextHeight,
+    })
+  }
+
+  private applyDefaultContentHeight(queryMode: TranslationQueryMode) {
+    if (!this.window || this.window.isDestroyed()) {
+      return
+    }
+
+    const bounds = this.window.getBounds()
+    const nextHeight = getTranslationWindowMinHeight(queryMode)
+
+    if (bounds.height === nextHeight) {
+      return
+    }
+
+    this.window.setBounds({
+      ...bounds,
       height: nextHeight,
     })
   }

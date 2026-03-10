@@ -1,5 +1,11 @@
 import { translationProviders } from '@/lib/translation/providers'
-import { defaultTranslationSettings, getLanguageFamily, isSameLanguage, translationEngineOrder } from '@/lib/translation/shared'
+import {
+  defaultTranslationSettings,
+  getLanguageFamily,
+  isSameLanguage,
+  resolveTranslationQueryMode,
+  translationEngineOrder,
+} from '@/lib/translation/shared'
 import { translationStore } from '@/lib/translation/store'
 import { normalizeTextForTranslation } from '@/lib/translation/text-normalizer'
 import type { TranslateInput, TranslationEngineId, TranslationQueryMode, TranslationRequest, TranslationResult } from '@/lib/translation/types'
@@ -36,24 +42,6 @@ const resolveAutoTargetLanguage = ({
   }
 
   return settings.firstLanguage
-}
-
-const isEnglishWord = (text: string) => {
-  return /^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(text) && text.length <= 48
-}
-
-const resolveQueryMode = (input: TranslateInput, text: string) => {
-  if (input.queryMode) {
-    return input.queryMode
-  }
-
-  const sourceLanguage = input.sourceLanguage ?? defaultTranslationSettings.defaultSourceLanguage
-  const sourceFamily = getLanguageFamily(sourceLanguage)
-  if (sourceLanguage !== 'auto' && sourceFamily !== 'en') {
-    return 'text'
-  }
-
-  return isEnglishWord(text) ? 'word' : 'text'
 }
 
 const resolveWordTargetLanguage = ({
@@ -102,7 +90,10 @@ export class TranslationService {
     }
 
     const requestedSourceLanguage = input.sourceLanguage ?? defaultTranslationSettings.defaultSourceLanguage
-    const requestedQueryMode = resolveQueryMode(input, text)
+    const requestedQueryMode = resolveTranslationQueryMode({
+      ...input,
+      text,
+    })
     const preferredEngineId = resolveEngineId(settings, input.engineId)
     const shouldUseWordProvider = requestedQueryMode === 'word' && isWordProviderAvailable(settings)
     const queryMode: TranslationQueryMode = shouldUseWordProvider ? 'word' : 'text'

@@ -1,4 +1,4 @@
-import type { TranslationEngineId, TranslationLanguageOption, TranslationSettings } from './types'
+import type { TranslateInput, TranslationEngineId, TranslationLanguageOption, TranslationQueryMode, TranslationSettings } from './types'
 
 export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'deepseek']
 
@@ -43,6 +43,9 @@ export const defaultTranslationSettings: TranslationSettings = {
   },
 }
 
+export const DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT = 300
+export const DEFAULT_TRANSLATION_WORD_WINDOW_MIN_HEIGHT = 600
+
 export const TranslationWindowChannel = {
   State: 'translationWindow:state',
   GetState: 'translationWindow:getState',
@@ -71,6 +74,32 @@ export const isSameLanguage = (left: string, right: string) => {
 
 export const trimTranslationText = (text: string) => {
   return text.replace(/\s+/g, ' ').trim()
+}
+
+export const isEnglishWord = (text: string) => {
+  return /^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(text) && text.length <= 48
+}
+
+export const resolveTranslationQueryMode = (
+  input: Pick<TranslateInput, 'queryMode' | 'sourceLanguage' | 'text'>
+): TranslationQueryMode => {
+  if (input.queryMode) {
+    return input.queryMode
+  }
+
+  const text = trimTranslationText(input.text)
+  const sourceLanguage = input.sourceLanguage ?? defaultTranslationSettings.defaultSourceLanguage
+  const sourceFamily = getLanguageFamily(sourceLanguage)
+
+  if (sourceLanguage !== 'auto' && sourceFamily !== 'en') {
+    return 'text'
+  }
+
+  return isEnglishWord(text) ? 'word' : 'text'
+}
+
+export const getTranslationWindowMinHeight = (queryMode: TranslationQueryMode) => {
+  return queryMode === 'word' ? DEFAULT_TRANSLATION_WORD_WINDOW_MIN_HEIGHT : DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT
 }
 
 export const ensureSelectableLanguage = (code: string) => {

@@ -4,7 +4,12 @@ import { Button } from '@/app/components/ui/button'
 import { Select } from '@/app/components/ui/select'
 import '@/app/components/translation/styles.css'
 import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
-import { getLanguageFamily, translationEngineLabels, translationEngineOrder } from '@/lib/translation/shared'
+import {
+  getLanguageFamily,
+  getTranslationWindowMinHeight,
+  translationEngineLabels,
+  translationEngineOrder,
+} from '@/lib/translation/shared'
 import type { TranslationWindowResizeEdge, TranslationWindowState } from '@/lib/translation/types'
 
 const emptyState: TranslationWindowState = {
@@ -20,8 +25,6 @@ const emptyState: TranslationWindowState = {
   languages: [],
 }
 
-const WORD_MODE_MIN_HEIGHT = 600
-const DEFAULT_CONTENT_MIN_HEIGHT = 300
 const resizeHandleConfigs: Array<{ edge: TranslationWindowResizeEdge; label: string }> = [
   { edge: 'top', label: '从顶部调整翻译窗口大小' },
   { edge: 'right', label: '从右侧调整翻译窗口大小' },
@@ -178,6 +181,12 @@ export function TranslationPanel() {
   }, [])
 
   useEffect(() => {
+    if (state.status === 'loading') {
+      hasManualResizeRef.current = false
+    }
+  }, [state.status, state.sourceText])
+
+  useEffect(() => {
     const resizeTracker = resizeState.current
 
     return () => {
@@ -215,7 +224,7 @@ export function TranslationPanel() {
   const availableEngineIds = state.enabledEngineIds.length
     ? state.enabledEngineIds
     : translationEngineOrder.filter((item) => item === state.engineId)
-  const isWordMode = state.queryMode === 'word' && Boolean(state.wordEntry)
+  const isWordMode = state.queryMode === 'word'
 
   useEffect(() => {
     const measure = () => {
@@ -226,7 +235,7 @@ export function TranslationPanel() {
       const nextHeight = Math.ceil(panelRef.current.scrollHeight + 20)
       window.translationWindow.resizeWindow({
         height: nextHeight,
-        minHeight: isWordMode ? WORD_MODE_MIN_HEIGHT : DEFAULT_CONTENT_MIN_HEIGHT,
+        minHeight: getTranslationWindowMinHeight(state.queryMode),
         source: 'content',
       })
     }
