@@ -70,6 +70,7 @@ export function createAppWindow(): BrowserWindow {
     width: initialConfig.width,
     height: initialConfig.height,
     show: false,
+    paintWhenInitiallyHidden: true,
     minWidth: initialConfig.minWidth,
     minHeight: initialConfig.minHeight,
     maxWidth: initialConfig.maxWidth,

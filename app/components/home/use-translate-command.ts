@@ -4,18 +4,18 @@ import type { MainSearchCommand } from '@/app/components/home/query-command'
 
 export type TranslateCardState =
   | { status: 'idle' }
-  | { status: 'loading'; query: string; trigger: '/tr' | '/翻译' }
+  | { status: 'loading'; query: string; trigger: string }
   | {
       status: 'success'
       query: string
-      trigger: '/tr' | '/翻译'
+      trigger: string
       translatedText: string
       sourceLanguage: string
       targetLanguage: string
       engineId: string
       detectedSourceLanguage?: string
     }
-  | { status: 'error'; query: string; trigger: '/tr' | '/翻译'; error: string }
+  | { status: 'error'; query: string; trigger: string; error: string }
 
 export function useTranslateCommand(command: MainSearchCommand) {
   const translation = useConveyor('translation')
@@ -27,7 +27,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
   const isActive = command.kind === 'translate'
 
   const runTranslate = useCallback(
-    async (trigger: '/tr' | '/翻译', text: string) => {
+    async (trigger: string, text: string) => {
       const normalizedText = text.trim()
       if (!normalizedText) {
         setCardState({ status: 'idle' })

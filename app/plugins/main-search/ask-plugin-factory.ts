@@ -4,14 +4,16 @@ type AskPluginConfig = {
   id: string
   title: string
   handle: string
+  slashAliases: string[]
+  order: number
   description: string
   keywords: string[]
   homepageUrl: string
   buildLaunchUrl?: (query: string) => string
   logo: {
-    monogram: string
-    background: string
-    color: string
+    src: string
+    alt: string
+    background?: string
   }
 }
 
@@ -22,6 +24,8 @@ export const createAskPlugin = (config: AskPluginConfig): MainSearchPlugin => {
     id: config.id,
     title: config.title,
     handle: config.handle,
+    slashAliases: config.slashAliases,
+    order: config.order,
     typeLabel: 'AI Extension',
     mode: 'link' as const,
     keywords: config.keywords,

@@ -169,13 +169,16 @@
   align-items: center;
   justify-content: center;
   background: var(--ms-logo-bg);
-  color: var(--ms-logo-fg);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 8px 16px rgba(15, 23, 42, 0.12);
+}
+
+.ms-result-logo-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .ms-result-copy {
@@ -260,6 +263,17 @@
   font-weight: 500;
 }
 
+.ms-command-chip-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ms-logo-bg, rgba(255, 255, 255, 0.92));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
 .ms-translate-card {
   display: flex;
   flex-direction: column;
@@ -301,6 +315,10 @@
   background: linear-gradient(135deg, #1d4ed8 0%, #7c3aed 100%);
   color: #eff6ff;
   flex-shrink: 0;
+}
+
+.ms-translate-card-icon.is-plugin {
+  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
 }
 
 .ms-translate-card-icon.is-loading svg {
@@ -512,6 +530,11 @@
 .dark .ms-result-type {
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.46);
+}
+
+.dark .ms-result-logo,
+.dark .ms-command-chip-logo {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .dark .ms-command-chip {

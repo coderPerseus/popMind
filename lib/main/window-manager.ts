@@ -16,6 +16,8 @@ let routeLoadPromise: Promise<void> | null = null
 let routeLoadTarget: MainWindowRoute | null = null
 const HIDDEN_WINDOW_BUTTON_POSITION = { x: -100, y: -100 }
 const SETTINGS_WINDOW_BUTTON_POSITION = { x: 14, y: 14 }
+const REGULAR_ACTIVATION_POLICY = 0
+const ACCESSORY_ACTIVATION_POLICY = 1
 
 app.once('before-quit', () => {
   isQuitting = true
@@ -25,18 +27,40 @@ const isNavigationAbortError = (error: unknown) => {
   return error instanceof Error && error.message.includes('ERR_ABORTED')
 }
 
+const updateMainWindowActivationPolicy = (visible: boolean) => {
+  if (process.platform !== 'darwin') {
+    return
+  }
+
+  const activationPolicy = visible ? 'regular' : 'accessory'
+  const nativeActivationPolicy = visible ? REGULAR_ACTIVATION_POLICY : ACCESSORY_ACTIVATION_POLICY
+
+  if (selectionBridge.isSupported) {
+    selectionBridge.setActivationPolicy(nativeActivationPolicy)
+  }
+
+  app.setActivationPolicy(activationPolicy)
+}
+
+const logMainWindow = (event: string, details: Record<string, unknown> = {}) => {
+  if (app.isPackaged) {
+    return
+  }
+
+  console.warn('[main-window]', {
+    event,
+    route: currentRoute,
+    ...details,
+  })
+}
+
 const presentMainWindow = (window: BrowserWindow) => {
   if (window.isDestroyed()) {
     return
   }
 
   if (process.platform === 'darwin') {
-    // Keep the app in accessory mode so showing the main window does not
-    // surface a Dock icon.
-    if (selectionBridge.isSupported) {
-      selectionBridge.setActivationPolicy(1)
-    }
-    app.setActivationPolicy('accessory')
+    updateMainWindowActivationPolicy(true)
     app.focus({ steal: true })
   }
 
@@ -45,10 +69,15 @@ const presentMainWindow = (window: BrowserWindow) => {
   }
 
   window.show()
+  window.moveTop()
   if (process.platform !== 'darwin') {
     app.focus({ steal: true })
   }
   window.focus()
+  logMainWindow('presented', {
+    visible: window.isVisible(),
+    focused: window.isFocused(),
+  })
 }
 
 const concealMainWindow = (window: BrowserWindow) => {
@@ -59,11 +88,13 @@ const concealMainWindow = (window: BrowserWindow) => {
   window.hide()
 
   if (process.platform === 'darwin') {
-    if (selectionBridge.isSupported) {
-      selectionBridge.setActivationPolicy(1)
-    }
-    app.setActivationPolicy('accessory')
+    updateMainWindowActivationPolicy(false)
   }
+
+  logMainWindow('concealed', {
+    visible: window.isVisible(),
+    focused: window.isFocused(),
+  })
 }
 
 const registerMainWindowSurface = (window: BrowserWindow) => {
@@ -157,6 +188,8 @@ const applyWindowRouteConfig = (window: BrowserWindow, route: MainWindowRoute) =
   const isHome = route === 'home'
   window.setBackgroundColor(isHome ? '#00000000' : config.backgroundColor)
   window.setHasShadow(!isHome)
+  window.setAlwaysOnTop(isHome, isHome ? 'floating' : 'normal')
+  window.setVisibleOnAllWorkspaces(isHome, isHome ? { visibleOnFullScreen: true } : undefined)
   window.setResizable(config.resizable)
   window.setMaximizable(config.maximizable)
   window.setMinimumSize(config.minWidth, config.minHeight)
@@ -232,6 +265,12 @@ export const showMainWindow = async (route: MainWindowRoute = 'home') => {
   const shouldHideDuringRouteSwitch =
     window.isVisible() && currentRoute !== null && (currentRoute !== route || !isShowingRoute(window, route))
 
+  logMainWindow('show-requested', {
+    requestedRoute: route,
+    visible: window.isVisible(),
+    focused: window.isFocused(),
+  })
+
   if (shouldHideDuringRouteSwitch) {
     concealMainWindow(window)
   }
@@ -255,8 +294,36 @@ export const hideMainWindow = () => {
   concealMainWindow(window)
 }
 
+export const primeMainWindow = async (route: MainWindowRoute = 'home') => {
+  const window = getOrCreateMainWindow()
+
+  logMainWindow('prime-requested', {
+    requestedRoute: route,
+    visible: window.isVisible(),
+    focused: window.isFocused(),
+  })
+
+  try {
+    await ensureMainWindowRoute(window, route)
+    logMainWindow('prime-completed', {
+      requestedRoute: route,
+      url: window.webContents.getURL(),
+    })
+  } catch (error) {
+    console.error('[main-window] failed to prime route', { route, error })
+  }
+
+  return window
+}
+
 export const toggleMainWindow = async (route: MainWindowRoute = 'home') => {
   const window = getOrCreateMainWindow()
+
+  logMainWindow('toggle-requested', {
+    requestedRoute: route,
+    visible: window.isVisible(),
+    focused: window.isFocused(),
+  })
 
   if (window.isVisible()) {
     concealMainWindow(window)

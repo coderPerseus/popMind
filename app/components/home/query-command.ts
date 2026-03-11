@@ -1,20 +1,32 @@
 export type MainSearchCommand =
   | { kind: 'none' }
-  | { kind: 'translate'; trigger: '/tr' | '/翻译'; text: string }
+  | { kind: 'translate'; id: string; trigger: string; text: string }
+  | { kind: 'plugin'; id: string; trigger: string; text: string }
 
-const translateTriggers = ['/tr', '/翻译'] as const
+export type MainSearchSlashEntry = {
+  kind: 'translate' | 'plugin'
+  id: string
+  aliases: string[]
+}
 
-export const parseMainSearchCommand = (rawQuery: string): MainSearchCommand => {
+export const parseMainSearchCommand = (rawQuery: string, entries: MainSearchSlashEntry[]): MainSearchCommand => {
   const query = rawQuery.trim()
 
   if (!query.startsWith('/')) {
     return { kind: 'none' }
   }
 
-  for (const trigger of translateTriggers) {
+  const normalizedEntries = entries
+    .flatMap((entry) => entry.aliases.map((alias) => ({ kind: entry.kind, id: entry.id, alias })))
+    .sort((left, right) => right.alias.length - left.alias.length)
+
+  for (const entry of normalizedEntries) {
+    const trigger = entry.alias
+
     if (query === trigger) {
       return {
-        kind: 'translate',
+        kind: entry.kind,
+        id: entry.id,
         trigger,
         text: '',
       }
@@ -22,7 +34,8 @@ export const parseMainSearchCommand = (rawQuery: string): MainSearchCommand => {
 
     if (query.startsWith(`${trigger} `)) {
       return {
-        kind: 'translate',
+        kind: entry.kind,
+        id: entry.id,
         trigger,
         text: query.slice(trigger.length).trim(),
       }

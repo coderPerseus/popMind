@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Search, Settings2 } from 'lucide-react'
+import { ArrowUpRight, Search, Settings2 } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { parseMainSearchCommand } from '@/app/components/home/query-command'
 import { useTranslateCommand } from '@/app/components/home/use-translate-command'
@@ -15,8 +15,8 @@ import { TranslateCard } from '@/app/components/home/TranslateCard'
 import {
   copyTextToClipboard,
   executeMainSearchPlugin,
+  getMainSearchPluginResult,
   getMainSearchResultsCatalog,
-  resolveMainSearchResults,
   type MainSearchPluginResult,
 } from '@/app/plugins/main-search'
 import { getThemeLogoUrl } from '@/app/theme-assets'
@@ -28,7 +28,8 @@ type LauncherCommandItem = {
   subtitle: string
   typeLabel: 'Command'
   keywords: string[]
-  trigger: '/tr' | '/翻译'
+  aliases: string[]
+  order: number
 }
 
 type LauncherItem =
@@ -43,22 +44,26 @@ type LauncherSection = {
 
 const launcherCommands: LauncherCommandItem[] = [
   {
-    id: 'command.translate.en',
+    id: 'command.translate',
     title: 'Translate Text',
-    subtitle: '/tr',
+    subtitle: '/tr · /翻译',
     typeLabel: 'Command',
     keywords: ['translate', 'tr', 'translation', 'command', '翻译'],
-    trigger: '/tr',
-  },
-  {
-    id: 'command.translate.zh',
-    title: '翻译文本',
-    subtitle: '/翻译',
-    typeLabel: 'Command',
-    keywords: ['翻译', 'translate', 'command', 'tr'],
-    trigger: '/翻译',
+    aliases: ['/tr', '/翻译'],
+    order: 1,
   },
 ]
+
+const compareByOrder = <T extends { order: number; title: string }>(left: T, right: T) => {
+  return left.order - right.order || left.title.localeCompare(right.title)
+}
+
+const getPrimaryAlias = (aliases: string[]) => aliases[0] ?? ''
+
+const matchesSlashAliasQuery = (query: string, values: string[]) => {
+  const normalizedQuery = query.toLowerCase()
+  return values.some((value) => value.toLowerCase().includes(normalizedQuery))
+}
 
 export function MainSearch() {
   const { webOpenUrl, windowDismissTopmost, windowShowRoute } = useConveyor('window')
@@ -70,24 +75,47 @@ export function MainSearch() {
   const inputRef = useRef<HTMLInputElement>(null)
   const deferredQuery = useDeferredValue(query)
   const normalizedQuery = deferredQuery.trim()
-  const command = useMemo(() => parseMainSearchCommand(normalizedQuery), [normalizedQuery])
+  const pluginCatalog = useMemo(() => getMainSearchResultsCatalog(), [])
+  const slashEntries = useMemo(
+    () => [
+      ...launcherCommands.map((item) => ({
+        kind: 'translate' as const,
+        id: item.id,
+        aliases: item.aliases,
+      })),
+      ...pluginCatalog.map((item) => ({
+        kind: 'plugin' as const,
+        id: item.id,
+        aliases: item.slashAliases,
+      })),
+    ],
+    [pluginCatalog],
+  )
+  const command = useMemo(() => parseMainSearchCommand(normalizedQuery, slashEntries), [normalizedQuery, slashEntries])
+  const activePlugin = useMemo(
+    () => (command.kind === 'plugin' ? getMainSearchPluginResult(command.id, command.text) : null),
+    [command],
+  )
 
   const translate = useTranslateCommand(command)
 
   const launcherSections = useMemo(() => {
-    if (translate.isActive) {
+    if (translate.isActive || activePlugin) {
       return [] as LauncherSection[]
     }
 
-    const pluginItems = normalizedQuery ? resolveMainSearchResults(normalizedQuery) : getMainSearchResultsCatalog()
+    const pluginItems = normalizedQuery.startsWith('/')
+      ? pluginCatalog.filter((item) =>
+          matchesSlashAliasQuery(normalizedQuery, [item.title, item.handle, ...item.keywords, ...item.slashAliases]),
+        )
+      : pluginCatalog
     const normalizedKeyword = normalizedQuery.toLowerCase()
-    const commandItems = launcherCommands.filter((item) => {
+    const commandItems = [...launcherCommands].sort(compareByOrder).filter((item) => {
       if (!normalizedKeyword) {
         return true
       }
 
-      const haystack = `${item.title} ${item.subtitle} ${item.keywords.join(' ')}`.toLowerCase()
-      return haystack.includes(normalizedKeyword)
+      return matchesSlashAliasQuery(normalizedKeyword, [item.title, item.subtitle, ...item.keywords, ...item.aliases])
     })
 
     const sections: LauncherSection[] = []
@@ -109,7 +137,7 @@ export function MainSearch() {
     }
 
     return sections
-  }, [translate.isActive, normalizedQuery])
+  }, [activePlugin, normalizedQuery, pluginCatalog, translate.isActive])
   const launcherItems = useMemo(() => launcherSections.flatMap((section) => section.items), [launcherSections])
   const activeItem = launcherItems[activeIndex] ?? null
 
@@ -147,13 +175,14 @@ export function MainSearch() {
     setActiveIndex((current) => Math.min(current, Math.max(launcherItems.length - 1, 0)))
   }, [launcherItems.length])
 
-  const launchPlugin = async (result: MainSearchPluginResult) => {
+  const launchPlugin = async (result: MainSearchPluginResult, executionQuery = query.trim()) => {
     if (isLaunching) return
+    if (!executionQuery.trim()) return
 
     setIsLaunching(true)
     try {
       await executeMainSearchPlugin(result.id, {
-        query: query.trim(),
+        query: executionQuery.trim(),
         openUrl: webOpenUrl,
         copyText: copyTextToClipboard,
       })
@@ -177,7 +206,12 @@ export function MainSearch() {
   }
 
   const activateCommand = (commandItem: LauncherCommandItem) => {
-    setQuery(`${commandItem.trigger} `)
+    setQuery(`${getPrimaryAlias(commandItem.aliases)} `)
+    inputRef.current?.focus()
+  }
+
+  const activatePluginAlias = (pluginItem: MainSearchPluginResult) => {
+    setQuery(`${getPrimaryAlias(pluginItem.slashAliases)} `)
     inputRef.current?.focus()
   }
 
@@ -186,6 +220,14 @@ export function MainSearch() {
       if (event.key === 'Enter') {
         event.preventDefault()
         translate.runImmediately()
+      }
+      return
+    }
+
+    if (activePlugin && command.kind === 'plugin') {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        await launchPlugin(activePlugin, command.text)
       }
       return
     }
@@ -207,7 +249,11 @@ export function MainSearch() {
     if (event.key === 'Enter' && activeItem) {
       event.preventDefault()
       if (activeItem.kind === 'plugin') {
-        await launchPlugin(activeItem.item)
+        if (normalizedQuery.startsWith('/')) {
+          activatePluginAlias(activeItem.item)
+        } else {
+          await launchPlugin(activeItem.item)
+        }
       } else {
         activateCommand(activeItem.item)
       }
@@ -227,7 +273,7 @@ export function MainSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(event) => void handleInputKeyDown(event)}
-          placeholder="输入问题，或使用 /tr /翻译 …"
+          placeholder="输入问题，或使用 /chatgpt /claude /tr …"
           spellCheck={false}
           autoComplete="off"
         />
@@ -252,6 +298,43 @@ export function MainSearch() {
       <div className="ms-results">
         {translate.isActive && command.kind === 'translate' ? (
           <TranslateCard command={command} cardState={translate.cardState} />
+        ) : activePlugin && command.kind === 'plugin' ? (
+          <div className="ms-command-stack">
+            <div className="ms-command-chip">
+              <span
+                className="ms-command-chip-logo"
+                style={{ '--ms-logo-bg': activePlugin.logo.background ?? 'rgba(255, 255, 255, 0.92)' } as CSSProperties}
+              >
+                <img src={activePlugin.logo.src} alt={activePlugin.logo.alt} className="ms-result-logo-img" />
+              </span>
+              <span>{command.trigger}</span>
+              <span className="ms-command-chip-muted">{activePlugin.title}</span>
+            </div>
+
+            <section className={`ms-translate-card ${command.text ? '' : 'is-placeholder'}`}>
+              <div className="ms-translate-card-header">
+                <span className="ms-translate-card-icon is-plugin">
+                  <ArrowUpRight size={16} />
+                </span>
+                <div>
+                  <div className="ms-translate-card-title">{activePlugin.title}</div>
+                  <div className="ms-translate-card-subtitle">
+                    {command.text
+                      ? '回车后会在对应平台打开，并携带当前问题。'
+                      : `继续输入问题，然后回车在 ${activePlugin.title} 中打开。`}
+                  </div>
+                </div>
+              </div>
+
+              {command.text ? (
+                <div className="ms-translate-source">{command.text}</div>
+              ) : (
+                <div className="ms-translate-source">
+                  示例：{command.trigger} 帮我把这段中文翻译成英文并润色一下
+                </div>
+              )}
+            </section>
+          </div>
         ) : launcherSections.length ? (
           <div className="ms-launcher-list">
             {launcherSections.map((section) => (
@@ -264,9 +347,9 @@ export function MainSearch() {
                     if (entry.kind === 'plugin') {
                       const result = entry.item
                       const logoStyle = {
-                        '--ms-logo-bg': result.logo.background,
-                        '--ms-logo-fg': result.logo.color,
+                        '--ms-logo-bg': result.logo.background ?? 'rgba(255, 255, 255, 0.92)',
                       } as CSSProperties
+                      const secondaryHandle = `${result.handle} · ${getPrimaryAlias(result.slashAliases)}`
 
                       return (
                         <button
@@ -274,17 +357,24 @@ export function MainSearch() {
                           className={`ms-result-item ${flatIndex === activeIndex ? 'is-active' : ''}`}
                           type="button"
                           onMouseEnter={() => setActiveIndex(flatIndex)}
-                          onClick={() => void launchPlugin(result)}
+                          onClick={() => {
+                            if (normalizedQuery.startsWith('/')) {
+                              activatePluginAlias(result)
+                              return
+                            }
+
+                            void launchPlugin(result)
+                          }}
                           disabled={isLaunching}
                         >
                           <span className="ms-result-logo" style={logoStyle}>
-                            {result.logo.monogram}
+                            <img src={result.logo.src} alt={result.logo.alt} className="ms-result-logo-img" />
                           </span>
 
                           <span className="ms-result-copy">
                             <span className="ms-result-title-row">
                               <span className="ms-result-title">{result.title}</span>
-                              <span className="ms-result-handle">{result.handle}</span>
+                              <span className="ms-result-handle">{secondaryHandle}</span>
                             </span>
                           </span>
 
@@ -301,7 +391,7 @@ export function MainSearch() {
                         onMouseEnter={() => setActiveIndex(flatIndex)}
                         onClick={() => activateCommand(entry.item)}
                       >
-                        <span className="ms-command-result-logo">{entry.item.trigger.replace('/', '')}</span>
+                        <span className="ms-command-result-logo">{getPrimaryAlias(entry.item.aliases).replace('/', '')}</span>
 
                         <span className="ms-result-copy">
                           <span className="ms-result-title-row">
@@ -321,7 +411,7 @@ export function MainSearch() {
         ) : (
           <div className="ms-empty">
             <div className="ms-empty-title">没有匹配结果</div>
-            <div className="ms-empty-desc">试试搜索插件名称，或者输入 `/tr 需要翻译的文本`。</div>
+            <div className="ms-empty-desc">试试输入 `/chatgpt`、`/claude`，或者 `/tr 需要翻译的文本`。</div>
           </div>
         )}
       </div>

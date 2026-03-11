@@ -1,13 +1,15 @@
 export type MainSearchPluginLogo = {
-  monogram: string
-  background: string
-  color: string
+  src: string
+  alt: string
+  background?: string
 }
 
 export type MainSearchPluginManifest = {
   id: string
   title: string
   handle: string
+  slashAliases: string[]
+  order: number
   typeLabel: string
   mode: 'link'
   keywords: string[]

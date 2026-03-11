@@ -1,11 +1,12 @@
-import { app, globalShortcut } from 'electron'
+import { app, globalShortcut, nativeImage } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
 import { themeStore } from '@/lib/main/theme-store'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
+import appIcon from '@/resources/build/icon.png?asset'
 import { setupApplicationMenu } from './application-menu'
-import { toggleMainWindow, getOrCreateMainWindow } from './window-manager'
+import { toggleMainWindow, primeMainWindow } from './window-manager'
 
 let textPickerFeature: TextPickerFeature | null = null
 
@@ -15,6 +16,11 @@ let textPickerFeature: TextPickerFeature | null = null
 app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(nativeImage.createFromPath(appIcon))
+  }
+
   await themeStore.initialize()
   setupApplicationMenu()
   registerTranslationHandlers()
@@ -24,11 +30,16 @@ app.whenReady().then(async () => {
   textPickerFeature = new TextPickerFeature()
   textPickerFeature.initialize()
 
-  // Initialize the main window early so it's ready for shortcut invocation
-  getOrCreateMainWindow()
+  // Preload the hidden home route so the first shortcut show is instant.
+  void primeMainWindow('home')
 
   // Register global shortcut Option+Space to toggle the main search window
   globalShortcut.register('Alt+Space', () => {
+    if (!app.isPackaged) {
+      console.warn('[main-window] shortcut-triggered', {
+        accelerator: 'Alt+Space',
+      })
+    }
     void toggleMainWindow('home')
   })
 
