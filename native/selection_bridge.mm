@@ -70,6 +70,7 @@ std::unordered_set<NSInteger> gBubbleWindowNumbers;
 bool gIsLeftMouseDown = false;
 bool gLeftMouseDownOnBubble = false;
 NSPoint gMouseDownPoint = NSZeroPoint;
+NSInteger gDragPasteboardChangeCountOnMouseDown = -1;
 
 
 static constexpr double kScrollGestureDeltaThreshold = 4.0;
@@ -972,6 +973,12 @@ bool DragPasteboardHasFilePayload() {
   return false;
 }
 
+NSInteger GetDragPasteboardChangeCount() {
+  NSPasteboard* dragPasteboard = [NSPasteboard pasteboardWithName:NSPasteboardNameDrag];
+  if (!dragPasteboard) return -1;
+  return dragPasteboard.changeCount;
+}
+
 bool IsTrusted(bool prompt) {
   if (!prompt) return AXIsProcessTrustedWithOptions(nullptr);
 
@@ -1001,7 +1008,12 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   AXUIElementRef focusedApp = nullptr;
   bool hasFocusedElem = false;
   bool hasSelection = false;
-  const bool hasFileDragPayload = DragPasteboardHasFilePayload();
+  const NSInteger dragPasteboardChangeCount = GetDragPasteboardChangeCount();
+  const bool hasFreshFileDragPayload =
+      dragPasteboardChangeCount >= 0 &&
+      gDragPasteboardChangeCountOnMouseDown >= 0 &&
+      dragPasteboardChangeCount != gDragPasteboardChangeCountOnMouseDown &&
+      DragPasteboardHasFilePayload();
 
   if (sysWide) {
     AXUIElementCopyAttributeValue(sysWide, kAXFocusedApplicationAttribute, (CFTypeRef*)&focusedApp);
@@ -1024,14 +1036,15 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   SelectionScene scene = SelectionScene::kNone;
   if (hasSelection) {
     scene = SelectionScene::kBoxSelect;
-  } else if (!hasFocusedElem && !hasFileDragPayload) {
+  } else if (!hasFocusedElem && !hasFreshFileDragPayload) {
     // Some Chromium/native editors lose the focused AX element on mouseUp, but
     // the later snapshot/clipboard fallback can still recover selected text.
     scene = SelectionScene::kBoxSelect;
   }
 
-  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f hasFocusedElem=%d hasSelection=%d hasFileDragPayload=%d scene=%s",
-        dist, hasFocusedElem, hasSelection, hasFileDragPayload, SceneToString(scene));
+  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f hasFocusedElem=%d hasSelection=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
+        dist, hasFocusedElem, hasSelection, hasFreshFileDragPayload, (long)dragPasteboardChangeCount,
+        (long)gDragPasteboardChangeCountOnMouseDown, SceneToString(scene));
 
   return scene;
 }
@@ -1480,6 +1493,7 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         gLeftMouseDownOnBubble = false;
         gIsLeftMouseDown = true;
         gMouseDownPoint = loc;
+        gDragPasteboardChangeCountOnMouseDown = GetDragPasteboardChangeCount();
         return;
       }
 
@@ -1493,6 +1507,7 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         NSPoint loc = [NSEvent mouseLocation];
         SelectionScene scene = DetectMouseUpScene(event, loc);
         gIsLeftMouseDown = false;
+        gDragPasteboardChangeCountOnMouseDown = -1;
         EmitAction(scene, loc);
         return;
       }
