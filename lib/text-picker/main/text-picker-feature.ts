@@ -452,50 +452,25 @@ export class TextPickerFeature {
       if (commandId === SystemCommand.Copy) {
         this.manager?.hideBubble()
 
-        const sourceAppPid =
-          Number.isFinite(pickedInfo.sourceAppPid) && Number(pickedInfo.sourceAppPid) > 0
-            ? Number(pickedInfo.sourceAppPid)
-            : -1
-
-        const copiedByMenu =
-          sourceAppPid > 0 ? await this.bridge.copySelectionAsync(true, sourceAppPid, pickedInfo.text) : false
-        const copiedByShortcut = copiedByMenu ? false : await this.bridge.copySelectionAsync(false, -1, pickedInfo.text)
-
-        const nativeStrategy = copiedByMenu ? 'menu_copy' : copiedByShortcut ? 'shortcut_copy' : 'native_failed'
-        const clipboardText = clipboard.readText()
-        const clipboardMatches = clipboardText === pickedInfo.text
-
-        if (!copiedByMenu && !copiedByShortcut) {
-          this.logger.warn(
-            `[TextPickerFeature] native copy failed for ${pickedInfo.appId || 'unknown_app'}, falling back to clipboard.writeText`
-          )
-          clipboard.writeText(pickedInfo.text)
-        } else if (!clipboardMatches) {
-          this.logger.warn(
-            '[TextPickerFeature] native copy reported success but clipboard mismatched, forcing fallback',
-            {
-              appId: pickedInfo.appId || 'unknown_app',
-              nativeStrategy,
-              expectedTextLength: pickedInfo.text.length,
-              clipboardTextLength: clipboardText.length,
-              clipboardPreview: clipboardText.slice(0, 60),
-            }
-          )
-          clipboard.writeText(pickedInfo.text)
-        }
+        // The selected text is already resolved before the bubble is shown.
+        // Writing it directly avoids a second round-trip through the source app
+        // and removes the menu/shortcut clipboard polling delay.
+        clipboard.writeText(pickedInfo.text)
 
         const finalClipboardText = clipboard.readText()
-        const strategy =
-          finalClipboardText === pickedInfo.text
-            ? copiedByMenu
-              ? 'menu_copy'
-              : copiedByShortcut
-                ? 'shortcut_copy'
-                : 'clipboard_write'
-            : 'clipboard_write_failed'
+        const strategy = finalClipboardText === pickedInfo.text ? 'clipboard_write' : 'clipboard_write_failed'
+
+        if (strategy === 'clipboard_write_failed') {
+          this.logger.warn('[TextPickerFeature] clipboard.writeText verification failed', {
+            appId: pickedInfo.appId || 'unknown_app',
+            expectedTextLength: pickedInfo.text.length,
+            clipboardTextLength: finalClipboardText.length,
+            clipboardPreview: finalClipboardText.slice(0, 60),
+          })
+        }
 
         return {
-          ok: true,
+          ok: strategy === 'clipboard_write',
           commandId,
           strategy,
         }

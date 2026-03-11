@@ -31,3 +31,7 @@ no need test
 - 对开启了 `composite` / `incremental` 的 `tsconfig`，不要直接运行 `pnpm exec tsc -p <config> --noEmit`，这仍然可能在仓库根目录生成 `tsconfig.*.tsbuildinfo`
 - 需要做纯类型检查时，优先使用 `pnpm exec tsc -p <config> --noEmit --incremental false`
 - 一旦误生成上述文件，先清理这些编译副产物，再继续开发，不能把它们当成源码改动提交
+
+## 重要
+
+工作模式，遇到任何 GUI 相关的测试逻辑都停下来告诉我开发者要做什么，然后你自己启动服务，打好需要的日志，然后等待开发者完成 GUI 操作，你进行log 分析，然后继续下一步
