@@ -932,6 +932,13 @@ bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGo
     return false;
   }
 
+  // Double-click happens in many overlay surfaces (clipboard managers, lookup
+  // popovers, etc.). If AX cannot confirm a non-empty selection, synthesizing a
+  // Copy action is too risky and can copy unrelated content into the target app.
+  if (scene == SelectionScene::kMultiClickSelect && !hasNonEmptyRange) {
+    return false;
+  }
+
   if (!axGotFocusedElement) return true;
   if (hasNonEmptyRange) return true;
 
