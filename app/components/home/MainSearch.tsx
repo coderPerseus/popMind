@@ -199,6 +199,7 @@ export function MainSearch() {
       } catch {
         // Ignore history write failure so plugin execution still completes.
       }
+      setQuery('')
       window.close()
     } finally {
       setIsLaunching(false)
@@ -249,11 +250,7 @@ export function MainSearch() {
     if (event.key === 'Enter' && activeItem) {
       event.preventDefault()
       if (activeItem.kind === 'plugin') {
-        if (normalizedQuery.startsWith('/')) {
-          activatePluginAlias(activeItem.item)
-        } else {
-          await launchPlugin(activeItem.item)
-        }
+        activatePluginAlias(activeItem.item)
       } else {
         activateCommand(activeItem.item)
       }
@@ -357,14 +354,7 @@ export function MainSearch() {
                           className={`ms-result-item ${flatIndex === activeIndex ? 'is-active' : ''}`}
                           type="button"
                           onMouseEnter={() => setActiveIndex(flatIndex)}
-                          onClick={() => {
-                            if (normalizedQuery.startsWith('/')) {
-                              activatePluginAlias(result)
-                              return
-                            }
-
-                            void launchPlugin(result)
-                          }}
+                          onClick={() => activatePluginAlias(result)}
                           disabled={isLaunching}
                         >
                           <span className="ms-result-logo" style={logoStyle}>

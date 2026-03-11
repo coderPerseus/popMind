@@ -1,7 +1,4 @@
 import { createAskPlugin } from '@/app/plugins/main-search/ask-plugin-factory'
-import claudeLogo from '@/app/assets/icon/claude-color.png'
-import deepseekLogo from '@/app/assets/icon/deepseek-color.png'
-import geminiLogo from '@/app/assets/icon/gemini-color.svg'
 import googleLogo from '@/app/assets/icon/google-color.png'
 import grokLogo from '@/app/assets/icon/grok.png'
 import openaiLogo from '@/app/assets/icon/openai.png'
@@ -46,22 +43,23 @@ export const officialAskPlugins = [
       background: 'rgba(245, 255, 253, 0.98)',
     },
   }),
-  createAskPlugin({
-    id: 'ask.gemini',
-    title: 'Gemini Ask',
-    handle: '@gemini_ask',
-    slashAliases: ['/gemini'],
-    order: 1,
-    description: '复制输入内容并打开 Gemini',
-    keywords: ['gemini', 'google', 'ask'],
-    homepageUrl: 'https://gemini.google.com/app',
-    buildLaunchUrl: (query) => withQuery('https://gemini.google.com/app', 'q', query),
-    logo: {
-      src: geminiLogo,
-      alt: 'Gemini',
-      background: 'rgba(243, 244, 255, 0.98)',
-    },
-  }),
+  // Gemini 暂时下线，当前网页参数流转不可用。
+  // createAskPlugin({
+  //   id: 'ask.gemini',
+  //   title: 'Gemini Ask',
+  //   handle: '@gemini_ask',
+  //   slashAliases: ['/gemini'],
+  //   order: 1,
+  //   description: '复制输入内容并打开 Gemini',
+  //   keywords: ['gemini', 'google', 'ask'],
+  //   homepageUrl: 'https://gemini.google.com/app',
+  //   buildLaunchUrl: (query) => withQuery('https://gemini.google.com/app', 'q', query),
+  //   logo: {
+  //     src: geminiLogo,
+  //     alt: 'Gemini',
+  //     background: 'rgba(243, 244, 255, 0.98)',
+  //   },
+  // }),
   createAskPlugin({
     id: 'ask.grok',
     title: 'Grok Ask',
@@ -75,25 +73,26 @@ export const officialAskPlugins = [
     logo: {
       src: grokLogo,
       alt: 'Grok',
-      background: 'rgba(17, 24, 39, 0.94)',
+      background: 'rgba(255, 255, 255, 0.96)',
     },
   }),
-  createAskPlugin({
-    id: 'ask.deepseek',
-    title: 'DeepSeek Ask',
-    handle: '@deepseek_ask',
-    slashAliases: ['/deepseek'],
-    order: 1,
-    description: '复制输入内容并打开 DeepSeek',
-    keywords: ['deepseek', 'ask', 'deep seek'],
-    homepageUrl: 'https://chat.deepseek.com',
-    buildLaunchUrl: (query) => withQuery('https://chat.deepseek.com', 'q', query),
-    logo: {
-      src: deepseekLogo,
-      alt: 'DeepSeek',
-      background: 'rgba(239, 246, 255, 0.98)',
-    },
-  }),
+  // DeepSeek 暂时下线，当前网页参数流转不可用。
+  // createAskPlugin({
+  //   id: 'ask.deepseek',
+  //   title: 'DeepSeek Ask',
+  //   handle: '@deepseek_ask',
+  //   slashAliases: ['/deepseek'],
+  //   order: 1,
+  //   description: '复制输入内容并打开 DeepSeek',
+  //   keywords: ['deepseek', 'ask', 'deep seek'],
+  //   homepageUrl: 'https://chat.deepseek.com',
+  //   buildLaunchUrl: (query) => withQuery('https://chat.deepseek.com', 'q', query),
+  //   logo: {
+  //     src: deepseekLogo,
+  //     alt: 'DeepSeek',
+  //     background: 'rgba(239, 246, 255, 0.98)',
+  //   },
+  // }),
   createAskPlugin({
     id: 'ask.perplexity',
     title: 'Perplexity Ask',
@@ -110,20 +109,21 @@ export const officialAskPlugins = [
       background: 'rgba(236, 253, 250, 0.98)',
     },
   }),
-  createAskPlugin({
-    id: 'ask.claude',
-    title: 'Claude Ask',
-    handle: '@claude_ask',
-    slashAliases: ['/claude'],
-    order: 1,
-    description: '复制输入内容并打开 Claude',
-    keywords: ['claude', 'anthropic', 'ask'],
-    homepageUrl: 'https://claude.ai/new',
-    buildLaunchUrl: (query) => withQuery('https://claude.ai/new', 'q', query),
-    logo: {
-      src: claudeLogo,
-      alt: 'Claude',
-      background: 'rgba(255, 247, 237, 0.98)',
-    },
-  }),
+  // Claude 暂时下线，当前网页参数流转不可用。
+  // createAskPlugin({
+  //   id: 'ask.claude',
+  //   title: 'Claude Ask',
+  //   handle: '@claude_ask',
+  //   slashAliases: ['/claude'],
+  //   order: 1,
+  //   description: '复制输入内容并打开 Claude',
+  //   keywords: ['claude', 'anthropic', 'ask'],
+  //   homepageUrl: 'https://claude.ai/new',
+  //   buildLaunchUrl: (query) => withQuery('https://claude.ai/new', 'q', query),
+  //   logo: {
+  //     src: claudeLogo,
+  //     alt: 'Claude',
+  //     background: 'rgba(255, 247, 237, 0.98)',
+  //   },
+  // }),
 ]
