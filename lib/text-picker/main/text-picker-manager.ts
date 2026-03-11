@@ -246,6 +246,8 @@ export class TextPickerManager {
   }
 
   hideBubble() {
+    this.cancelPendingSelectionCheck('hide_bubble')
+
     if (this.bubbleDragReleaseTimer) {
       clearTimeout(this.bubbleDragReleaseTimer)
       this.bubbleDragReleaseTimer = null
@@ -410,6 +412,7 @@ export class TextPickerManager {
     }
 
     if (DISMISS_SCENES.has(scene as SelectionSceneValue)) {
+      this.cancelPendingSelectionCheck(`dismiss:${scene}`)
       this.noteBubbleInteraction()
       if (this.dispatchAutoDismiss) {
         this.dispatchAutoDismiss({
@@ -437,6 +440,7 @@ export class TextPickerManager {
     }
 
     if (scene === SelectionScene.NONE) {
+      this.cancelPendingSelectionCheck('pointer:none')
       return
     }
 
@@ -510,6 +514,16 @@ export class TextPickerManager {
       this.debounceTimer = null
       this.refreshSelectionWithRetries(token, scene, 0)
     }, delay)
+  }
+
+  private cancelPendingSelectionCheck(reason: string) {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
+      this.debounceTimer = null
+    }
+
+    this.refreshToken += 1
+    this.logger.info('[TextPickerManager] cancelPendingSelectionCheck', { reason, token: this.refreshToken })
   }
 
   private async refreshSelectionWithRetries(token: number, scene: SelectionSceneValue | string, attempt: number) {

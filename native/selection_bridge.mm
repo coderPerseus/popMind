@@ -142,6 +142,46 @@ bool GetAXBoolAttr(AXUIElementRef el, CFStringRef attr, bool def) {
   return result;
 }
 
+bool GetAXCGPointAttr(AXUIElementRef el, CFStringRef attr, CGPoint* out) {
+  if (!el || !out) return false;
+
+  CFTypeRef val = nullptr;
+  if (AXUIElementCopyAttributeValue(el, attr, &val) != kAXErrorSuccess || !val) {
+    return false;
+  }
+
+  bool ok = false;
+  if (CFGetTypeID(val) == AXValueGetTypeID()) {
+    AXValueRef axValue = (AXValueRef)val;
+    if (AXValueGetType(axValue) == kAXValueTypeCGPoint) {
+      ok = AXValueGetValue(axValue, kAXValueTypeCGPoint, out);
+    }
+  }
+
+  CFRelease(val);
+  return ok;
+}
+
+bool GetAXCGSizeAttr(AXUIElementRef el, CFStringRef attr, CGSize* out) {
+  if (!el || !out) return false;
+
+  CFTypeRef val = nullptr;
+  if (AXUIElementCopyAttributeValue(el, attr, &val) != kAXErrorSuccess || !val) {
+    return false;
+  }
+
+  bool ok = false;
+  if (CFGetTypeID(val) == AXValueGetTypeID()) {
+    AXValueRef axValue = (AXValueRef)val;
+    if (AXValueGetType(axValue) == kAXValueTypeCGSize) {
+      ok = AXValueGetValue(axValue, kAXValueTypeCGSize, out);
+    }
+  }
+
+  CFRelease(val);
+  return ok;
+}
+
 void ReleaseAX(AXUIElementRef* el) {
   if (el && *el) {
     CFRelease(*el);
@@ -185,6 +225,56 @@ bool GetFocused(AXUIElementRef* outApp, AXUIElementRef* outElem) {
 
   CFRelease(sys);
   return *outApp || *outElem;
+}
+
+bool GetFocusedWindowFrame(CGRect* outFrame) {
+  if (!outFrame) return false;
+
+  AXUIElementRef sys = AXUIElementCreateSystemWide();
+  if (!sys) return false;
+
+  bool ok = false;
+  CFTypeRef appVal = nullptr;
+  if (AXUIElementCopyAttributeValue(sys, kAXFocusedApplicationAttribute, &appVal) == kAXErrorSuccess &&
+      appVal && CFGetTypeID(appVal) == AXUIElementGetTypeID()) {
+    AXUIElementRef app = (AXUIElementRef)appVal;
+    CFTypeRef windowVal = nullptr;
+    if (AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute, &windowVal) == kAXErrorSuccess &&
+        windowVal && CFGetTypeID(windowVal) == AXUIElementGetTypeID()) {
+      AXUIElementRef window = (AXUIElementRef)windowVal;
+      CGPoint origin;
+      CGSize size;
+      if (GetAXCGPointAttr(window, kAXPositionAttribute, &origin) &&
+          GetAXCGSizeAttr(window, kAXSizeAttribute, &size)) {
+        *outFrame = CGRectMake(origin.x, origin.y, size.width, size.height);
+        ok = true;
+      }
+      CFRelease(windowVal);
+    } else if (windowVal) {
+      CFRelease(windowVal);
+    }
+    CFRelease(appVal);
+  } else if (appVal) {
+    CFRelease(appVal);
+  }
+
+  CFRelease(sys);
+  return ok;
+}
+
+bool IsPointNearFocusedWindowEdge(NSPoint point) {
+  static constexpr double kResizeEdgeThreshold = 14.0;
+
+  CGRect frame;
+  if (!GetFocusedWindowFrame(&frame) || CGRectIsEmpty(frame) || !CGRectContainsPoint(frame, point)) {
+    return false;
+  }
+
+  const double minXDist = std::min(std::abs(point.x - CGRectGetMinX(frame)),
+                                   std::abs(point.x - CGRectGetMaxX(frame)));
+  const double minYDist = std::min(std::abs(point.y - CGRectGetMinY(frame)),
+                                   std::abs(point.y - CGRectGetMaxY(frame)));
+  return minXDist <= kResizeEdgeThreshold || minYDist <= kResizeEdgeThreshold;
 }
 
 bool GetAXSelectedText(AXUIElementRef el, std::string* out) {
@@ -759,20 +849,27 @@ void RestorePasteboardItems(NSArray* snapshot) {
   }
 }
 
-void PostCmdC() {
-  CGEventRef down = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_C, true);
-  if (down) {
-    CGEventSetFlags(down, kCGEventFlagMaskCommand);
-    CGEventPost(kCGHIDEventTap, down);
-    CFRelease(down);
-  }
+void PostKeyboardEvent(CGEventSourceRef source, CGKeyCode keyCode, bool isKeyDown,
+                       CGEventFlags flags) {
+  CGEventRef event = CGEventCreateKeyboardEvent(source, keyCode, isKeyDown);
+  if (!event) return;
 
-  CGEventRef up = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_C, false);
-  if (up) {
-    CGEventSetFlags(up, kCGEventFlagMaskCommand);
-    CGEventPost(kCGHIDEventTap, up);
-    CFRelease(up);
-  }
+  CGEventSetFlags(event, flags);
+  CGEventPost(kCGHIDEventTap, event);
+  CFRelease(event);
+}
+
+void PostCmdC() {
+  CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateCombinedSessionState);
+  if (!source) return;
+
+  const CGEventFlags commandFlags = kCGEventFlagMaskCommand;
+  PostKeyboardEvent(source, kVK_Command, true, commandFlags);
+  PostKeyboardEvent(source, kVK_ANSI_C, true, commandFlags);
+  PostKeyboardEvent(source, kVK_ANSI_C, false, commandFlags);
+  PostKeyboardEvent(source, kVK_Command, false, 0);
+
+  CFRelease(source);
 }
 
 bool IsCopyMenuItem(AXUIElementRef item) {
@@ -925,26 +1022,19 @@ bool CopySelection(bool useMenu, AXUIElementRef app, NSString* expectedText) {
 
 bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGotFocusedElement,
                              bool hasNonEmptyRange) {
-  if (scene == SelectionScene::kNone) return false;
+  if (scene == SelectionScene::kNone) {
+    NSLog(@"[selection_bridge] clipboard fallback blocked: scene=none");
+    return false;
+  }
 
   if (bundleId && ([bundleId isEqualToString:@"com.github.Electron"] ||
                    [bundleId hasPrefix:@"com.github.electron"])) {
+    NSLog(@"[selection_bridge] clipboard fallback blocked: electron bundle=%@", bundleId);
     return false;
   }
 
-  // Double-click happens in many overlay surfaces (clipboard managers, lookup
-  // popovers, etc.). If AX cannot confirm a non-empty selection, synthesizing a
-  // Copy action is too risky and can copy unrelated content into the target app.
-  if (scene == SelectionScene::kMultiClickSelect && !hasNonEmptyRange) {
-    return false;
-  }
-
-  if (!axGotFocusedElement) return true;
-  if (hasNonEmptyRange) return true;
-
-  // Some apps expose a focused element but do not provide selection text via
-  // AX APIs. Fall back to a synthesized copy so passive text picking still
-  // works for browser, canvas, and hybrid surfaces.
+  NSLog(@"[selection_bridge] clipboard fallback allowed: scene=%s bundle=%@ focused=%d hasNonEmpty=%d",
+        SceneToString(scene), bundleId ?: @"", axGotFocusedElement, hasNonEmptyRange);
   return true;
 }
 
@@ -1001,7 +1091,10 @@ bool IsTrusted(bool prompt) {
 
 SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   if (!gIsLeftMouseDown) return SelectionScene::kNone;
-  if ([event clickCount] >= 2) return SelectionScene::kMultiClickSelect;
+  if ([event clickCount] >= 2) {
+    NSLog(@"[selection_bridge] multi-click mouseUp clickCount=%ld", (long)[event clickCount]);
+    return SelectionScene::kMultiClickSelect;
+  }
 
   double dx = loc.x - gMouseDownPoint.x;
   double dy = loc.y - gMouseDownPoint.y;
@@ -1015,6 +1108,7 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   AXUIElementRef focusedApp = nullptr;
   bool hasFocusedElem = false;
   bool hasSelection = false;
+  const bool nearFocusedWindowEdge = IsPointNearFocusedWindowEdge(loc);
   const NSInteger dragPasteboardChangeCount = GetDragPasteboardChangeCount();
   const bool hasFreshFileDragPayload =
       dragPasteboardChangeCount >= 0 &&
@@ -1043,14 +1137,14 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   SelectionScene scene = SelectionScene::kNone;
   if (hasSelection) {
     scene = SelectionScene::kBoxSelect;
-  } else if (!hasFocusedElem && !hasFreshFileDragPayload) {
+  } else if (!hasFocusedElem && !hasFreshFileDragPayload && !nearFocusedWindowEdge) {
     // Some Chromium/native editors lose the focused AX element on mouseUp, but
     // the later snapshot/clipboard fallback can still recover selected text.
     scene = SelectionScene::kBoxSelect;
   }
 
-  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f hasFocusedElem=%d hasSelection=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
-        dist, hasFocusedElem, hasSelection, hasFreshFileDragPayload, (long)dragPasteboardChangeCount,
+  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f hasFocusedElem=%d hasSelection=%d nearFocusedWindowEdge=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
+        dist, hasFocusedElem, hasSelection, nearFocusedWindowEdge, hasFreshFileDragPayload, (long)dragPasteboardChangeCount,
         (long)gDragPasteboardChangeCountOnMouseDown, SceneToString(scene));
 
   return scene;
