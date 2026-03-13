@@ -32,9 +32,7 @@ type LauncherCommandItem = {
   order: number
 }
 
-type LauncherItem =
-  | { kind: 'plugin'; item: MainSearchPluginResult }
-  | { kind: 'command'; item: LauncherCommandItem }
+type LauncherItem = { kind: 'plugin'; item: MainSearchPluginResult } | { kind: 'command'; item: LauncherCommandItem }
 
 type LauncherSection = {
   id: string
@@ -66,7 +64,7 @@ const matchesSlashAliasQuery = (query: string, values: string[]) => {
 }
 
 export function MainSearch() {
-  const { webOpenUrl, windowDismissTopmost, windowShowRoute } = useConveyor('window')
+  const { onMainWindowReset, webOpenUrl, windowDismissTopmost, windowShowRoute } = useConveyor('window')
   const search = useConveyor('search')
   const [query, setQuery] = useState('')
   const [logoUrl, setLogoUrl] = useState(() => getThemeLogoUrl())
@@ -89,15 +87,19 @@ export function MainSearch() {
         aliases: item.slashAliases,
       })),
     ],
-    [pluginCatalog],
+    [pluginCatalog]
   )
-  const command = useMemo(() => parseMainSearchCommand(normalizedQuery, slashEntries), [normalizedQuery, slashEntries])
+  const command: any = useMemo(
+    () => parseMainSearchCommand(normalizedQuery, slashEntries),
+    [normalizedQuery, slashEntries]
+  )
   const activePlugin = useMemo(
     () => (command.kind === 'plugin' ? getMainSearchPluginResult(command.id, command.text) : null),
-    [command],
+    [command]
   )
 
   const translate = useTranslateCommand(command)
+  const resetTranslate = translate.reset
 
   const launcherSections = useMemo(() => {
     if (translate.isActive || activePlugin) {
@@ -106,7 +108,7 @@ export function MainSearch() {
 
     const pluginItems = normalizedQuery.startsWith('/')
       ? pluginCatalog.filter((item) =>
-          matchesSlashAliasQuery(normalizedQuery, [item.title, item.handle, ...item.keywords, ...item.slashAliases]),
+          matchesSlashAliasQuery(normalizedQuery, [item.title, item.handle, ...item.keywords, ...item.slashAliases])
         )
       : pluginCatalog
     const normalizedKeyword = normalizedQuery.toLowerCase()
@@ -144,6 +146,15 @@ export function MainSearch() {
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    return onMainWindowReset(() => {
+      setQuery('')
+      setActiveIndex(0)
+      setIsLaunching(false)
+      resetTranslate()
+    })
+  }, [onMainWindowReset, resetTranslate])
 
   useEffect(() => {
     const root = document.documentElement
@@ -294,7 +305,23 @@ export function MainSearch() {
       {/* Results area */}
       <div className="ms-results">
         {translate.isActive && command.kind === 'translate' ? (
-          <TranslateCard command={command} cardState={translate.cardState} />
+          <TranslateCard
+            command={command}
+            cardState={translate.cardState}
+            sourceLanguage={translate.sourceLanguage}
+            targetLanguage={translate.targetLanguage}
+            engineId={translate.engineId}
+            enabledEngineIds={translate.enabledEngineIds}
+            copied={translate.copied}
+            languages={translate.languages}
+            onSourceLanguageChange={translate.setSourceLanguage}
+            onTargetLanguageChange={translate.setTargetLanguage}
+            onEngineChange={translate.setEngineId}
+            onCopy={() => {
+              void translate.copyResult()
+            }}
+            onRetranslate={translate.retranslate}
+          />
         ) : activePlugin && command.kind === 'plugin' ? (
           <div className="ms-command-stack">
             <div className="ms-command-chip">
@@ -326,9 +353,7 @@ export function MainSearch() {
               {command.text ? (
                 <div className="ms-translate-source">{command.text}</div>
               ) : (
-                <div className="ms-translate-source">
-                  示例：{command.trigger} 帮我把这段中文翻译成英文并润色一下
-                </div>
+                <div className="ms-translate-source">示例：{command.trigger} 帮我把这段中文翻译成英文并润色一下</div>
               )}
             </section>
           </div>
@@ -339,7 +364,9 @@ export function MainSearch() {
                 <div className="ms-section-title">{section.title}</div>
                 <div className="ms-result-list">
                   {section.items.map((entry) => {
-                    const flatIndex = launcherItems.findIndex((item) => item.kind === entry.kind && item.item.id === entry.item.id)
+                    const flatIndex = launcherItems.findIndex(
+                      (item) => item.kind === entry.kind && item.item.id === entry.item.id
+                    )
 
                     if (entry.kind === 'plugin') {
                       const result = entry.item
@@ -381,7 +408,9 @@ export function MainSearch() {
                         onMouseEnter={() => setActiveIndex(flatIndex)}
                         onClick={() => activateCommand(entry.item)}
                       >
-                        <span className="ms-command-result-logo">{getPrimaryAlias(entry.item.aliases).replace('/', '')}</span>
+                        <span className="ms-command-result-logo">
+                          {getPrimaryAlias(entry.item.aliases).replace('/', '')}
+                        </span>
 
                         <span className="ms-result-copy">
                           <span className="ms-result-title-row">

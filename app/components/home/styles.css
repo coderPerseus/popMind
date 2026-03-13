@@ -274,6 +274,173 @@
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
+.ms-translate-command-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(242, 246, 251, 0.94) 100%),
+    rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.72) inset,
+    0 22px 40px rgba(15, 23, 42, 0.08);
+}
+
+.ms-translate-command-card.is-error {
+  background:
+    linear-gradient(180deg, rgba(255, 245, 245, 0.98) 0%, rgba(255, 235, 235, 0.94) 100%),
+    rgba(255, 255, 255, 0.82);
+}
+
+.ms-translate-command-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ms-translate-command-select-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.ms-translate-command-select-wrap [data-slot='select'] {
+  height: 38px;
+  border-radius: 12px;
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.ms-translate-command-arrow {
+  flex-shrink: 0;
+  color: rgba(71, 85, 105, 0.72);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ms-translate-command-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ms-translate-command-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ms-translate-command-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ms-translate-command-panel-label {
+  color: rgba(15, 23, 42, 0.78);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ms-translate-command-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(71, 85, 105, 0.76);
+  font-size: 12px;
+}
+
+.ms-translate-command-panel-body {
+  min-height: 92px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.88) 0%, rgba(239, 246, 255, 0.98) 100%);
+  color: rgba(15, 23, 42, 0.9);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.68;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ms-translate-command-panel-body.is-placeholder {
+  background: rgba(15, 23, 42, 0.04);
+  color: rgba(71, 85, 105, 0.76);
+  font-weight: 500;
+}
+
+.ms-translate-command-panel-body.is-error {
+  background: rgba(239, 68, 68, 0.08);
+  color: rgba(153, 27, 27, 0.9);
+}
+
+.ms-translate-command-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.ms-translate-command-engine-select-wrap {
+  flex-shrink: 0;
+}
+
+.ms-translate-command-engine-select-wrap [data-slot='select'] {
+  height: 28px;
+  padding: 3px 24px 3px 10px;
+  border-radius: 8px;
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(71, 85, 105, 0.9);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.ms-translate-command-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ms-translate-command-action-btn {
+  gap: 5px;
+  height: 30px !important;
+  padding: 5px 11px !important;
+  border-radius: 9px;
+  color: rgba(71, 85, 105, 0.88);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ms-translate-command-action-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.ms-translate-command-action-btn.is-primary {
+  background: rgba(59, 91, 168, 0.1);
+  color: rgb(59 91 168);
+  font-weight: 600;
+}
+
+.ms-translate-command-action-btn.is-primary:hover:not(:disabled) {
+  background: rgba(59, 91, 168, 0.16);
+}
+
+.ms-translate-command-spin {
+  animation: ms-spin 1s linear infinite;
+}
+
 .ms-translate-card {
   display: flex;
   flex-direction: column;
@@ -540,6 +707,79 @@
 .dark .ms-command-chip {
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.82);
+}
+
+.dark .ms-translate-command-card {
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(17, 24, 39, 0.94) 100%),
+    rgba(15, 23, 42, 0.82);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 44px rgba(0, 0, 0, 0.32);
+}
+
+.dark .ms-translate-command-card.is-error {
+  background:
+    linear-gradient(180deg, rgba(69, 10, 10, 0.96) 0%, rgba(31, 12, 12, 0.94) 100%),
+    rgba(15, 23, 42, 0.82);
+}
+
+.dark .ms-translate-command-select-wrap [data-slot='select'] {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.dark .ms-translate-command-arrow,
+.dark .ms-translate-command-status {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.dark .ms-translate-command-panel-label {
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.dark .ms-translate-command-panel-body {
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.5) 0%, rgba(30, 41, 59, 0.86) 100%);
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.dark .ms-translate-command-panel-body.is-placeholder {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.dark .ms-translate-command-panel-body.is-error {
+  background: rgba(220, 38, 38, 0.16);
+  color: rgba(254, 202, 202, 0.96);
+}
+
+.dark .ms-translate-command-footer {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .ms-translate-command-engine-select-wrap [data-slot='select'] {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.dark .ms-translate-command-action-btn {
+  color: rgba(203, 213, 225, 0.82);
+}
+
+.dark .ms-translate-command-action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.dark .ms-translate-command-action-btn.is-primary {
+  background: rgba(96, 165, 250, 0.16);
+  color: rgba(191, 219, 254, 0.96);
+}
+
+.dark .ms-translate-command-action-btn.is-primary:hover:not(:disabled) {
+  background: rgba(96, 165, 250, 0.22);
 }
 
 .dark .ms-command-chip-muted {

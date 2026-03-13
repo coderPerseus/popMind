@@ -63,7 +63,7 @@ export class TextPickerFeature {
   ) {}
 
   async initialize() {
-    this.bubbleWindow = new SelectionBubbleWindow(this.bridge)
+    this.bubbleWindow = new SelectionBubbleWindow(this.bridge, this.logger)
     this.translationWindowManager = new TranslationWindowManager(this.bridge, this.logger, {
       noteInteraction: (durationMs) => {
         this.manager?.noteBubbleInteraction(durationMs)

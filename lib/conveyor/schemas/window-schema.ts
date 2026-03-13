@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+export const MainWindowChannel = {
+  ResetState: 'mainWindow:resetState',
+} as const
+
 export const windowIpcSchema = {
   'window-init': {
     args: z.tuple([]),

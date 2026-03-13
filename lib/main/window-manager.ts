@@ -6,6 +6,7 @@ import {
   MAIN_WINDOW_ROUTE_CONFIG,
   type MainWindowRoute,
 } from './app'
+import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 
@@ -80,9 +81,13 @@ const presentMainWindow = (window: BrowserWindow) => {
   })
 }
 
-const concealMainWindow = (window: BrowserWindow) => {
+const concealMainWindow = (window: BrowserWindow, options?: { resetHomeState?: boolean }) => {
   if (window.isDestroyed()) {
     return
+  }
+
+  if (options?.resetHomeState && currentRoute === 'home' && !window.webContents.isDestroyed()) {
+    window.webContents.send(MainWindowChannel.ResetState)
   }
 
   window.hide()
@@ -103,7 +108,7 @@ const registerMainWindowSurface = (window: BrowserWindow) => {
     priority: 100,
     isVisible: () => !window.isDestroyed() && window.isVisible(),
     hide: () => {
-      concealMainWindow(window)
+      concealMainWindow(window, { resetHomeState: true })
     },
     shouldDismiss: (context) => {
       if (window.isDestroyed() || !window.isVisible()) {
@@ -138,7 +143,7 @@ const attachMainWindowLifecycle = (window: BrowserWindow) => {
     }
 
     event.preventDefault()
-    concealMainWindow(window)
+    concealMainWindow(window, { resetHomeState: true })
   })
 
   window.on('blur', () => {
@@ -272,7 +277,7 @@ export const showMainWindow = async (route: MainWindowRoute = 'home') => {
   })
 
   if (shouldHideDuringRouteSwitch) {
-    concealMainWindow(window)
+    concealMainWindow(window, { resetHomeState: false })
   }
 
   try {
@@ -291,7 +296,7 @@ export const showMainWindow = async (route: MainWindowRoute = 'home') => {
 
 export const hideMainWindow = () => {
   const window = getOrCreateMainWindow()
-  concealMainWindow(window)
+  concealMainWindow(window, { resetHomeState: true })
 }
 
 export const primeMainWindow = async (route: MainWindowRoute = 'home') => {
@@ -326,7 +331,7 @@ export const toggleMainWindow = async (route: MainWindowRoute = 'home') => {
   })
 
   if (window.isVisible()) {
-    concealMainWindow(window)
+    concealMainWindow(window, { resetHomeState: true })
     return window
   }
 

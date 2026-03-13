@@ -1,4 +1,5 @@
 import { ConveyorApi } from '@/lib/preload/shared'
+import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
 
 export class WindowApi extends ConveyorApi {
   // Generate window methods
@@ -11,6 +12,11 @@ export class WindowApi extends ConveyorApi {
   windowDismissTopmost = () => this.invoke('window-dismiss-topmost')
   windowMaximizeToggle = () => this.invoke('window-maximize-toggle')
   windowShowRoute = (route: 'home' | 'settings') => this.invoke('window-show-route', route)
+  onMainWindowReset = (handler: () => void) => {
+    const listener = () => handler()
+    this.renderer.on(MainWindowChannel.ResetState, listener)
+    return () => this.renderer.removeListener(MainWindowChannel.ResetState, listener)
+  }
 
   // Generate web methods
   webUndo = () => this.invoke('web-undo')
