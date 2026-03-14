@@ -376,10 +376,6 @@ export class TextPickerFeature {
           return false
         }
 
-        if (context.reason === 'selection-changed' || context.reason === 'dismiss-scene') {
-          return true
-        }
-
         if (context.reason === 'surface-opened') {
           return context.target !== 'selection-chat'
         }

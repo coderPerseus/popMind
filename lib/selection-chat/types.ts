@@ -34,8 +34,10 @@ export interface SelectionChatWindowPreloadApi {
   onState(handler: (state: SelectionChatWindowState) => void): () => void
   getState(): Promise<SelectionChatWindowState>
   submitMessage(message: string): Promise<{ ok: boolean }>
+  regenerate(): Promise<{ ok: boolean }>
   stop(): Promise<{ ok: boolean }>
   setPinned(pinned: boolean): Promise<{ ok: boolean; pinned: boolean }>
+  setDragging(isDragging: boolean): void
   closeWindow(): Promise<{ ok: boolean }>
   copyMessage(messageId: string): Promise<{ ok: boolean }>
   dismissTopmost(): Promise<{ ok: boolean }>

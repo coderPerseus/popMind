@@ -14,11 +14,17 @@ const api: SelectionChatWindowPreloadApi = {
   submitMessage(message) {
     return ipcRenderer.invoke(SelectionChatWindowChannel.SubmitMessage, message)
   },
+  regenerate() {
+    return ipcRenderer.invoke(SelectionChatWindowChannel.Regenerate)
+  },
   stop() {
     return ipcRenderer.invoke(SelectionChatWindowChannel.Stop)
   },
   setPinned(pinned) {
     return ipcRenderer.invoke(SelectionChatWindowChannel.SetPinned, pinned)
+  },
+  setDragging(isDragging) {
+    ipcRenderer.send(SelectionChatWindowChannel.SetDragging, isDragging)
   },
   closeWindow() {
     return ipcRenderer.invoke(SelectionChatWindowChannel.Close)

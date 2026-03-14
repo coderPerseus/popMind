@@ -46,6 +46,7 @@ export class SelectionChatWindowManager {
   }
 
   hide() {
+    void selectionChatService.close()
     this.window?.hide()
   }
 
@@ -69,12 +70,14 @@ export class SelectionChatWindowManager {
   dispose() {
     ipcMain.removeHandler(SelectionChatWindowChannel.GetState)
     ipcMain.removeHandler(SelectionChatWindowChannel.SubmitMessage)
+    ipcMain.removeHandler(SelectionChatWindowChannel.Regenerate)
     ipcMain.removeHandler(SelectionChatWindowChannel.Stop)
     ipcMain.removeHandler(SelectionChatWindowChannel.SetPinned)
     ipcMain.removeHandler(SelectionChatWindowChannel.CopyMessage)
     ipcMain.removeHandler(SelectionChatWindowChannel.Close)
     ipcMain.removeHandler(SelectionChatWindowChannel.DismissTopmost)
     ipcMain.removeAllListeners(SelectionChatWindowChannel.NotifyInteraction)
+    ipcMain.removeAllListeners(SelectionChatWindowChannel.SetDragging)
     ipcMain.removeAllListeners(SelectionChatWindowChannel.Move)
     this.unsubscribeService?.()
     this.window?.destroy()
@@ -97,6 +100,11 @@ export class SelectionChatWindowManager {
       await selectionChatService.submitMessage(message)
       return { ok: true }
     })
+    ipcMain.handle(SelectionChatWindowChannel.Regenerate, async () => {
+      this.noteInteraction()
+      await selectionChatService.regenerate()
+      return { ok: true }
+    })
     ipcMain.handle(SelectionChatWindowChannel.Stop, async () => {
       this.noteInteraction()
       await selectionChatService.stop()
@@ -117,6 +125,7 @@ export class SelectionChatWindowManager {
     })
     ipcMain.handle(SelectionChatWindowChannel.Close, async () => {
       this.noteInteraction()
+      await selectionChatService.close()
       this.window?.hide()
       return { ok: true }
     })
@@ -127,6 +136,9 @@ export class SelectionChatWindowManager {
     })
     ipcMain.on(SelectionChatWindowChannel.NotifyInteraction, (_event, durationMs?: number) => {
       this.noteInteraction(typeof durationMs === 'number' ? durationMs : undefined)
+    })
+    ipcMain.on(SelectionChatWindowChannel.SetDragging, (_event, isDragging: boolean) => {
+      this.floatingBridge?.setDragging?.(isDragging)
     })
     ipcMain.on(SelectionChatWindowChannel.Move, (_event, deltaX: number, deltaY: number) => {
       this.noteInteraction(1000)

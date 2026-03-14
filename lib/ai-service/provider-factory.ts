@@ -22,6 +22,42 @@ const DEFAULT_CONTEXT_LIMITS: Record<AiProviderId, number> = {
 }
 
 const trimOptional = (value?: string) => value?.trim() || undefined
+const OPENAI_OFFICIAL_HOSTS = new Set(['api.openai.com'])
+
+const normalizeOpenAIBaseURL = (value?: string) => {
+  const trimmed = trimOptional(value)
+  if (!trimmed) {
+    return undefined
+  }
+
+  try {
+    const url = new URL(trimmed)
+    const normalizedPath = url.pathname.replace(/\/+$/, '')
+
+    if (normalizedPath.endsWith('/chat/completions')) {
+      url.pathname = normalizedPath.slice(0, -'/chat/completions'.length) || '/'
+    } else if (normalizedPath.endsWith('/responses')) {
+      url.pathname = normalizedPath.slice(0, -'/responses'.length) || '/'
+    }
+
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return trimmed.replace(/\/(chat\/completions|responses)\/?$/, '')
+  }
+}
+
+const shouldUseOpenAIChatApi = (baseURL?: string) => {
+  const normalized = normalizeOpenAIBaseURL(baseURL)
+  if (!normalized) {
+    return false
+  }
+
+  try {
+    return !OPENAI_OFFICIAL_HOSTS.has(new URL(normalized).host)
+  } catch {
+    return true
+  }
+}
 
 export const resolveAiProviderConfig = (settings: CapabilitySettings) => {
   const providerId = settings.aiService.activeProvider
@@ -56,18 +92,21 @@ export const createLanguageModel = (settings: CapabilitySettings): {
   const { providerId, config, modelId, contextLimit } = resolved
 
   if (providerId === 'openai') {
-    const provider = trimOptional(config.baseURL)
+    const normalizedBaseURL = normalizeOpenAIBaseURL(config.baseURL)
+    const provider = normalizedBaseURL
       ? createOpenAI({
           apiKey: config.apiKey,
-          baseURL: trimOptional(config.baseURL),
+          baseURL: normalizedBaseURL,
+          name: 'openai-compatible',
         })
       : openai
+    const model = shouldUseOpenAIChatApi(normalizedBaseURL) ? provider.chat(modelId) : provider(modelId)
 
     return {
       providerId,
       modelId,
       contextLimit,
-      model: provider(modelId),
+      model,
     }
   }
 
