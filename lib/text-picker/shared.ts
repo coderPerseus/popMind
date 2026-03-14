@@ -132,7 +132,7 @@ export interface SelectionBridge {
 export interface BubblePreloadApi {
   onUpdate(handler: (payload: BubbleUpdatePayload) => void): () => void
   triggerCommand(commandId: string, selectionId: string): Promise<{ ok: boolean; reason?: string; commandId?: string }>
-  openMainWindow(): Promise<{ ok: boolean }>
+  openMainWindow(query?: string): Promise<{ ok: boolean }>
   hideBubble(): Promise<{ ok: boolean }>
   dismissTopmost(): Promise<{ ok: boolean }>
   moveBubble(deltaX: number, deltaY: number): void

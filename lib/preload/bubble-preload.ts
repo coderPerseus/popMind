@@ -23,10 +23,10 @@ const bubbleApi: BubblePreloadApi = {
       return result
     })
   },
-  openMainWindow() {
-    preloadLog('openMainWindow:invoke')
-    return ipcRenderer.invoke(TextPickerChannel.OpenMainWindow).then((result) => {
-      preloadLog('openMainWindow:result', result)
+  openMainWindow(query) {
+    preloadLog('openMainWindow:invoke', { query })
+    return ipcRenderer.invoke(TextPickerChannel.OpenMainWindow, query).then((result) => {
+      preloadLog('openMainWindow:result', { query, result })
       return result
     })
   },

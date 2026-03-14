@@ -127,7 +127,7 @@ const invokeLeadLogo = async (origin: 'pointerdown' | 'keyboard') => {
   bubbleLog('leadLogo:invoke', { origin })
   suppressPointerActivationsUntil = Date.now() + SYNTHETIC_CLICK_GUARD_MS
   noteBubbleInteraction()
-  await window.textPicker.openMainWindow()
+  await window.textPicker.openMainWindow(currentPickedInfo?.text ?? '')
 }
 
 const renderSkills = (skills: SelectionSkill[] | undefined) => {

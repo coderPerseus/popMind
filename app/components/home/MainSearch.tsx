@@ -66,7 +66,8 @@ const matchesSlashAliasQuery = (query: string, values: string[]) => {
 
 export function MainSearch() {
   const { t } = useI18n()
-  const { onMainWindowReset, webOpenUrl, windowDismissTopmost, windowShowRoute } = useConveyor('window')
+  const { onMainWindowReset, onMainWindowSetSearchQuery, webOpenUrl, windowDismissTopmost, windowShowRoute } =
+    useConveyor('window')
   const search = useConveyor('search')
   const [query, setQuery] = useState('')
   const [logoUrl, setLogoUrl] = useState(() => getThemeLogoUrl())
@@ -163,6 +164,23 @@ export function MainSearch() {
   }, [onMainWindowReset, resetTranslate])
 
   useEffect(() => {
+    const unsubscribe = onMainWindowSetSearchQuery((nextQuery) => {
+      setQuery(nextQuery)
+      setActiveIndex(0)
+      setIsLaunching(false)
+      resetTranslate()
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+        inputRef.current?.select()
+      })
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [onMainWindowSetSearchQuery, resetTranslate])
+
+  useEffect(() => {
     const root = document.documentElement
     const syncLogo = () => setLogoUrl(getThemeLogoUrl())
     const observer = new MutationObserver(syncLogo)
@@ -233,6 +251,17 @@ export function MainSearch() {
     inputRef.current?.focus()
   }
 
+  const activatePlugin = async (pluginItem: MainSearchPluginResult) => {
+    const currentQuery = query.trim()
+
+    if (!currentQuery) {
+      activatePluginAlias(pluginItem)
+      return
+    }
+
+    await launchPlugin(pluginItem, currentQuery)
+  }
+
   const handleInputKeyDown = async (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (translate.isActive) {
       if (event.key === 'Enter') {
@@ -267,7 +296,7 @@ export function MainSearch() {
     if (event.key === 'Enter' && activeItem) {
       event.preventDefault()
       if (activeItem.kind === 'plugin') {
-        activatePluginAlias(activeItem.item)
+        await activatePlugin(activeItem.item)
       } else {
         activateCommand(activeItem.item)
       }
@@ -387,7 +416,7 @@ export function MainSearch() {
                           className={`ms-result-item ${flatIndex === activeIndex ? 'is-active' : ''}`}
                           type="button"
                           onMouseEnter={() => setActiveIndex(flatIndex)}
-                          onClick={() => activatePluginAlias(result)}
+                          onClick={() => void activatePlugin(result)}
                           disabled={isLaunching}
                         >
                           <span className="ms-result-logo" style={logoStyle}>

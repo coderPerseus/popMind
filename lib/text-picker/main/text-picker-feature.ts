@@ -422,6 +422,7 @@ export class TextPickerFeature {
     return Menu.buildFromTemplate([
       {
         label: '打开主页',
+        accelerator: 'Alt+Space',
         click: () => {
           this.manager?.hideBubble()
           void showMainWindow('home')
@@ -636,8 +637,10 @@ export class TextPickerFeature {
       skills: this.manager?.getSkills() || [],
     }))
 
-    ipcMain.handle(TextPickerChannel.OpenMainWindow, async () => {
-      await showMainWindow()
+    ipcMain.handle(TextPickerChannel.OpenMainWindow, async (_event, query?: string) => {
+      await showMainWindow('home', {
+        searchQuery: query?.trim() ? query : undefined,
+      })
       return { ok: true }
     })
 

@@ -12,11 +12,19 @@ export class WindowApi extends ConveyorApi {
   windowDismissTopmost = () => this.invoke('window-dismiss-topmost')
   windowMaximizeToggle = () => this.invoke('window-maximize-toggle')
   windowShowRoute = (route: 'home' | 'settings') => this.invoke('window-show-route', route)
+  windowShowHomeWithQuery = (query: string) => this.invoke('window-show-home-with-query', query)
   onMainWindowReset = (handler: () => void) => {
     const listener = () => handler()
     this.renderer.on(MainWindowChannel.ResetState, listener)
     return () => {
       this.renderer.removeListener(MainWindowChannel.ResetState, listener)
+    }
+  }
+  onMainWindowSetSearchQuery = (handler: (query: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, query: string) => handler(query)
+    this.renderer.on(MainWindowChannel.SetSearchQuery, listener)
+    return () => {
+      this.renderer.removeListener(MainWindowChannel.SetSearchQuery, listener)
     }
   }
 

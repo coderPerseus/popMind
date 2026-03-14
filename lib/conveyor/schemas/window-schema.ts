@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const MainWindowChannel = {
   ResetState: 'mainWindow:resetState',
+  SetSearchQuery: 'mainWindow:setSearchQuery',
 } as const
 
 export const windowIpcSchema = {
@@ -45,6 +46,10 @@ export const windowIpcSchema = {
   },
   'window-show-route': {
     args: z.tuple([z.enum(['home', 'settings'])]),
+    return: z.void(),
+  },
+  'window-show-home-with-query': {
+    args: z.tuple([z.string()]),
     return: z.void(),
   },
 

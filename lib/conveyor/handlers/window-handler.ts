@@ -28,6 +28,9 @@ export const registerWindowHandlers = (window: BrowserWindow) => {
   handle('window-show-route', async (route) => {
     await showMainWindow(route)
   })
+  handle('window-show-home-with-query', async (query: string) => {
+    await showMainWindow('home', { searchQuery: query })
+  })
 
   // Web content operations
   const webContents = window.webContents

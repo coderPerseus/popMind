@@ -81,6 +81,14 @@ const presentMainWindow = (window: BrowserWindow) => {
   })
 }
 
+const sendMainWindowSearchQuery = (window: BrowserWindow, query: string) => {
+  if (window.isDestroyed() || !query.trim() || window.webContents.isDestroyed()) {
+    return
+  }
+
+  window.webContents.send(MainWindowChannel.SetSearchQuery, query)
+}
+
 const concealMainWindow = (window: BrowserWindow, options?: { resetHomeState?: boolean }) => {
   if (window.isDestroyed()) {
     return
@@ -275,7 +283,12 @@ export const getOrCreateMainWindow = () => {
   return window
 }
 
-export const showMainWindow = async (route: MainWindowRoute = 'home') => {
+export const showMainWindow = async (
+  route: MainWindowRoute = 'home',
+  options?: {
+    searchQuery?: string
+  }
+) => {
   const window = getOrCreateMainWindow()
   const shouldHideDuringRouteSwitch =
     window.isVisible() && currentRoute !== null && (currentRoute !== route || !isShowingRoute(window, route))
@@ -301,6 +314,9 @@ export const showMainWindow = async (route: MainWindowRoute = 'home') => {
     target: 'main',
   })
   presentMainWindow(window)
+  if (route === 'home' && options?.searchQuery?.trim()) {
+    sendMainWindowSearchQuery(window, options.searchQuery)
+  }
   return window
 }
 
