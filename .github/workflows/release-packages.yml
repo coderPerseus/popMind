@@ -23,7 +23,6 @@ jobs:
             artifact_name: popmind-macos
 
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
       ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
 
