@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/app/components/ui/badge'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Select } from '@/app/components/ui/select'
 import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
-import type { SearchHistorySummary } from '@/lib/search-history/types'
+import { useI18n } from '@/app/i18n'
+import type { AiProviderId, AppLanguage, CapabilitySettings, WebSearchProviderId } from '@/lib/capability/types'
+import type { I18nKey } from '@/lib/i18n/shared'
+import type { ExplainHistoryListItem, HistoryDataType, SearchHistoryListItem, SearchHistorySummary } from '@/lib/search-history/types'
 import type { ThemeMode } from '@/lib/theme/shared'
 import { translationLanguages } from '@/lib/translation/shared'
-import type { TranslationSettings } from '@/lib/translation/types'
-import { Bot, Database, Download, History, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun, Trash2 } from 'lucide-react'
+import { Database, Download, Globe, History, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun, Trash2 } from 'lucide-react'
 import './styles.css'
 
 type PermissionStatus = {
@@ -17,7 +19,9 @@ type PermissionStatus = {
   supported: boolean
 }
 
-type SettingsSection = 'general' | 'translation' | 'ai' | 'history'
+type SettingsSection = 'general' | 'translation' | 'history'
+type HistoryTab = 'search' | 'explain'
+type StatusTone = 'success' | 'error'
 
 type NavItem = {
   id: SettingsSection
@@ -25,28 +29,61 @@ type NavItem = {
   icon: typeof SearchCheck
 }
 
-const navItems: NavItem[] = [
-  { id: 'general', label: '常规', icon: SearchCheck },
-  { id: 'translation', label: '翻译', icon: Languages },
-  { id: 'ai', label: 'AI 配置', icon: Bot },
-  { id: 'history', label: '历史记录', icon: History },
+const aiProviderOptions: Array<{ id: AiProviderId; label: string }> = [
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'anthropic', label: 'Claude' },
+  { id: 'google', label: 'Gemini' },
+  { id: 'kimi', label: 'Kimi' },
+  { id: 'deepseek', label: 'DeepSeek' },
 ]
+
+const webSearchProviders: Array<{ id: WebSearchProviderId; label: string; keyUrl: string }> = [
+  { id: 'tavily', label: 'Tavily', keyUrl: 'https://app.tavily.com/home' },
+  { id: 'serper', label: 'Serper', keyUrl: 'https://serper.dev/' },
+  { id: 'brave', label: 'Brave', keyUrl: 'https://brave.com/search/api/' },
+  { id: 'jina', label: 'Jina', keyUrl: 'https://s.jina.ai' },
+]
+
+const getProviderLabel = (provider: AiProviderId | null | undefined) => {
+  return aiProviderOptions.find((item) => item.id === provider)?.label ?? 'None'
+}
 
 export function SettingsPage() {
   const app = useConveyor('app')
-  const translation = useConveyor('translation')
+  const capability = useConveyor('capability')
   const search = useConveyor('search')
   const { windowShowRoute } = useConveyor('window')
+  const { language, t } = useI18n()
   const [status, setStatus] = useState<PermissionStatus | null>(null)
-  const [settings, setSettings] = useState<TranslationSettings | null>(null)
-  const [historySummary, setHistorySummary] = useState<SearchHistorySummary | null>(null)
+  const [settings, setSettings] = useState<CapabilitySettings | null>(null)
+  const [historySummary, setHistorySummary] = useState<Record<HistoryTab, SearchHistorySummary | null>>({
+    search: null,
+    explain: null,
+  })
+  const [historyItems, setHistoryItems] = useState<Record<HistoryTab, Array<SearchHistoryListItem | ExplainHistoryListItem>>>({
+    search: [],
+    explain: [],
+  })
   const [isSaving, setIsSaving] = useState(false)
-  const [isExportingHistory, setIsExportingHistory] = useState(false)
-  const [isClearingHistory, setIsClearingHistory] = useState(false)
-  const [historyMessage, setHistoryMessage] = useState('')
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
-  const aiSaveTimerRef = useRef<number | null>(null)
+  const [activeHistoryTab, setActiveHistoryTab] = useState<HistoryTab>('search')
+  const [historyMessage, setHistoryMessage] = useState('')
   const [themeMode, setThemeMode] = useState<ThemeMode>('system')
+  const [busyHistoryAction, setBusyHistoryAction] = useState<'' | 'export' | 'clear'>('')
+  const [isTestingAiService, setIsTestingAiService] = useState(false)
+  const [aiTestMessage, setAiTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
+  const saveTimerRef = useRef<number | null>(null)
+
+  const navItems: NavItem[] = useMemo(
+    () => [
+      { id: 'general', label: t('settings.nav.general'), icon: SearchCheck },
+      { id: 'translation', label: t('settings.nav.translation'), icon: Languages },
+      { id: 'history', label: t('settings.nav.history'), icon: History },
+    ],
+    [t]
+  )
+
+  const activeAiProvider = settings?.aiService.activeProvider ?? null
 
   const handleThemeChange = async (mode: ThemeMode) => {
     setThemeMode(mode)
@@ -58,61 +95,90 @@ export function SettingsPage() {
     setStatus(result)
   }, [app])
 
-  const refreshTranslationSettings = useCallback(async () => {
-    const result = await translation.getSettings()
+  const refreshSettings = useCallback(async () => {
+    const result = await capability.getSettings()
     setSettings(result)
-  }, [translation])
+  }, [capability])
 
-  const refreshHistorySummary = useCallback(async () => {
-    const result = await search.getHistorySummary()
-    setHistorySummary(result)
-  }, [search])
+  const refreshHistory = useCallback(
+    async (type: HistoryTab) => {
+      const [summary, items] = await Promise.all([search.getHistorySummary(type), search.listHistory(type, 80)])
+      setHistorySummary((current) => ({ ...current, [type]: summary }))
+      setHistoryItems((current) => ({ ...current, [type]: items }))
+    },
+    [search]
+  )
 
   useEffect(() => {
     void app.getThemeMode().then(setThemeMode)
     void refreshStatus()
-    void refreshTranslationSettings()
-    void refreshHistorySummary()
+    void refreshSettings()
+    void refreshHistory('search')
+    void refreshHistory('explain')
+
+    const unsubscribe = capability.onState((nextSettings) => {
+      setSettings(nextSettings)
+    })
 
     const timer = window.setInterval(() => {
       void refreshStatus()
     }, 2500)
 
-    return () => window.clearInterval(timer)
-  }, [app, refreshHistorySummary, refreshStatus, refreshTranslationSettings])
+    return () => {
+      unsubscribe()
+      window.clearInterval(timer)
+    }
+  }, [app, capability, refreshHistory, refreshSettings, refreshStatus])
 
-  const openAccessibilitySettings = async () => {
-    await app.openAccessibilitySettings()
-  }
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current)
+      }
+    }
+  }, [])
 
   const persistPatch = useCallback(
-    async (patch: Parameters<typeof translation.updateSettings>[0]) => {
-      setIsSaving(true)
+    async (patch: Parameters<typeof capability.updateSettings>[0], debounce = false) => {
+      if (debounce) {
+        if (saveTimerRef.current) {
+          window.clearTimeout(saveTimerRef.current)
+        }
 
+        saveTimerRef.current = window.setTimeout(() => {
+          void persistPatch(patch, false)
+        }, 320)
+        return
+      }
+
+      setIsSaving(true)
       try {
-        const next = await translation.updateSettings(patch)
+        const next = await capability.updateSettings(patch)
         setSettings(next)
       } finally {
         setIsSaving(false)
       }
     },
-    [translation],
+    [capability]
   )
 
-  const updateEngine = (engine: keyof TranslationSettings['enabledEngines'], checked: boolean) => {
-    setSettings((current) => {
-      if (!current) {
-        return current
-      }
+  const updateField = <K extends keyof CapabilitySettings>(key: K, value: CapabilitySettings[K]) => {
+    setSettings((current) => (current ? { ...current, [key]: value } : current))
+    void persistPatch({ [key]: value })
+  }
 
-      return {
-        ...current,
-        enabledEngines: {
-          ...current.enabledEngines,
-          [engine]: checked,
-        },
-      }
-    })
+  const updateEngine = (engine: keyof CapabilitySettings['enabledEngines'], checked: boolean) => {
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            enabledEngines: {
+              ...current.enabledEngines,
+              [engine]: checked,
+            },
+          }
+        : current
+    )
 
     void persistPatch({
       enabledEngines: {
@@ -121,94 +187,177 @@ export function SettingsPage() {
     })
   }
 
-  const updateField = <K extends keyof TranslationSettings>(key: K, value: TranslationSettings[K]) => {
-    setSettings((current) => (current ? { ...current, [key]: value } : current))
+  const updateAiService = (providerId: AiProviderId, key: 'apiKey' | 'baseURL' | 'model', value: string) => {
+    setAiTestMessage(null)
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            aiService: {
+              ...current.aiService,
+              providers: {
+                ...current.aiService.providers,
+                [providerId]: {
+                  ...current.aiService.providers[providerId],
+                  [key]: value,
+                },
+              },
+            },
+          }
+        : current
+    )
+
+    void persistPatch(
+      {
+        aiService: {
+          providers: {
+            [providerId]: {
+              [key]: value,
+            },
+          },
+        },
+      },
+      true
+    )
+  }
+
+  const updateActiveAiProvider = (providerId: AiProviderId | null) => {
+    setAiTestMessage(null)
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            aiService: {
+              ...current.aiService,
+              activeProvider: providerId,
+            },
+          }
+        : current
+    )
 
     void persistPatch({
-      [key]: value,
+      aiService: {
+        activeProvider: providerId,
+      },
     })
   }
 
-  const updateAiField = (key: keyof TranslationSettings['ai'], value: string) => {
-    setSettings((current) => {
-      if (!current) {
-        return current
-      }
+  const updateWebSearchField = (providerId: WebSearchProviderId, value: string) => {
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            webSearch: {
+              ...current.webSearch,
+              providers: {
+                ...current.webSearch.providers,
+                [providerId]: {
+                  ...current.webSearch.providers[providerId],
+                  apiKey: value,
+                },
+              },
+            },
+          }
+        : current
+    )
 
-      return {
-        ...current,
-        ai: {
-          ...current.ai,
-          [key]: value,
+    void persistPatch(
+      {
+        webSearch: {
+          providers: {
+            [providerId]: {
+              apiKey: value,
+            },
+          },
         },
-      }
-    })
-
-    if (aiSaveTimerRef.current) {
-      window.clearTimeout(aiSaveTimerRef.current)
-    }
-
-    aiSaveTimerRef.current = window.setTimeout(() => {
-      void persistPatch({
-        ai: {
-          [key]: value,
-        },
-      })
-    }, 320)
+      },
+      true
+    )
   }
 
-  const enabledEngineEntries = useMemo(() => {
+  const runAiServiceTest = async () => {
     if (!settings) {
-      return []
+      return
     }
 
-    return Object.entries(settings.enabledEngines) as Array<[keyof TranslationSettings['enabledEngines'], boolean]>
-  }, [settings])
-
-  useEffect(() => {
-    return () => {
-      if (aiSaveTimerRef.current) {
-        window.clearTimeout(aiSaveTimerRef.current)
-      }
-    }
-  }, [])
-
-  const exportHistory = async () => {
-    setHistoryMessage('')
-    setIsExportingHistory(true)
+    setAiTestMessage(null)
+    setIsTestingAiService(true)
 
     try {
-      const result = await search.exportHistory()
-      if (result.canceled) {
-        setHistoryMessage('已取消导出')
+      const result = await capability.testAiService(settings)
+
+      if (result.ok) {
+        const providerLabel =
+          aiProviderOptions.find((item) => item.id === result.providerId)?.label ?? result.providerId ?? t('common.none')
+
+        setAiTestMessage({
+          tone: 'success',
+          message: t('settings.capability.ai.testSuccess', {
+            provider: providerLabel,
+            model: result.modelId ?? t('common.none'),
+          }),
+        })
         return
       }
 
-      setHistoryMessage(`已导出 ${result.count} 条记录`)
-      await refreshHistorySummary()
-    } catch (error) {
-      setHistoryMessage(`导出失败：${getErrorMessage(error)}`)
+      if (result.errorCode === 'missing-config') {
+        setAiTestMessage({
+          tone: 'error',
+          message: t('settings.capability.ai.testMissingConfig'),
+        })
+        return
+      }
+
+      setAiTestMessage({
+        tone: 'error',
+        message: t('settings.capability.ai.testFailed', {
+          message: result.errorMessage ?? t('common.none'),
+        }),
+      })
     } finally {
-      setIsExportingHistory(false)
+      setIsTestingAiService(false)
     }
   }
 
-  const clearHistory = async () => {
-    if (!window.confirm('确认清空所有搜索历史记录？此操作不可撤销。')) {
+  const exportHistory = async (type: HistoryDataType) => {
+    setHistoryMessage('')
+    setBusyHistoryAction('export')
+
+    try {
+      const result = await search.exportHistory(type)
+      if (result.canceled) {
+        setHistoryMessage(t('settings.history.exportCanceled'))
+        return
+      }
+
+      setHistoryMessage(t('settings.history.exportSuccess', { count: result.count }))
+      await refreshHistory(type)
+    } catch (error) {
+      setHistoryMessage(t('settings.history.exportFailed', { message: getErrorMessage(error) }))
+    } finally {
+      setBusyHistoryAction('')
+    }
+  }
+
+  const clearHistory = async (type: HistoryDataType) => {
+    const confirmed = window.confirm(
+      t(type === 'search' ? 'settings.history.confirmClearSearch' : 'settings.history.confirmClearExplain')
+    )
+    if (!confirmed) {
       return
     }
 
     setHistoryMessage('')
-    setIsClearingHistory(true)
+    setBusyHistoryAction('clear')
 
     try {
-      const result = await search.clearHistory()
-      setHistoryMessage(`已清空 ${result.deletedCount} 条记录`)
-      await refreshHistorySummary()
+      const result = await search.clearHistory(type)
+      setHistoryMessage(t('settings.history.clearSuccess', { count: result.deletedCount }))
+      await refreshHistory(type)
     } catch (error) {
-      setHistoryMessage(`清空失败：${getErrorMessage(error)}`)
+      setHistoryMessage(t('settings.history.clearFailed', { message: getErrorMessage(error) }))
     } finally {
-      setIsClearingHistory(false)
+      setBusyHistoryAction('')
     }
   }
 
@@ -221,11 +370,11 @@ export function SettingsPage() {
         <aside className="settings-sidebar">
           <div className="settings-sidebar-top">
             <Button variant="ghost" className="settings-back-button" onClick={() => void windowShowRoute('home')}>
-              ← 返回应用
+              ← {t('settings.back')}
             </Button>
 
             <div className="settings-brand-block">
-              <h1>配置中心</h1>
+              <h1>{t('settings.brand')}</h1>
             </div>
           </div>
 
@@ -243,29 +392,22 @@ export function SettingsPage() {
                   <span className="settings-nav-icon">
                     <Icon size={15} />
                   </span>
-                  <span>
-                    <span className="settings-nav-title">{item.label}</span>
-                  </span>
+                  <span className="settings-nav-title">{item.label}</span>
                 </button>
               )
             })}
           </nav>
-
-
         </aside>
-
 
         <div className="settings-content">
           <header className="settings-content-header">
             <div>
-              <h2>{getSectionTitle(activeSection)}</h2>
+              <h2>{getSectionTitle(activeSection, t)}</h2>
             </div>
 
-            {(activeSection === 'translation' || activeSection === 'ai') && (
-              <Badge variant="outline" className="settings-inline-badge">
-                {isSaving ? '正在保存' : '自动保存'}
-              </Badge>
-            )}
+            <Badge variant="outline" className="settings-inline-badge">
+              {isSaving ? t('common.saveSaving') : t('common.saveAuto')}
+            </Badge>
           </header>
 
           {activeSection === 'general' && (
@@ -273,93 +415,217 @@ export function SettingsPage() {
               <section className="settings-surface">
                 <div className="settings-surface-heading">
                   <div>
-                    <div className="settings-item-title">外观主题</div>
+                    <div className="settings-item-title">{t('settings.theme.title')}</div>
                   </div>
                 </div>
 
                 <div className="settings-theme-grid">
-                  <button
-                    type="button"
-                    className={`settings-theme-option ${themeMode === 'light' ? 'is-active' : ''}`}
-                    onClick={() => handleThemeChange('light')}
-                  >
-                    <span className="settings-theme-icon">
-                      <Sun size={18} />
-                    </span>
-                    <span className="settings-theme-label">明亮</span>
-                    {themeMode === 'light' && <span className="settings-theme-dot" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`settings-theme-option ${themeMode === 'dark' ? 'is-active' : ''}`}
-                    onClick={() => handleThemeChange('dark')}
-                  >
-                    <span className="settings-theme-icon">
-                      <Moon size={18} />
-                    </span>
-                    <span className="settings-theme-label">暗黑</span>
-                    {themeMode === 'dark' && <span className="settings-theme-dot" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`settings-theme-option ${themeMode === 'system' ? 'is-active' : ''}`}
-                    onClick={() => handleThemeChange('system')}
-                  >
-                    <span className="settings-theme-icon">
-                      <Monitor size={18} />
-                    </span>
-                    <span className="settings-theme-label">跟随系统</span>
-                    {themeMode === 'system' && <span className="settings-theme-dot" />}
-                  </button>
+                  <ThemeButton
+                    active={themeMode === 'light'}
+                    label={t('settings.theme.light')}
+                    icon={<Sun size={18} />}
+                    onClick={() => void handleThemeChange('light')}
+                  />
+                  <ThemeButton
+                    active={themeMode === 'dark'}
+                    label={t('settings.theme.dark')}
+                    icon={<Moon size={18} />}
+                    onClick={() => void handleThemeChange('dark')}
+                  />
+                  <ThemeButton
+                    active={themeMode === 'system'}
+                    label={t('settings.theme.system')}
+                    icon={<Monitor size={18} />}
+                    onClick={() => void handleThemeChange('system')}
+                  />
                 </div>
               </section>
 
               <section className="settings-surface">
                 <div className="settings-row">
                   <div>
-                    <div className="settings-item-title">辅助功能权限</div>
+                    <div className="settings-item-title">{t('common.language')}</div>
+                  </div>
+                  <div className="settings-row-aside">
+                    <Select
+                      value={settings?.appLanguage ?? language}
+                      onChange={(event) => updateField('appLanguage', event.target.value as AppLanguage)}
+                    >
+                      <option value="zh-CN">{t('app.language.zh-CN')}</option>
+                      <option value="en">{t('app.language.en')}</option>
+                    </Select>
+                  </div>
+                </div>
+              </section>
+
+              <section className="settings-surface">
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-item-title">{t('settings.accessibility.title')}</div>
                   </div>
 
                   <div className="settings-row-aside">
                     <Switch
                       checked={Boolean(status?.granted)}
                       onCheckedChange={() => {
-                        void openAccessibilitySettings()
+                        void app.openAccessibilitySettings()
                       }}
-                      aria-label="辅助功能权限状态"
+                      aria-label={t('settings.accessibility.status')}
                     />
                     <span className={`settings-pill ${status?.granted ? 'is-on' : 'is-off'}`}>
-                      {status?.granted ? '已开启' : '未开启'}
+                      {status?.granted ? t('common.enabled') : t('common.disabled')}
                     </span>
                   </div>
                 </div>
 
                 <div className="settings-action-row">
-                  <Button size="sm" onClick={openAccessibilitySettings}>
+                  <Button size="sm" onClick={() => void app.openAccessibilitySettings()}>
                     <LockKeyhole />
-                    前往系统设置
+                    {t('common.openSettings')}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => void refreshStatus()}>
-                    重新检测
+                    {t('settings.accessibility.refresh')}
                   </Button>
+                </div>
+              </section>
+
+              <section className="settings-surface">
+                <div className="settings-surface-heading">
+                  <div>
+                    <div className="settings-item-title">{t('settings.capability.ai.title')}</div>
+                    <div className="settings-item-desc">{t('settings.capability.ai.desc')}</div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => void runAiServiceTest()} disabled={!settings || isTestingAiService}>
+                    {isTestingAiService ? t('settings.capability.ai.testing') : t('settings.capability.ai.test')}
+                  </Button>
+                </div>
+
+                <div className="settings-form-grid">
+                  <label className="settings-field settings-field-span">
+                    <span className="settings-field-label">{t('settings.capability.ai.provider')}</span>
+                    <Select
+                      value={activeAiProvider ?? ''}
+                      onChange={(event) => updateActiveAiProvider((event.target.value || null) as AiProviderId | null)}
+                    >
+                      <option value="">None</option>
+                      {aiProviderOptions.map((provider) => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+
+                  {activeAiProvider ? (
+                    <>
+                      <label className="settings-field settings-field-span">
+                        <span className="settings-field-label">{t('settings.capability.ai.apiKey')}</span>
+                        <Input
+                          type="password"
+                          value={settings?.aiService.providers[activeAiProvider].apiKey ?? ''}
+                          onChange={(event) => updateAiService(activeAiProvider, 'apiKey', event.target.value)}
+                          placeholder="sk-..."
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field-label">{t('settings.capability.ai.baseUrl')}</span>
+                        <Input
+                          type="text"
+                          value={settings?.aiService.providers[activeAiProvider].baseURL ?? ''}
+                          onChange={(event) => updateAiService(activeAiProvider, 'baseURL', event.target.value)}
+                          placeholder="https://api.example.com/v1"
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field-label">{t('settings.capability.ai.model')}</span>
+                        <Input
+                          type="text"
+                          value={settings?.aiService.providers[activeAiProvider].model ?? ''}
+                          onChange={(event) => updateAiService(activeAiProvider, 'model', event.target.value)}
+                          placeholder="gpt-5-mini"
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                </div>
+
+                {aiTestMessage ? (
+                  <div className={`settings-status-message ${aiTestMessage.tone === 'success' ? 'is-success' : 'is-error'}`}>
+                    {aiTestMessage.message}
+                  </div>
+                ) : null}
+
+                <div className="settings-action-row">
+                  {aiProviderOptions.map((provider) => (
+                    <Badge key={provider.id} variant={provider.id === activeAiProvider ? 'default' : 'outline'}>
+                      {provider.label}
+                    </Badge>
+                  ))}
+                </div>
+              </section>
+
+              <section className="settings-surface">
+                <div className="settings-surface-heading">
+                  <div>
+                    <div className="settings-item-title">{t('settings.capability.search.title')}</div>
+                    <div className="settings-item-desc">{t('settings.capability.search.desc')}</div>
+                  </div>
+                </div>
+
+                <div className="settings-row">
+                  <div className="settings-item-desc">{t('settings.capability.search.priority')}</div>
+                  <div className="settings-row-aside">
+                    <Switch
+                      checked={settings?.webSearch.enabled ?? false}
+                      onCheckedChange={(checked) =>
+                        void persistPatch({
+                          webSearch: {
+                            enabled: checked,
+                          },
+                        })
+                      }
+                      aria-label={t('settings.capability.search.enabled')}
+                    />
+                  </div>
+                </div>
+
+                <div className="settings-content-stack">
+                  {webSearchProviders.map((provider) => (
+                    <div className="settings-row" key={provider.id}>
+                      <div className="settings-field settings-field-span">
+                        <span className="settings-field-label">{provider.label}</span>
+                        <Input
+                          type="password"
+                          value={settings?.webSearch.providers[provider.id].apiKey ?? ''}
+                          onChange={(event) => updateWebSearchField(provider.id, event.target.value)}
+                          placeholder="key"
+                        />
+                      </div>
+
+                      <Button size="sm" variant="outline" onClick={() => void window.open(provider.keyUrl, '_blank')}>
+                        <Globe size={14} />
+                        {t('settings.capability.search.getKey')}
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </section>
             </div>
           )}
 
-          {activeSection === 'translation' && (
+          {activeSection === 'translation' && settings && (
             <div className="settings-content-stack">
               <section className="settings-surface">
                 <div className="settings-surface-heading">
                   <div>
-                    <div className="settings-item-title">翻译引擎</div>
+                    <div className="settings-item-title">{t('settings.translation.engines')}</div>
                   </div>
                 </div>
 
                 <div className="settings-engine-grid">
-                  {enabledEngineEntries.map(([engine, enabled]) => (
+                  {(Object.entries(settings.enabledEngines) as Array<
+                    [keyof CapabilitySettings['enabledEngines'], boolean]
+                  >).map(([engine, enabled]) => (
                     <div className="settings-engine-item" key={engine}>
                       <div>
                         <div className="settings-engine-name">
@@ -367,23 +633,8 @@ export function SettingsPage() {
                             {engine}
                           </Badge>
                         </div>
-                        <div className="settings-engine-desc">
-                          {engine === 'google'
-                            ? 'Web translate'
-                            : engine === 'deepl'
-                              ? 'DeepL web translate'
-                              : engine === 'bing'
-                                ? 'Bing web translate'
-                                : engine === 'youdao'
-                                  ? 'Youdao web translate + word mode'
-                                  : 'DeepSeek via Vercel AI SDK'}
-                        </div>
                       </div>
-                      <Switch
-                        checked={enabled}
-                        onCheckedChange={(checked) => updateEngine(engine, checked)}
-                        aria-label={`${engine} engine switch`}
-                      />
+                      <Switch checked={enabled} onCheckedChange={(checked) => updateEngine(engine, checked)} />
                     </div>
                   ))}
                 </div>
@@ -392,98 +643,36 @@ export function SettingsPage() {
               <section className="settings-surface">
                 <div className="settings-surface-heading">
                   <div>
-                    <div className="settings-item-title">语言偏好</div>
+                    <div className="settings-item-title">{t('settings.translation.languages')}</div>
                   </div>
                 </div>
 
                 <div className="settings-form-grid">
                   <label className="settings-field">
-                    <span className="settings-field-label">第一语言</span>
-                    <Select
-                      value={settings?.firstLanguage ?? 'en'}
-                      onChange={(event) => updateField('firstLanguage', event.target.value)}
-                    >
+                    <span className="settings-field-label">{t('settings.translation.first')}</span>
+                    <Select value={settings.firstLanguage} onChange={(event) => updateField('firstLanguage', event.target.value)}>
                       {translationLanguages
-                        .filter((language) => language.code !== 'auto')
-                        .map((language) => (
-                          <option key={language.code} value={language.code}>
-                            {language.label}
+                        .filter((item) => item.code !== 'auto')
+                        .map((languageOption) => (
+                          <option key={languageOption.code} value={languageOption.code}>
+                            {languageOption.label}
                           </option>
                         ))}
                     </Select>
                   </label>
 
                   <label className="settings-field">
-                    <span className="settings-field-label">第二语言</span>
-                    <Select
-                      value={settings?.secondLanguage ?? 'zh-CN'}
-                      onChange={(event) => updateField('secondLanguage', event.target.value)}
-                    >
+                    <span className="settings-field-label">{t('settings.translation.second')}</span>
+                    <Select value={settings.secondLanguage} onChange={(event) => updateField('secondLanguage', event.target.value)}>
                       {translationLanguages
-                        .filter((language) => language.code !== 'auto')
-                        .map((language) => (
-                          <option key={language.code} value={language.code}>
-                            {language.label}
+                        .filter((item) => item.code !== 'auto')
+                        .map((languageOption) => (
+                          <option key={languageOption.code} value={languageOption.code}>
+                            {languageOption.label}
                           </option>
                         ))}
                     </Select>
                   </label>
-                </div>
-
-                <div className="settings-action-row">
-                  <Button size="sm" variant="outline" onClick={() => void refreshTranslationSettings()}>
-                    重新加载
-                  </Button>
-                </div>
-              </section>
-            </div>
-          )}
-
-          {activeSection === 'ai' && (
-            <div className="settings-content-stack">
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">AI 引擎配置</div>
-                  </div>
-                </div>
-
-                <div className="settings-form-grid">
-                  <label className="settings-field settings-field-span">
-                    <span className="settings-field-label">DeepSeek API Key</span>
-                    <Input
-                      type="password"
-                      value={settings?.ai.deepseekApiKey ?? ''}
-                      onChange={(event) => updateAiField('deepseekApiKey', event.target.value)}
-                      placeholder="sk-..."
-                    />
-                  </label>
-
-                  <label className="settings-field">
-                    <span className="settings-field-label">Base URL</span>
-                    <Input
-                      type="text"
-                      value={settings?.ai.deepseekBaseUrl ?? ''}
-                      onChange={(event) => updateAiField('deepseekBaseUrl', event.target.value)}
-                      placeholder="https://api.deepseek.com"
-                    />
-                  </label>
-
-                  <label className="settings-field">
-                    <span className="settings-field-label">Model</span>
-                    <Input
-                      type="text"
-                      value={settings?.ai.deepseekModel ?? ''}
-                      onChange={(event) => updateAiField('deepseekModel', event.target.value)}
-                      placeholder="deepseek-chat"
-                    />
-                  </label>
-                </div>
-
-                <div className="settings-action-row">
-                  <Button size="sm" variant="outline" onClick={() => void refreshTranslationSettings()}>
-                    重新加载
-                  </Button>
                 </div>
               </section>
             </div>
@@ -492,30 +681,55 @@ export function SettingsPage() {
           {activeSection === 'history' && (
             <div className="settings-content-stack">
               <section className="settings-surface">
+                <div className="settings-action-row">
+                  <HistoryTabButton
+                    active={activeHistoryTab === 'search'}
+                    label={t('settings.history.searchTab')}
+                    onClick={() => setActiveHistoryTab('search')}
+                  />
+                  <HistoryTabButton
+                    active={activeHistoryTab === 'explain'}
+                    label={t('settings.history.explainTab')}
+                    onClick={() => setActiveHistoryTab('explain')}
+                  />
+                </div>
+
                 <div className="settings-surface-heading">
                   <div>
-                    <div className="settings-item-title">搜索历史概览</div>
-                    <div className="settings-item-desc">默认保留 1 年数据，超期记录会在日常使用时自动清理。</div>
+                    <div className="settings-item-title">
+                      {activeHistoryTab === 'search' ? t('settings.history.searchSummary') : t('settings.history.explainSummary')}
+                    </div>
+                    <div className="settings-item-desc">
+                      {activeHistoryTab === 'search' ? t('settings.history.retentionSearch') : t('settings.history.retentionExplain')}
+                    </div>
                   </div>
                 </div>
 
                 <div className="settings-stat-grid">
                   <div className="settings-stat-card">
-                    <div className="settings-stat-label">历史条数</div>
-                    <div className="settings-stat-value">{historySummary?.totalCount ?? 0}</div>
-                    <div className="settings-stat-meta">插件执行与命令执行都会记录在这里</div>
+                    <div className="settings-stat-label">{t('settings.history.total')}</div>
+                    <div className="settings-stat-value">{historySummary[activeHistoryTab]?.totalCount ?? 0}</div>
+                    <div className="settings-stat-meta">
+                      {activeHistoryTab === 'search' ? t('settings.history.searchMeta') : t('settings.history.explainMeta')}
+                    </div>
                   </div>
 
                   <div className="settings-stat-card">
-                    <div className="settings-stat-label">保留周期</div>
-                    <div className="settings-stat-value">{historySummary?.retentionDays ?? 365} 天</div>
-                    <div className="settings-stat-meta">超过期限的记录会从本地 SQLite 自动删除</div>
+                    <div className="settings-stat-label">{t('settings.history.retention')}</div>
+                    <div className="settings-stat-value">
+                      {t('settings.history.retentionDays', { count: historySummary[activeHistoryTab]?.retentionDays ?? 0 })}
+                    </div>
+                    <div className="settings-stat-meta">SQLite</div>
                   </div>
 
                   <div className="settings-stat-card">
-                    <div className="settings-stat-label">最近搜索</div>
-                    <div className="settings-stat-value">{formatHistoryTime(historySummary?.lastSearchedAt)}</div>
-                    <div className="settings-stat-meta">用于确认主窗口写入流程是否正常</div>
+                    <div className="settings-stat-label">
+                      {activeHistoryTab === 'search' ? t('settings.history.lastSearch') : t('settings.history.lastExplain')}
+                    </div>
+                    <div className="settings-stat-value">
+                      {formatHistoryTime(historySummary[activeHistoryTab]?.lastActivityAt, language)}
+                    </div>
+                    <div className="settings-stat-meta">{t('common.lastUpdated')}</div>
                   </div>
                 </div>
               </section>
@@ -523,12 +737,10 @@ export function SettingsPage() {
               <section className="settings-surface">
                 <div className="settings-row">
                   <div>
-                    <div className="settings-item-title">历史数据库</div>
-                    <div className="settings-item-desc">可以导出为 JSON 文件，或直接清空本地历史。</div>
+                    <div className="settings-item-title">{t('settings.history.storage')}</div>
                   </div>
-
                   <div className="settings-row-aside">
-                    <span className="settings-pill is-on">SQLite</span>
+                    <span className="settings-pill is-on">{t('settings.history.sqlite')}</span>
                   </div>
                 </div>
 
@@ -536,29 +748,43 @@ export function SettingsPage() {
                   <span className="settings-history-path-icon">
                     <Database size={15} />
                   </span>
-                  <span>{historySummary?.storagePath ?? '加载中...'}</span>
+                  <span>{historySummary[activeHistoryTab]?.storagePath ?? t('common.loading')}</span>
                 </div>
 
                 <div className="settings-action-row">
-                  <Button size="sm" onClick={() => void exportHistory()} disabled={isExportingHistory || isClearingHistory}>
+                  <Button size="sm" onClick={() => void exportHistory(activeHistoryTab)} disabled={Boolean(busyHistoryAction)}>
                     <Download size={14} />
-                    {isExportingHistory ? '正在导出' : '导出历史'}
+                    {busyHistoryAction === 'export' ? t('settings.history.exporting') : t('settings.history.export')}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => void clearHistory()}
-                    disabled={isExportingHistory || isClearingHistory}
+                    onClick={() => void clearHistory(activeHistoryTab)}
+                    disabled={Boolean(busyHistoryAction)}
                   >
                     <Trash2 size={14} />
-                    {isClearingHistory ? '正在清空' : '清空历史'}
+                    {busyHistoryAction === 'clear' ? t('settings.history.clearing') : t('settings.history.clear')}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => void refreshHistorySummary()}>
-                    重新加载
+                  <Button size="sm" variant="outline" onClick={() => void refreshHistory(activeHistoryTab)}>
+                    {t('common.reload')}
                   </Button>
                 </div>
 
-                {historyMessage && <div className="settings-history-message">{historyMessage}</div>}
+                {historyMessage ? <div className="settings-history-message">{historyMessage}</div> : null}
+
+                <div className="settings-content-stack">
+                  {historyItems[activeHistoryTab].length ? (
+                    historyItems[activeHistoryTab].map((item) =>
+                      activeHistoryTab === 'search' ? (
+                        <SearchHistoryCard key={item.id} item={item as SearchHistoryListItem} />
+                      ) : (
+                        <ExplainHistoryCard key={item.id} item={item as ExplainHistoryListItem} locale={language} t={t} />
+                      )
+                    )
+                  ) : (
+                    <div className="settings-item-desc">{t('settings.history.empty')}</div>
+                  )}
+                </div>
               </section>
             </div>
           )}
@@ -568,28 +794,109 @@ export function SettingsPage() {
   )
 }
 
-const getSectionTitle = (section: SettingsSection) => {
-  if (section === 'general') {
-    return '常规'
-  }
+function ThemeButton({
+  active,
+  label,
+  icon,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  icon: ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button type="button" className={`settings-theme-option ${active ? 'is-active' : ''}`} onClick={onClick}>
+      <span className="settings-theme-icon">{icon}</span>
+      <span className="settings-theme-label">{label}</span>
+      {active ? <span className="settings-theme-dot" /> : null}
+    </button>
+  )
+}
 
+function HistoryTabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <Button size="sm" variant={active ? 'default' : 'outline'} onClick={onClick}>
+      {label}
+    </Button>
+  )
+}
+
+function SearchHistoryCard({ item }: { item: SearchHistoryListItem }) {
+  return (
+    <div className="settings-engine-item">
+      <div>
+        <div className="settings-item-title">{item.query}</div>
+        <div className="settings-item-desc">
+          {item.actionLabel} · {new Date(item.createdAt).toLocaleString()}
+        </div>
+      </div>
+      <Badge variant="outline">{item.kind}</Badge>
+    </div>
+  )
+}
+
+function ExplainHistoryCard({
+  item,
+  locale,
+  t,
+}: {
+  item: ExplainHistoryListItem
+  locale: AppLanguage
+  t: (key: I18nKey, params?: Record<string, string | number>) => string
+}) {
+  const turns = Math.ceil(item.messages.length / 2)
+  const sourceCount = item.messages.reduce((count, message) => count + (message.sources?.length ?? 0), 0)
+
+  return (
+    <details className="settings-surface">
+      <summary className="settings-row">
+        <div>
+          <div className="settings-item-title">{item.selectionText}</div>
+          <div className="settings-item-desc">
+            {getProviderLabel(item.aiProvider as AiProviderId)} · {formatHistoryTime(item.updatedAt, locale)}
+          </div>
+        </div>
+        <div className="settings-row-aside">
+          <Badge variant="outline">{t('settings.history.row.turns', { count: turns })}</Badge>
+          {sourceCount ? <Badge variant="outline">{t('settings.history.row.sources', { count: sourceCount })}</Badge> : null}
+        </div>
+      </summary>
+
+      <div className="settings-content-stack">
+        {item.messages.map((message) => (
+          <div key={message.id} className="settings-engine-item">
+            <div>
+              <div className="settings-item-title">{message.role === 'user' ? 'User' : 'AI'}</div>
+              <div className="settings-item-desc" style={{ whiteSpace: 'pre-wrap' }}>
+                {message.text}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+const getSectionTitle = (section: SettingsSection, t: (key: I18nKey, params?: Record<string, string | number>) => string) => {
   if (section === 'translation') {
-    return '翻译能力配置'
+    return t('settings.title.translation')
   }
 
   if (section === 'history') {
-    return '搜索历史管理'
+    return t('settings.title.history')
   }
 
-  return 'AI 预留配置'
+  return t('settings.title.general')
 }
 
-const formatHistoryTime = (timestamp?: number) => {
+const formatHistoryTime = (timestamp: number | undefined, locale: AppLanguage) => {
   if (!timestamp) {
-    return '暂无'
+    return locale === 'en' ? 'None' : '暂无'
   }
 
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(locale, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -602,5 +909,5 @@ const getErrorMessage = (error: unknown) => {
     return error.message
   }
 
-  return '请稍后重试'
+  return 'Please try again later'
 }

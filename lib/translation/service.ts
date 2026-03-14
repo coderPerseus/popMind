@@ -6,11 +6,11 @@ import {
   resolveTranslationQueryMode,
   translationEngineOrder,
 } from '@/lib/translation/shared'
-import { translationStore } from '@/lib/translation/store'
+import { capabilityService } from '@/lib/capability/service'
 import { normalizeTextForTranslation } from '@/lib/translation/text-normalizer'
 import type { TranslateInput, TranslationEngineId, TranslationQueryMode, TranslationRequest, TranslationResult } from '@/lib/translation/types'
 
-const resolveEngineId = (settings: Awaited<ReturnType<typeof translationStore.getSettings>>, preferred?: TranslationEngineId) => {
+const resolveEngineId = (settings: Awaited<ReturnType<typeof capabilityService.getSettings>>, preferred?: TranslationEngineId) => {
   if (preferred && settings.enabledEngines[preferred]) {
     return preferred
   }
@@ -35,7 +35,7 @@ const resolveAutoTargetLanguage = ({
   settings,
 }: {
   detectedSourceLanguage?: string
-  settings: Awaited<ReturnType<typeof translationStore.getSettings>>
+  settings: Awaited<ReturnType<typeof capabilityService.getSettings>>
 }) => {
   if (detectedSourceLanguage && isSameLanguage(detectedSourceLanguage, settings.firstLanguage)) {
     return settings.secondLanguage
@@ -51,7 +51,7 @@ const resolveWordTargetLanguage = ({
 }: {
   queryMode: TranslationQueryMode
   targetLanguage: string
-  settings: Awaited<ReturnType<typeof translationStore.getSettings>>
+  settings: Awaited<ReturnType<typeof capabilityService.getSettings>>
 }) => {
   if (queryMode !== 'word') {
     return targetLanguage
@@ -68,17 +68,17 @@ const resolveWordTargetLanguage = ({
   return targetLanguage
 }
 
-const isWordProviderAvailable = (settings: Awaited<ReturnType<typeof translationStore.getSettings>>) => {
+const isWordProviderAvailable = (settings: Awaited<ReturnType<typeof capabilityService.getSettings>>) => {
   return settings.enabledEngines.youdao && translationProviders.youdao.isConfigured(settings)
 }
 
 export class TranslationService {
   async getSettings() {
-    return translationStore.getSettings()
+    return capabilityService.getSettings()
   }
 
-  async updateSettings(patch: Parameters<typeof translationStore.updateSettings>[0]) {
-    return translationStore.updateSettings(patch)
+  async updateSettings(patch: Parameters<typeof capabilityService.updateSettings>[0]) {
+    return capabilityService.updateSettings(patch)
   }
 
   async translate(input: TranslateInput): Promise<TranslationResult> {

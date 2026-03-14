@@ -8,19 +8,19 @@ const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat'
 
 const getDeepSeekClient = (settings: TranslationSettings) => {
   return createDeepSeek({
-    apiKey: settings.ai.deepseekApiKey,
-    baseURL: settings.ai.deepseekBaseUrl?.trim() || DEFAULT_DEEPSEEK_BASE_URL,
+    apiKey: settings.aiService.providers.deepseek.apiKey,
+    baseURL: settings.aiService.providers.deepseek.baseURL?.trim() || DEFAULT_DEEPSEEK_BASE_URL,
   })
 }
 
 const getDeepSeekModelId = (settings: TranslationSettings) => {
-  return settings.ai.deepseekModel?.trim() || DEFAULT_DEEPSEEK_MODEL
+  return settings.aiService.providers.deepseek.model?.trim() || DEFAULT_DEEPSEEK_MODEL
 }
 
 export const deepseekProvider: TranslationProvider = {
   id: 'deepseek',
   isConfigured(settings) {
-    return Boolean(settings.ai.deepseekApiKey.trim())
+    return Boolean(settings.aiService.providers.deepseek.apiKey.trim())
   },
   async detectLanguage(text, settings) {
     const client = getDeepSeekClient(settings)

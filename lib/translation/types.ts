@@ -1,17 +1,9 @@
+import type { CapabilitySettings, CapabilitySettingsPatch } from '@/lib/capability/types'
+
 export type TranslationEngineId = 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek'
 export type TranslationQueryMode = 'text' | 'word'
 
-export interface TranslationSettings {
-  enabledEngines: Record<TranslationEngineId, boolean>
-  firstLanguage: string
-  secondLanguage: string
-  defaultSourceLanguage: 'auto' | string
-  ai: {
-    deepseekApiKey: string
-    deepseekBaseUrl?: string
-    deepseekModel?: string
-  }
-}
+export type TranslationSettings = CapabilitySettings
 
 export interface TranslationRequest {
   text: string
@@ -85,13 +77,7 @@ export interface TranslationProvider {
   translate(request: TranslationRequest, settings: TranslationSettings): Promise<TranslationResult>
 }
 
-export interface TranslationSettingsPatch {
-  enabledEngines?: Partial<Record<TranslationEngineId, boolean>>
-  firstLanguage?: string
-  secondLanguage?: string
-  defaultSourceLanguage?: 'auto' | string
-  ai?: Partial<TranslationSettings['ai']>
-}
+export type TranslationSettingsPatch = CapabilitySettingsPatch
 
 export interface TranslationLanguageOption {
   code: string

@@ -26,6 +26,7 @@ export const translationLanguages: TranslationLanguageOption[] = [
 ]
 
 export const defaultTranslationSettings: TranslationSettings = {
+  appLanguage: 'zh-CN',
   enabledEngines: {
     google: true,
     deepl: false,
@@ -36,10 +37,44 @@ export const defaultTranslationSettings: TranslationSettings = {
   firstLanguage: 'en',
   secondLanguage: 'zh-CN',
   defaultSourceLanguage: 'auto',
-  ai: {
-    deepseekApiKey: '',
-    deepseekBaseUrl: '',
-    deepseekModel: '',
+  aiService: {
+    activeProvider: null,
+    providers: {
+      openai: {
+        apiKey: '',
+        baseURL: '',
+        model: '',
+      },
+      anthropic: {
+        apiKey: '',
+        baseURL: '',
+        model: '',
+      },
+      google: {
+        apiKey: '',
+        baseURL: '',
+        model: '',
+      },
+      kimi: {
+        apiKey: '',
+        baseURL: 'https://api.moonshot.cn/v1',
+        model: '',
+      },
+      deepseek: {
+        apiKey: '',
+        baseURL: 'https://api.deepseek.com',
+        model: 'deepseek-chat',
+      },
+    },
+  },
+  webSearch: {
+    enabled: false,
+    providers: {
+      tavily: { apiKey: '' },
+      serper: { apiKey: '' },
+      brave: { apiKey: '' },
+      jina: { apiKey: '' },
+    },
   },
 }
 
@@ -121,9 +156,57 @@ export const mergeSettings = (
       ...previous.enabledEngines,
       ...patch.enabledEngines,
     },
-    ai: {
-      ...previous.ai,
-      ...patch.ai,
+    aiService: {
+      ...previous.aiService,
+      ...patch.aiService,
+      providers: {
+        ...previous.aiService.providers,
+        ...patch.aiService?.providers,
+        openai: {
+          ...previous.aiService.providers.openai,
+          ...patch.aiService?.providers?.openai,
+        },
+        anthropic: {
+          ...previous.aiService.providers.anthropic,
+          ...patch.aiService?.providers?.anthropic,
+        },
+        google: {
+          ...previous.aiService.providers.google,
+          ...patch.aiService?.providers?.google,
+        },
+        kimi: {
+          ...previous.aiService.providers.kimi,
+          ...patch.aiService?.providers?.kimi,
+        },
+        deepseek: {
+          ...previous.aiService.providers.deepseek,
+          ...patch.aiService?.providers?.deepseek,
+        },
+      },
+    },
+    webSearch: {
+      ...previous.webSearch,
+      ...patch.webSearch,
+      providers: {
+        ...previous.webSearch.providers,
+        ...patch.webSearch?.providers,
+        tavily: {
+          ...previous.webSearch.providers.tavily,
+          ...patch.webSearch?.providers?.tavily,
+        },
+        serper: {
+          ...previous.webSearch.providers.serper,
+          ...patch.webSearch?.providers?.serper,
+        },
+        brave: {
+          ...previous.webSearch.providers.brave,
+          ...patch.webSearch?.providers?.brave,
+        },
+        jina: {
+          ...previous.webSearch.providers.jina,
+          ...patch.webSearch?.providers?.jina,
+        },
+      },
     },
   }
 }

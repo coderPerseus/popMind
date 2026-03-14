@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { ArrowUpRight, Search, Settings2 } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import { useI18n } from '@/app/i18n'
 import { parseMainSearchCommand } from '@/app/components/home/query-command'
 import { useTranslateCommand } from '@/app/components/home/use-translate-command'
 import { TranslateCard } from '@/app/components/home/TranslateCard'
@@ -64,6 +65,7 @@ const matchesSlashAliasQuery = (query: string, values: string[]) => {
 }
 
 export function MainSearch() {
+  const { t } = useI18n()
   const { onMainWindowReset, webOpenUrl, windowDismissTopmost, windowShowRoute } = useConveyor('window')
   const search = useConveyor('search')
   const [query, setQuery] = useState('')
@@ -148,12 +150,16 @@ export function MainSearch() {
   }, [])
 
   useEffect(() => {
-    return onMainWindowReset(() => {
+    const unsubscribe = onMainWindowReset(() => {
       setQuery('')
       setActiveIndex(0)
       setIsLaunching(false)
       resetTranslate()
     })
+
+    return () => {
+      unsubscribe()
+    }
   }, [onMainWindowReset, resetTranslate])
 
   useEffect(() => {
@@ -281,7 +287,7 @@ export function MainSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(event) => void handleInputKeyDown(event)}
-          placeholder="输入问题，或使用 /chatgpt /claude /tr …"
+          placeholder={t('main.placeholder')}
           spellCheck={false}
           autoComplete="off"
         />
@@ -292,7 +298,7 @@ export function MainSearch() {
               setQuery('')
               inputRef.current?.focus()
             }}
-            aria-label="清空"
+            aria-label={t('main.clear')}
           >
             ×
           </button>
@@ -430,7 +436,7 @@ export function MainSearch() {
         ) : (
           <div className="ms-empty">
             <div className="ms-empty-title">没有匹配结果</div>
-            <div className="ms-empty-desc">试试输入 `/chatgpt`、`/claude`，或者 `/tr 需要翻译的文本`。</div>
+            <div className="ms-empty-desc">{t('main.empty')}</div>
           </div>
         )}
       </div>

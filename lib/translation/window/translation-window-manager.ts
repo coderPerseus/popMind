@@ -1,4 +1,5 @@
 import { clipboard, ipcMain, screen } from 'electron'
+import { translateMessage } from '@/lib/i18n/shared'
 import {
   DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT,
   getTranslationWindowMinHeight,
@@ -125,8 +126,8 @@ export class TranslationWindowManager {
       sourceText: payload.text,
       translatedText: '',
       wordEntry: undefined,
-      loadingTitle: '翻译中',
-      loadingDescription: '正在获取译文，请稍候…',
+      loadingTitle: translateMessage(settings.appLanguage, 'translation.loading.title'),
+      loadingDescription: translateMessage(settings.appLanguage, 'translation.loading.desc'),
       languages: translationLanguages,
     }
 
@@ -367,8 +368,8 @@ export class TranslationWindowManager {
       wordEntry: undefined,
       errorMessage: undefined,
       detectedSourceLanguage: undefined,
-      loadingTitle: '翻译中',
-      loadingDescription: '正在获取译文，请稍候…',
+      loadingTitle: translateMessage(settings.appLanguage, 'translation.loading.title'),
+      loadingDescription: translateMessage(settings.appLanguage, 'translation.loading.desc'),
     }
     this.sendState()
 
@@ -407,7 +408,8 @@ export class TranslationWindowManager {
         return
       }
 
-      const message = error instanceof Error ? error.message : 'Translation failed'
+      const message =
+        error instanceof Error ? error.message : translateMessage(settings.appLanguage, 'translation.error.generic')
       this.logger.error('[TranslationWindowManager] translation failed', error)
       this.state = {
         ...currentState,

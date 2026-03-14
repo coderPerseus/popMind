@@ -1,4 +1,4 @@
-export type SurfaceId = 'bubble' | 'translation' | 'main'
+export type SurfaceId = 'bubble' | 'translation' | 'selection-chat' | 'main'
 
 export type DismissReason =
   | 'outside-pointer'

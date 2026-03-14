@@ -1,41 +1,8 @@
 import { z } from 'zod'
+import { capabilityRuntimeSchema } from './capability-schema'
 
 const engineIds = z.enum(['google', 'deepl', 'bing', 'youdao', 'deepseek'])
 const queryModeSchema = z.enum(['text', 'word'])
-
-const enabledEnginesSchema = z.object({
-  google: z.boolean(),
-  deepl: z.boolean(),
-  bing: z.boolean(),
-  youdao: z.boolean(),
-  deepseek: z.boolean(),
-})
-
-const translationSettingsSchema = z.object({
-  enabledEngines: enabledEnginesSchema,
-  firstLanguage: z.string(),
-  secondLanguage: z.string(),
-  defaultSourceLanguage: z.string(),
-  ai: z.object({
-    deepseekApiKey: z.string(),
-    deepseekBaseUrl: z.string().optional(),
-    deepseekModel: z.string().optional(),
-  }),
-})
-
-const translationSettingsPatchSchema = z.object({
-  enabledEngines: enabledEnginesSchema.partial().optional(),
-  firstLanguage: z.string().optional(),
-  secondLanguage: z.string().optional(),
-  defaultSourceLanguage: z.string().optional(),
-  ai: z
-    .object({
-      deepseekApiKey: z.string().optional(),
-      deepseekBaseUrl: z.string().optional(),
-      deepseekModel: z.string().optional(),
-    })
-    .optional(),
-})
 
 const wordEntrySchema = z.object({
   headword: z.string(),
@@ -85,11 +52,11 @@ const translationResultSchema = z.object({
 export const translationIpcSchema = {
   'translation-get-settings': {
     args: z.tuple([]),
-    return: translationSettingsSchema,
+    return: capabilityRuntimeSchema.capabilitySettingsSchema,
   },
   'translation-update-settings': {
-    args: z.tuple([translationSettingsPatchSchema]),
-    return: translationSettingsSchema,
+    args: z.tuple([capabilityRuntimeSchema.capabilitySettingsPatchSchema]),
+    return: capabilityRuntimeSchema.capabilitySettingsSchema,
   },
   'translation-translate': {
     args: z.tuple([

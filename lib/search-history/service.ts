@@ -7,7 +7,10 @@ import { app, dialog } from 'electron'
 import type {
   SearchHistoryClearResult,
   SearchHistoryEntry,
+  ExplainHistoryEntry,
+  ExplainHistoryRecordInput,
   SearchHistoryExportResult,
+  HistoryDataType,
   SearchHistoryMetadata,
   SearchHistoryRecordInput,
   SearchHistorySummary,
@@ -15,6 +18,9 @@ import type {
 
 const SEARCH_HISTORY_RETENTION_DAYS = 365
 const SEARCH_HISTORY_RETENTION_MS = SEARCH_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000
+const EXPLAIN_HISTORY_RETENTION_DAYS = 180
+const EXPLAIN_HISTORY_RETENTION_MS = EXPLAIN_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000
+const EXPLAIN_HISTORY_MAX_COUNT = 300
 
 type SearchHistoryRow = {
   id: string
@@ -28,7 +34,18 @@ type SearchHistoryRow = {
 
 type SearchHistorySummaryRow = {
   total_count: number
-  last_searched_at: number | null
+  last_activity_at: number | null
+}
+
+type ExplainHistoryRow = {
+  id: string
+  selection_text: string
+  messages_json: string
+  ai_provider: string
+  web_search_provider: string | null
+  language: string
+  created_at: number
+  updated_at: number
 }
 
 const parseMetadata = (raw: string | null): SearchHistoryMetadata | undefined => {
@@ -53,6 +70,17 @@ const mapEntryRow = (row: SearchHistoryRow): SearchHistoryEntry => ({
   createdAt: row.created_at,
 })
 
+const mapExplainRow = (row: ExplainHistoryRow): ExplainHistoryEntry => ({
+  id: row.id,
+  selectionText: row.selection_text,
+  messages: JSON.parse(row.messages_json),
+  aiProvider: row.ai_provider,
+  webSearchProvider: row.web_search_provider ?? undefined,
+  language: row.language,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
 export class SearchHistoryService {
   private database: DatabaseSync | null = null
 
@@ -74,6 +102,20 @@ export class SearchHistoryService {
 
       CREATE INDEX IF NOT EXISTS idx_search_history_created_at ON search_history(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_search_history_kind ON search_history(kind);
+
+      CREATE TABLE IF NOT EXISTS explain_history (
+        id TEXT PRIMARY KEY,
+        selection_text TEXT NOT NULL,
+        messages_json TEXT NOT NULL,
+        ai_provider TEXT NOT NULL,
+        web_search_provider TEXT,
+        language TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_explain_history_created_at ON explain_history(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_explain_history_updated_at ON explain_history(updated_at DESC);
     `)
   }
 
@@ -91,8 +133,30 @@ export class SearchHistoryService {
   }
 
   private cleanupExpiredEntries(database: DatabaseSync = this.getDatabase()) {
-    const threshold = Date.now() - SEARCH_HISTORY_RETENTION_MS
-    database.prepare('DELETE FROM search_history WHERE created_at < ?').run(threshold)
+    const searchThreshold = Date.now() - SEARCH_HISTORY_RETENTION_MS
+    const explainThreshold = Date.now() - EXPLAIN_HISTORY_RETENTION_MS
+
+    database.prepare('DELETE FROM search_history WHERE created_at < ?').run(searchThreshold)
+    database.prepare('DELETE FROM explain_history WHERE updated_at < ?').run(explainThreshold)
+    const explainOverflow = (
+      database.prepare('SELECT COUNT(*) AS count FROM explain_history').get() as { count: number }
+    ).count
+
+    if (explainOverflow > EXPLAIN_HISTORY_MAX_COUNT) {
+      const overage = explainOverflow - EXPLAIN_HISTORY_MAX_COUNT
+      database
+        .prepare(
+          `
+          DELETE FROM explain_history
+          WHERE id IN (
+            SELECT id FROM explain_history
+            ORDER BY updated_at ASC
+            LIMIT ?
+          )
+        `
+        )
+        .run(overage)
+    }
   }
 
   private ensureStorageDirectory() {
@@ -112,18 +176,41 @@ export class SearchHistoryService {
     return rows.map(mapEntryRow)
   }
 
-  getSummary(): SearchHistorySummary {
+  private readExplainEntries(limit = 100) {
     const database = this.getDatabase()
     this.cleanupExpiredEntries(database)
 
-    const row = database
-      .prepare('SELECT COUNT(*) AS total_count, MAX(created_at) AS last_searched_at FROM search_history')
-      .get() as SearchHistorySummaryRow
+    const rows = database
+      .prepare(
+        `
+        SELECT id, selection_text, messages_json, ai_provider, web_search_provider, language, created_at, updated_at
+        FROM explain_history
+        ORDER BY updated_at DESC
+        LIMIT ?
+      `
+      )
+      .all(limit) as ExplainHistoryRow[]
+
+    return rows.map(mapExplainRow)
+  }
+
+  getSummary(type: HistoryDataType = 'search'): SearchHistorySummary {
+    const database = this.getDatabase()
+    this.cleanupExpiredEntries(database)
+
+    const row =
+      type === 'search'
+        ? (database
+            .prepare('SELECT COUNT(*) AS total_count, MAX(created_at) AS last_activity_at FROM search_history')
+            .get() as SearchHistorySummaryRow)
+        : (database
+            .prepare('SELECT COUNT(*) AS total_count, MAX(updated_at) AS last_activity_at FROM explain_history')
+            .get() as SearchHistorySummaryRow)
 
     return {
       totalCount: Number(row.total_count ?? 0),
-      retentionDays: SEARCH_HISTORY_RETENTION_DAYS,
-      lastSearchedAt: row.last_searched_at ? Number(row.last_searched_at) : undefined,
+      retentionDays: type === 'search' ? SEARCH_HISTORY_RETENTION_DAYS : EXPLAIN_HISTORY_RETENTION_DAYS,
+      lastActivityAt: row.last_activity_at ? Number(row.last_activity_at) : undefined,
       storagePath: this.getDatabaseFilePath(),
     }
   }
@@ -161,19 +248,70 @@ export class SearchHistoryService {
         Date.now(),
       )
 
-    return this.getSummary()
+    return this.getSummary('search')
   }
 
-  async exportHistory(): Promise<SearchHistoryExportResult> {
+  async recordExplain(input: ExplainHistoryRecordInput) {
+    const selectionText = input.selectionText.trim()
+    if (!selectionText || input.messages.length === 0) {
+      return this.getSummary('explain')
+    }
+
+    const database = this.getDatabase()
+    this.cleanupExpiredEntries(database)
+    const now = Date.now()
+
+    database
+      .prepare(
+        `
+        INSERT INTO explain_history (
+          id,
+          selection_text,
+          messages_json,
+          ai_provider,
+          web_search_provider,
+          language,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          selection_text = excluded.selection_text,
+          messages_json = excluded.messages_json,
+          ai_provider = excluded.ai_provider,
+          web_search_provider = excluded.web_search_provider,
+          language = excluded.language,
+          updated_at = excluded.updated_at
+      `
+      )
+      .run(
+        input.id,
+        selectionText,
+        JSON.stringify(input.messages),
+        input.aiProvider,
+        input.webSearchProvider ?? null,
+        input.language,
+        now,
+        now,
+      )
+
+    this.cleanupExpiredEntries(database)
+    return this.getSummary('explain')
+  }
+
+  listHistory(type: HistoryDataType, limit = 100) {
+    return type === 'search' ? this.readEntries().slice(0, limit) : this.readExplainEntries(limit)
+  }
+
+  async exportHistory(type: HistoryDataType = 'search'): Promise<SearchHistoryExportResult> {
     this.getDatabase()
 
     const defaultPath = join(
       app.getPath('downloads'),
-      `popmind-search-history-${new Date().toISOString().slice(0, 10)}.json`,
+      `popmind-${type}-history-${new Date().toISOString().slice(0, 10)}.json`,
     )
 
     const { canceled, filePath } = await dialog.showSaveDialog({
-      title: '导出搜索历史',
+      title: type === 'search' ? '导出搜索历史' : '导出解释历史',
       defaultPath,
       filters: [
         { name: 'JSON', extensions: ['json'] },
@@ -187,14 +325,15 @@ export class SearchHistoryService {
       }
     }
 
-    const entries = this.readEntries()
+    const entries = type === 'search' ? this.readEntries() : this.readExplainEntries(1000)
 
     await writeFile(
       filePath,
       JSON.stringify(
         {
           exportedAt: new Date().toISOString(),
-          retentionDays: SEARCH_HISTORY_RETENTION_DAYS,
+          type,
+          retentionDays: type === 'search' ? SEARCH_HISTORY_RETENTION_DAYS : EXPLAIN_HISTORY_RETENTION_DAYS,
           items: entries,
         },
         null,
@@ -210,8 +349,11 @@ export class SearchHistoryService {
     }
   }
 
-  async clearHistory(): Promise<SearchHistoryClearResult> {
-    const result = this.getDatabase().prepare('DELETE FROM search_history').run()
+  async clearHistory(type: HistoryDataType = 'search'): Promise<SearchHistoryClearResult> {
+    const result =
+      type === 'search'
+        ? this.getDatabase().prepare('DELETE FROM search_history').run()
+        : this.getDatabase().prepare('DELETE FROM explain_history').run()
     this.getDatabase().exec('VACUUM')
 
     return {

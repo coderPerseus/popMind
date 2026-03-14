@@ -15,7 +15,9 @@ export class WindowApi extends ConveyorApi {
   onMainWindowReset = (handler: () => void) => {
     const listener = () => handler()
     this.renderer.on(MainWindowChannel.ResetState, listener)
-    return () => this.renderer.removeListener(MainWindowChannel.ResetState, listener)
+    return () => {
+      this.renderer.removeListener(MainWindowChannel.ResetState, listener)
+    }
   }
 
   // Generate web methods

@@ -119,8 +119,14 @@ const registerMainWindowSurface = (window: BrowserWindow) => {
         return true
       }
 
+      // The settings route shares the same BrowserWindow instance, but it must not
+      // inherit the auto-dismiss behavior used by the home search surface.
+      if (currentRoute !== 'home') {
+        return false
+      }
+
       if (context.reason === 'blur') {
-        return currentRoute === 'home'
+        return true
       }
 
       if (window.isFocused()) {
@@ -148,6 +154,10 @@ const attachMainWindowLifecycle = (window: BrowserWindow) => {
 
   window.on('blur', () => {
     if (isQuitting) {
+      return
+    }
+
+    if (currentRoute !== 'home') {
       return
     }
 

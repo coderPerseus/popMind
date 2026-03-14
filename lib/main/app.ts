@@ -4,6 +4,7 @@ import appIcon from '@/resources/build/icon.png?asset'
 import { registerResourcesProtocol } from './protocols'
 import { registerWindowHandlers } from '@/lib/conveyor/handlers/window-handler'
 import { registerAppHandlers } from '@/lib/conveyor/handlers/app-handler'
+import { registerCapabilityHandlers } from '@/lib/conveyor/handlers/capability-handler'
 
 export type MainWindowRoute = 'home' | 'settings'
 
@@ -94,6 +95,7 @@ export function createAppWindow(): BrowserWindow {
   // Register IPC events for the main window.
   registerWindowHandlers(mainWindow)
   registerAppHandlers(app)
+  registerCapabilityHandlers()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

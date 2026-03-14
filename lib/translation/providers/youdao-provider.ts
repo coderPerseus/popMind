@@ -334,7 +334,7 @@ const parseWordDefinitions = (payload: YoudaoDictionaryPayload): TranslationWord
         meaning,
       }
     })
-    .filter((item): item is TranslationWordDefinition => Boolean(item))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
 }
 
 const parseWordForms = (payload: YoudaoDictionaryPayload): TranslationWordForm[] => {

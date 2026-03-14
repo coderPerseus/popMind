@@ -454,6 +454,19 @@
   line-height: 1.5;
 }
 
+.settings-status-message {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-status-message.is-success {
+  color: rgb(22 101 52);
+}
+
+.settings-status-message.is-error {
+  color: rgb(185 28 28);
+}
+
 /* Theme selector */
 .settings-theme-grid {
   display: grid;
@@ -725,6 +738,14 @@
 
 .dark .settings-history-message {
   color: rgba(203, 213, 225, 0.72);
+}
+
+.dark .settings-status-message.is-success {
+  color: rgb(134 239 172);
+}
+
+.dark .settings-status-message.is-error {
+  color: rgb(252 165 165);
 }
 
 .dark .settings-surface>.settings-row+.settings-row {

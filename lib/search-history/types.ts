@@ -1,4 +1,5 @@
 export type SearchHistoryEntryKind = 'plugin' | 'command'
+export type HistoryDataType = 'search' | 'explain'
 
 export type SearchHistoryMetadata = {
   pluginType?: string
@@ -25,7 +26,7 @@ export type SearchHistoryEntry = SearchHistoryRecordInput & {
 export type SearchHistorySummary = {
   totalCount: number
   retentionDays: number
-  lastSearchedAt?: number
+  lastActivityAt?: number
   storagePath: string
 }
 
@@ -38,3 +39,37 @@ export type SearchHistoryExportResult = {
 export type SearchHistoryClearResult = {
   deletedCount: number
 }
+
+export type ExplainMessageSource = {
+  title: string
+  url: string
+  snippet: string
+  provider: string
+}
+
+export type ExplainHistoryMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  createdAt: number
+  sources?: ExplainMessageSource[]
+  errorMessage?: string
+}
+
+export type ExplainHistoryRecordInput = {
+  id: string
+  selectionText: string
+  messages: ExplainHistoryMessage[]
+  aiProvider: string
+  webSearchProvider?: string
+  language: string
+}
+
+export type ExplainHistoryEntry = ExplainHistoryRecordInput & {
+  id: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type SearchHistoryListItem = SearchHistoryEntry
+export type ExplainHistoryListItem = ExplainHistoryEntry

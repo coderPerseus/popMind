@@ -3,6 +3,7 @@ import { Button } from '@/app/components/ui/button'
 import { Select } from '@/app/components/ui/select'
 import type { TranslateCardState } from '@/app/components/home/use-translate-command'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
+import { useI18n } from '@/app/i18n'
 import { getLanguageLabel, translationEngineLabels } from '@/lib/translation/shared'
 import type { TranslationEngineId, TranslationLanguageOption } from '@/lib/translation/types'
 
@@ -37,19 +38,26 @@ export function TranslateCard({
   onCopy,
   onRetranslate,
 }: TranslateCardProps) {
+  const { language } = useI18n()
   const isWordMode = cardState.status === 'success' && cardState.queryMode === 'word'
   const isLoading = cardState.status === 'loading'
   const translatedText = cardState.status === 'success' ? cardState.translatedText : ''
   const translatedContent =
     !command.text && cardState.status === 'idle'
-      ? '输入内容后，这里会显示翻译结果。'
+      ? language === 'en'
+        ? 'Translation output will appear here after you enter content.'
+        : '输入内容后，这里会显示翻译结果。'
       : cardState.status === 'loading'
-        ? '正在翻译，请稍候…'
+        ? language === 'en'
+          ? 'Translating…'
+          : '正在翻译，请稍候…'
         : cardState.status === 'error'
           ? cardState.error
           : cardState.status === 'success'
             ? cardState.translatedText
-            : '继续输入要翻译的内容'
+            : language === 'en'
+              ? 'Keep typing text to translate'
+              : '继续输入要翻译的内容'
 
   return (
     <div className="ms-command-stack">
@@ -93,15 +101,15 @@ export function TranslateCard({
         <div className="ms-translate-command-panels">
           <section className="ms-translate-command-panel">
             <div className="ms-translate-command-panel-head">
-              <span className="ms-translate-command-panel-label">译文</span>
+              <span className="ms-translate-command-panel-label">{language === 'en' ? 'Translation' : '译文'}</span>
               {isLoading ? (
                 <span className="ms-translate-command-status">
                   <LoaderCircle size={13} className="ms-translate-command-spin" />
-                  翻译中
+                  {language === 'en' ? 'Translating' : '翻译中'}
                 </span>
               ) : cardState.status === 'success' && cardState.detectedSourceLanguage ? (
                 <span className="ms-translate-command-status">
-                  检测为 {getLanguageLabel(cardState.detectedSourceLanguage)}
+                  {language === 'en' ? 'Detected' : '检测为'} {getLanguageLabel(cardState.detectedSourceLanguage)}
                 </span>
               ) : null}
             </div>
@@ -144,7 +152,7 @@ export function TranslateCard({
               disabled={!translatedText || isLoading}
             >
               {copied ? <Check size={13} /> : <Copy size={13} />}
-              <span>{copied ? '已复制' : '复制'}</span>
+              <span>{copied ? (language === 'en' ? 'Copied' : '已复制') : language === 'en' ? 'Copy' : '复制'}</span>
             </Button>
 
             <Button
@@ -155,7 +163,7 @@ export function TranslateCard({
               disabled={isLoading || !command.text}
             >
               <RefreshCw size={13} className={isLoading ? 'ms-translate-command-spin' : ''} />
-              <span>重新翻译</span>
+              <span>{language === 'en' ? 'Translate Again' : '重新翻译'}</span>
             </Button>
           </div>
         </div>

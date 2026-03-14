@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { windowIpcSchema } from './window-schema'
 import { appIpcSchema } from './app-schema'
+import { capabilityIpcSchema } from './capability-schema'
 import { translationIpcSchema } from './translation-schema'
 import { searchIpcSchema } from './search-schema'
 
@@ -8,6 +9,7 @@ import { searchIpcSchema } from './search-schema'
 export const ipcSchemas = {
   ...windowIpcSchema,
   ...appIpcSchema,
+  ...capabilityIpcSchema,
   ...translationIpcSchema,
   ...searchIpcSchema,
 } as const

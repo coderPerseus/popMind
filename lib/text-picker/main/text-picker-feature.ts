@@ -2,6 +2,9 @@ import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } fr
 import appLogo from '@/app/assets/logo.png?asset'
 import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-service'
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
+import { capabilityService } from '@/lib/capability/service'
+import { formatLanguageLabel } from '@/lib/i18n/shared'
+import { SelectionChatWindowManager } from '@/lib/selection-chat/window/selection-chat-window-manager'
 import { TranslationWindowManager } from '@/lib/translation/window/translation-window-manager'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
 import type { PickedInfo } from '@/lib/text-picker/shared'
@@ -52,9 +55,11 @@ export class TextPickerFeature {
   private bubbleWindow: SelectionBubbleWindow | null = null
   private manager: TextPickerManager | null = null
   private translationWindowManager: TranslationWindowManager | null = null
+  private selectionChatWindowManager: SelectionChatWindowManager | null = null
   private screenshotTranslationService: ScreenshotTranslationService | null = null
   private screenshotSearchService: ScreenshotSearchService | null = null
   private tray: Tray | null = null
+  private detachCapabilityListener: (() => void) | null = null
   private readonly commandContexts = new Map<string, CommandContextSnapshot>()
 
   constructor(
@@ -65,6 +70,14 @@ export class TextPickerFeature {
   async initialize() {
     this.bubbleWindow = new SelectionBubbleWindow(this.bridge, this.logger)
     this.translationWindowManager = new TranslationWindowManager(this.bridge, this.logger, {
+      noteInteraction: (durationMs) => {
+        this.manager?.noteBubbleInteraction(durationMs)
+      },
+      setDragging: (isDragging) => {
+        this.manager?.setBubbleDragging(isDragging)
+      },
+    })
+    this.selectionChatWindowManager = new SelectionChatWindowManager(this.bridge, this.logger, {
       noteInteraction: (durationMs) => {
         this.manager?.noteBubbleInteraction(durationMs)
       },
@@ -85,7 +98,8 @@ export class TextPickerFeature {
           source: 'bubble',
         })
       },
-      isSecondaryFloatingVisible: () => this.translationWindowManager?.isVisible() ?? false,
+      isSecondaryFloatingVisible: () =>
+        (this.translationWindowManager?.isVisible() ?? false) || (this.selectionChatWindowManager?.isVisible() ?? false),
       isEventInsideSecondaryFloating: (event) => {
         const x = Number(event.x)
         const y = Number(event.y)
@@ -94,11 +108,17 @@ export class TextPickerFeature {
           return false
         }
 
-        return this.translationWindowManager?.containsPoint(x, y) ?? false
+        return (
+          (this.translationWindowManager?.containsPoint(x, y) ?? false) ||
+          (this.selectionChatWindowManager?.containsPoint(x, y) ?? false)
+        )
       },
       hideSecondaryFloating: () => {
         if (!this.translationWindowManager?.isPinned()) {
           this.translationWindowManager?.hide()
+        }
+        if (!this.selectionChatWindowManager?.isPinned()) {
+          this.selectionChatWindowManager?.hide()
         }
       },
       dispatchAutoDismiss: (context) => {
@@ -109,6 +129,11 @@ export class TextPickerFeature {
     this.registerAutoDismissSurfaces()
     this.createStatusTray()
     this.setupIpc()
+    const settings = await capabilityService.getSettings()
+    this.manager?.setLanguage(settings.appLanguage)
+    this.detachCapabilityListener = capabilityService.subscribe((nextSettings) => {
+      this.manager?.setLanguage(nextSettings.appLanguage)
+    })
 
     if (!this.bridge.isSupported) {
       this.logger.warn('[TextPickerFeature] platform not supported, text picker disabled')
@@ -170,14 +195,19 @@ export class TextPickerFeature {
 
     this.translationWindowManager?.dispose()
     this.translationWindowManager = null
+    this.selectionChatWindowManager?.dispose()
+    this.selectionChatWindowManager = null
     this.screenshotTranslationService = null
     this.screenshotSearchService = null
+    this.detachCapabilityListener?.()
+    this.detachCapabilityListener = null
 
     this.tray?.destroy()
     this.tray = null
 
     autoDismissController.unregister('bubble')
     autoDismissController.unregister('translation')
+    autoDismissController.unregister('selection-chat')
     this.bubbleWindow?.destroy()
     this.bubbleWindow = null
   }
@@ -264,7 +294,7 @@ export class TextPickerFeature {
         }
 
         if (context.reason === 'surface-opened') {
-          return context.target === 'translation' || context.target === 'main'
+          return context.target === 'translation' || context.target === 'selection-chat' || context.target === 'main'
         }
 
         if (context.reason !== 'outside-pointer') {
@@ -310,6 +340,48 @@ export class TextPickerFeature {
 
         if (context.reason === 'surface-opened') {
           return context.target !== 'translation'
+        }
+
+        if (context.reason !== 'outside-pointer') {
+          return false
+        }
+
+        const { x, y } = context
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return false
+        }
+
+        return !manager.containsPoint(x!, y!)
+      },
+    })
+
+    autoDismissController.register({
+      id: 'selection-chat',
+      priority: 320,
+      isVisible: () => this.selectionChatWindowManager?.isVisible() ?? false,
+      hide: () => {
+        this.selectionChatWindowManager?.hide()
+      },
+      shouldDismiss: (context) => {
+        const manager = this.selectionChatWindowManager
+        if (!manager?.isVisible()) {
+          return false
+        }
+
+        if (context.reason === 'escape') {
+          return true
+        }
+
+        if (manager.isPinned()) {
+          return false
+        }
+
+        if (context.reason === 'selection-changed' || context.reason === 'dismiss-scene') {
+          return true
+        }
+
+        if (context.reason === 'surface-opened') {
+          return context.target !== 'selection-chat'
         }
 
         if (context.reason !== 'outside-pointer') {
@@ -497,7 +569,30 @@ export class TextPickerFeature {
           return { ok: true, commandId }
         }
 
-        const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text)
+        if (commandId === SystemCommand.Explain) {
+          const settings = await capabilityService.getSettings()
+          if (!settings.aiService.activeProvider || !settings.aiService.providers[settings.aiService.activeProvider].apiKey.trim()) {
+            const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text, settings.appLanguage)
+            if (!targetUrl) {
+              return { ok: false, reason: 'missing_target_url' }
+            }
+
+            this.manager?.hideBubble()
+            await shell.openExternal(targetUrl)
+            return { ok: true, commandId }
+          }
+
+          await this.selectionChatWindowManager?.open({
+            text: pickedInfo.text,
+            selectionId: pickedInfo.selectionId,
+            sourceAppId: pickedInfo.appId,
+            anchor: commandContext.anchor,
+          })
+          return { ok: true, commandId }
+        }
+
+        const settings = await capabilityService.getSettings()
+        const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text, settings.appLanguage)
         if (!targetUrl) {
           this.logger.warn('[TextPickerFeature] ipc command rejected: missing_target_url', {
             commandId,
@@ -576,7 +671,7 @@ export class TextPickerFeature {
     })
   }
 
-  private buildExternalCommandUrl(commandId: string, text: string) {
+  private buildExternalCommandUrl(commandId: string, text: string, appLanguage: 'zh-CN' | 'en' = 'zh-CN') {
     const trimmedText = text.trim()
     if (!trimmedText) {
       return ''
@@ -594,7 +689,7 @@ export class TextPickerFeature {
 
     if (commandId === SystemCommand.Explain) {
       const query = new URLSearchParams({
-        q: `Explain the following text in Chinese: ${trimmedText}`,
+        q: `Explain the following text in ${formatLanguageLabel(appLanguage)}: ${trimmedText}`,
       })
       return `https://www.perplexity.ai/search?${query.toString()}`
     }

@@ -1,9 +1,10 @@
 import { ConveyorApi } from '@/lib/preload/shared'
-import type { SearchHistoryRecordInput } from '@/lib/search-history/types'
+import type { HistoryDataType, SearchHistoryRecordInput } from '@/lib/search-history/types'
 
 export class SearchApi extends ConveyorApi {
   recordHistory = (input: SearchHistoryRecordInput) => this.invoke('search-history-record', input)
-  getHistorySummary = () => this.invoke('search-history-summary')
-  exportHistory = () => this.invoke('search-history-export')
-  clearHistory = () => this.invoke('search-history-clear')
+  getHistorySummary = (type: HistoryDataType = 'search') => this.invoke('search-history-summary', type)
+  listHistory = (type: HistoryDataType, limit?: number) => this.invoke('search-history-list', type, limit)
+  exportHistory = (type: HistoryDataType = 'search') => this.invoke('search-history-export', type)
+  clearHistory = (type: HistoryDataType = 'search') => this.invoke('search-history-clear', type)
 }

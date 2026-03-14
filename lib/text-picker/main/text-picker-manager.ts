@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { screen } from 'electron'
+import type { AppLanguage } from '@/lib/capability/types'
+import { translateMessage } from '@/lib/i18n/shared'
 import type {
   EnabledSelectionScene,
   PickedInfo,
@@ -61,6 +63,13 @@ const POST_DRAG_IGNORE_POINTER_MS = 260
 const POST_SHOW_GESTURE_DISMISS_GUARD_MS = 300
 const POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS = 2500
 
+const createDefaultSkills = (language: AppLanguage): SelectionSkill[] => [
+  { commandId: SystemCommand.Translate, label: translateMessage(language, 'bubble.translate'), enabled: true },
+  { commandId: SystemCommand.Explain, label: translateMessage(language, 'bubble.explain'), enabled: true },
+  { commandId: SystemCommand.Copy, label: translateMessage(language, 'bubble.copy'), enabled: true },
+  { commandId: SystemCommand.Search, label: translateMessage(language, 'bubble.search'), enabled: true },
+]
+
 export class TextPickerManager {
   private readonly bubbleWindow: BubbleWindowPort
   private readonly bridge: SelectionBridge
@@ -91,12 +100,7 @@ export class TextPickerManager {
   private currentAnchor: AnchorPoint | null = null
   private bubbleWidth = TOOLBAR_MIN_WIDTH
   private pickedInfo: PickedInfo | null = null
-  private skills: SelectionSkill[] = [
-    { commandId: SystemCommand.Translate, label: '翻译', enabled: true },
-    { commandId: SystemCommand.Explain, label: '解释', enabled: true },
-    { commandId: SystemCommand.Copy, label: '复制', enabled: true },
-    { commandId: SystemCommand.Search, label: 'AI 搜', enabled: true },
-  ]
+  private skills: SelectionSkill[] = createDefaultSkills('zh-CN')
 
   constructor({
     bubbleWindow,
@@ -231,6 +235,25 @@ export class TextPickerManager {
 
   setSkills(skills: SelectionSkill[]) {
     this.skills = skills
+  }
+
+  setLanguage(language: AppLanguage) {
+    this.skills = this.skills.map((skill) => ({
+      ...skill,
+      label:
+        createDefaultSkills(language).find((item) => item.commandId === skill.commandId)?.label ?? skill.label,
+    }))
+
+    if (this.pickedInfo && this.bubbleWindow.isVisible()) {
+      this.bubbleWindow.sendUpdate({
+        sourceApp: this.pickedInfo.appName,
+        sourceBundleId: this.pickedInfo.appId,
+        selectionText: this.pickedInfo.text,
+        scene: this.pickedInfo.scene,
+        selectionId: this.pickedInfo.selectionId,
+        skills: this.getSkills(),
+      })
+    }
   }
 
   getPickedInfo() {
@@ -382,7 +405,9 @@ export class TextPickerManager {
   }
 
   private onActionEvent(event: SelectionActionEvent) {
-    this.logger.info('[TextPickerManager] action', event)
+    if (event.scene !== SelectionScene.GESTURE_DISMISS) {
+      this.logger.info('[TextPickerManager] action', event)
+    }
     if (!this.globalEnabled) {
       return
     }
@@ -523,7 +548,9 @@ export class TextPickerManager {
     }
 
     this.refreshToken += 1
-    this.logger.info('[TextPickerManager] cancelPendingSelectionCheck', { reason, token: this.refreshToken })
+    if (reason !== `dismiss:${SelectionScene.GESTURE_DISMISS}`) {
+      this.logger.info('[TextPickerManager] cancelPendingSelectionCheck', { reason, token: this.refreshToken })
+    }
   }
 
   private async refreshSelectionWithRetries(token: number, scene: SelectionSceneValue | string, attempt: number) {
