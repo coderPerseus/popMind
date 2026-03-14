@@ -1,8 +1,8 @@
 import { ArrowUpRight, Check, Copy, GripHorizontal, LoaderCircle, Pin, RotateCcw, SendHorizontal, Square, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
-import { Input } from '@/app/components/ui/input'
+import { Textarea } from '@/app/components/ui/textarea'
 import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import type { SelectionChatMessage, SelectionChatWindowState } from '@/lib/selection-chat/types'
 import './styles.css'
@@ -20,7 +20,10 @@ export function SelectionChatPanel() {
   const [isSending, setIsSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const threadRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const shouldAutoScrollRef = useRef(true)
+  const forceScrollSessionRef = useRef(0)
+  const forceScrollTimeoutRef = useRef<number | null>(null)
   const dragState = useRef<{ pointerId: number | null; x: number; y: number }>({ pointerId: null, x: 0, y: 0 })
 
   useEffect(() => {
@@ -43,14 +46,6 @@ export function SelectionChatPanel() {
       unsubscribe()
     }
   }, [])
-
-  useEffect(() => {
-    if (!shouldAutoScrollRef.current) {
-      return
-    }
-
-    messagesEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [state.session?.messages, state.session?.status])
 
   useEffect(() => {
     if (!copiedMessageId) {
@@ -81,30 +76,98 @@ export function SelectionChatPanel() {
   const visibleMessages = session?.messages.filter((message, index) => !(index === 0 && message.role === 'user')) ?? []
   const latestAssistantMessageId = [...visibleMessages].reverse().find((message) => message.role === 'assistant')?.id
 
+  const resizeComposer = () => {
+    const composer = composerRef.current
+    if (!composer) {
+      return
+    }
+
+    composer.style.height = '0px'
+    composer.style.height = `${Math.min(composer.scrollHeight, 128)}px`
+  }
+
+  const scrollThreadToBottom = useCallback(() => {
+    const thread = threadRef.current
+    if (!thread) {
+      return
+    }
+
+    thread.scrollTo({
+      top: thread.scrollHeight,
+      behavior: 'auto',
+    })
+  }, [])
+
+  const scheduleForceScrollToBottom = useCallback(() => {
+    if (!shouldAutoScrollRef.current) {
+      return
+    }
+
+    forceScrollSessionRef.current += 1
+    const sessionId = forceScrollSessionRef.current
+
+    if (forceScrollTimeoutRef.current != null) {
+      window.clearTimeout(forceScrollTimeoutRef.current)
+      forceScrollTimeoutRef.current = null
+    }
+
+    const run = () => {
+      if (forceScrollSessionRef.current !== sessionId || !shouldAutoScrollRef.current) {
+        return
+      }
+
+      scrollThreadToBottom()
+    }
+
+    run()
+    requestAnimationFrame(() => {
+      run()
+      requestAnimationFrame(run)
+    })
+    forceScrollTimeoutRef.current = window.setTimeout(() => {
+      run()
+      forceScrollTimeoutRef.current = null
+    }, 48)
+  }, [scrollThreadToBottom])
+
+  useEffect(() => {
+    resizeComposer()
+  }, [draft])
+
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current) {
+      return
+    }
+
+    scheduleForceScrollToBottom()
+  }, [scheduleForceScrollToBottom, state.session?.messages, state.session?.status])
+
+  useEffect(() => {
+    return () => {
+      if (forceScrollTimeoutRef.current != null) {
+        window.clearTimeout(forceScrollTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const submit = async () => {
-    if (!draft.trim() || isStreaming) {
+    const message = draft.trim()
+    if (!message || isStreaming) {
       return
     }
 
     shouldAutoScrollRef.current = true
-    const scrollThreadToBottom = () => {
-      const thread = threadRef.current
-      if (!thread) {
-        return
-      }
-
-      thread.scrollTo({
-        top: thread.scrollHeight,
-        behavior: 'auto',
-      })
-    }
-
-    scrollThreadToBottom()
+    scheduleForceScrollToBottom()
+    setDraft('')
+    requestAnimationFrame(() => {
+      resizeComposer()
+      scheduleForceScrollToBottom()
+    })
     setIsSending(true)
     try {
-      await window.selectionChatWindow.submitMessage(draft)
-      setDraft('')
-      requestAnimationFrame(scrollThreadToBottom)
+      const submitTask = window.selectionChatWindow.submitMessage(message)
+      requestAnimationFrame(scheduleForceScrollToBottom)
+      await submitTask
     } finally {
       setIsSending(false)
     }
@@ -278,8 +341,10 @@ export function SelectionChatPanel() {
 
         <footer className="selection-chat-composer">
           <div className="selection-chat-composer-frame">
-            <Input
+            <Textarea
+              ref={composerRef}
               className="selection-chat-input"
+              rows={1}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder={uiLanguage === 'en' ? 'Ask a follow-up…' : '继续追问…'}
