@@ -4,6 +4,7 @@ export type AppLanguage = 'zh-CN' | 'en'
 export type AiProviderId = 'openai' | 'anthropic' | 'google' | 'kimi' | 'deepseek'
 export type WebSearchProviderId = 'tavily' | 'serper' | 'brave' | 'jina'
 export type AiServiceTestErrorCode = 'missing-config' | 'request-failed'
+export type WebSearchServiceTestErrorCode = 'missing-config' | 'request-failed'
 
 export interface AiProviderConfig {
   apiKey: string
@@ -52,6 +53,14 @@ export interface AiServiceTestResult {
   providerId: AiProviderId | null
   modelId: string | null
   errorCode?: AiServiceTestErrorCode
+  errorMessage?: string
+}
+
+export interface WebSearchServiceTestResult {
+  ok: boolean
+  providerId: WebSearchProviderId
+  resultCount: number
+  errorCode?: WebSearchServiceTestErrorCode
   errorMessage?: string
 }
 

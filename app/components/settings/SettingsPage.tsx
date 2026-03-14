@@ -10,7 +10,7 @@ import type { AiProviderId, AppLanguage, CapabilitySettings, WebSearchProviderId
 import type { I18nKey } from '@/lib/i18n/shared'
 import type { ExplainHistoryListItem, HistoryDataType, SearchHistoryListItem, SearchHistorySummary } from '@/lib/search-history/types'
 import type { ThemeMode } from '@/lib/theme/shared'
-import { translationLanguages } from '@/lib/translation/shared'
+import { translationEngineLabels, translationEngineOrder, translationLanguages } from '@/lib/translation/shared'
 import { Database, Download, Globe, History, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun, Trash2 } from 'lucide-react'
 import './styles.css'
 
@@ -44,8 +44,8 @@ const webSearchProviders: Array<{ id: WebSearchProviderId; label: string; keyUrl
   { id: 'jina', label: 'Jina', keyUrl: 'https://s.jina.ai' },
 ]
 
-const getProviderLabel = (provider: AiProviderId | null | undefined) => {
-  return aiProviderOptions.find((item) => item.id === provider)?.label ?? 'None'
+const getProviderLabel = (provider: AiProviderId | null | undefined, fallbackLabel = 'None') => {
+  return aiProviderOptions.find((item) => item.id === provider)?.label ?? fallbackLabel
 }
 
 export function SettingsPage() {
@@ -72,6 +72,8 @@ export function SettingsPage() {
   const [busyHistoryAction, setBusyHistoryAction] = useState<'' | 'export' | 'clear'>('')
   const [isTestingAiService, setIsTestingAiService] = useState(false)
   const [aiTestMessage, setAiTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
+  const [testingWebSearchProviderId, setTestingWebSearchProviderId] = useState<WebSearchProviderId | null>(null)
+  const [webSearchTestMessages, setWebSearchTestMessages] = useState<Partial<Record<WebSearchProviderId, { tone: StatusTone; message: string }>>>({})
   const saveTimerRef = useRef<number | null>(null)
 
   const navItems: NavItem[] = useMemo(
@@ -243,6 +245,16 @@ export function SettingsPage() {
   }
 
   const updateWebSearchField = (providerId: WebSearchProviderId, value: string) => {
+    setWebSearchTestMessages((current) => {
+      if (!current[providerId]) {
+        return current
+      }
+
+      const next = { ...current }
+      delete next[providerId]
+      return next
+    })
+
     setSettings((current) =>
       current
         ? {
@@ -273,6 +285,63 @@ export function SettingsPage() {
       },
       true
     )
+  }
+
+  const runWebSearchProviderTest = async (providerId: WebSearchProviderId) => {
+    if (!settings) {
+      return
+    }
+
+    setWebSearchTestMessages((current) => {
+      if (!current[providerId]) {
+        return current
+      }
+
+      const next = { ...current }
+      delete next[providerId]
+      return next
+    })
+    setTestingWebSearchProviderId(providerId)
+
+    try {
+      const result = await capability.testWebSearchProvider(settings, providerId)
+
+      if (result.ok) {
+        setWebSearchTestMessages((current) => ({
+          ...current,
+          [providerId]: {
+            tone: 'success',
+            message: t('settings.capability.search.testSuccess', {
+              count: result.resultCount,
+            }),
+          },
+        }))
+        return
+      }
+
+      if (result.errorCode === 'missing-config') {
+        setWebSearchTestMessages((current) => ({
+          ...current,
+          [providerId]: {
+            tone: 'error',
+            message: t('settings.capability.search.testMissingConfig'),
+          },
+        }))
+        return
+      }
+
+      setWebSearchTestMessages((current) => ({
+        ...current,
+        [providerId]: {
+          tone: 'error',
+          message: t('settings.capability.search.testFailed', {
+            message: result.errorMessage ?? t('common.none'),
+          }),
+        },
+      }))
+    } finally {
+      setTestingWebSearchProviderId(null)
+    }
   }
 
   const runAiServiceTest = async () => {
@@ -591,21 +660,43 @@ export function SettingsPage() {
 
                 <div className="settings-content-stack">
                   {webSearchProviders.map((provider) => (
-                    <div className="settings-row" key={provider.id}>
-                      <div className="settings-field settings-field-span">
-                        <span className="settings-field-label">{provider.label}</span>
-                        <Input
-                          type="password"
-                          value={settings?.webSearch.providers[provider.id].apiKey ?? ''}
-                          onChange={(event) => updateWebSearchField(provider.id, event.target.value)}
-                          placeholder="key"
-                        />
+                    <div className="settings-content-stack" key={provider.id}>
+                      <div className="settings-row">
+                        <div className="settings-field settings-field-span">
+                          <span className="settings-field-label">{provider.label}</span>
+                          <Input
+                            type="password"
+                            value={settings?.webSearch.providers[provider.id].apiKey ?? ''}
+                            onChange={(event) => updateWebSearchField(provider.id, event.target.value)}
+                            placeholder="key"
+                          />
+                        </div>
+
+                        <div className="settings-row-aside">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void runWebSearchProviderTest(provider.id)}
+                            disabled={testingWebSearchProviderId === provider.id}
+                          >
+                            {testingWebSearchProviderId === provider.id
+                              ? t('settings.capability.search.testing')
+                              : t('settings.capability.search.test')}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => void window.open(provider.keyUrl, '_blank')}>
+                            <Globe size={14} />
+                            {t('settings.capability.search.getKey')}
+                          </Button>
+                        </div>
                       </div>
 
-                      <Button size="sm" variant="outline" onClick={() => void window.open(provider.keyUrl, '_blank')}>
-                        <Globe size={14} />
-                        {t('settings.capability.search.getKey')}
-                      </Button>
+                      {webSearchTestMessages[provider.id] ? (
+                        <div
+                          className={`settings-status-message ${webSearchTestMessages[provider.id]?.tone === 'success' ? 'is-success' : 'is-error'}`}
+                        >
+                          {webSearchTestMessages[provider.id]?.message}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -623,20 +714,28 @@ export function SettingsPage() {
                 </div>
 
                 <div className="settings-engine-grid">
-                  {(Object.entries(settings.enabledEngines) as Array<
-                    [keyof CapabilitySettings['enabledEngines'], boolean]
-                  >).map(([engine, enabled]) => (
-                    <div className="settings-engine-item" key={engine}>
-                      <div>
-                        <div className="settings-engine-name">
-                          <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
-                            {engine}
-                          </Badge>
+                  {translationEngineOrder.map((engine) => {
+                    const enabled = settings.enabledEngines[engine]
+                    const isAiEngine = engine === 'ai'
+
+                    return (
+                      <div className="settings-engine-item" key={engine}>
+                        <div>
+                          <div className="settings-engine-name">
+                            <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
+                              {translationEngineLabels[engine]}
+                            </Badge>
+                          </div>
+                          {isAiEngine ? (
+                            <div className="settings-item-desc">
+                              {t('settings.capability.ai.provider')}：{getProviderLabel(activeAiProvider, t('common.none'))}
+                            </div>
+                          ) : null}
                         </div>
+                        <Switch checked={enabled} onCheckedChange={(checked) => updateEngine(engine, checked)} />
                       </div>
-                      <Switch checked={enabled} onCheckedChange={(checked) => updateEngine(engine, checked)} />
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </section>
 
@@ -854,7 +953,7 @@ function ExplainHistoryCard({
         <div>
           <div className="settings-item-title">{item.selectionText}</div>
           <div className="settings-item-desc">
-            {getProviderLabel(item.aiProvider as AiProviderId)} · {formatHistoryTime(item.updatedAt, locale)}
+            {getProviderLabel(item.aiProvider as AiProviderId, t('common.none'))} · {formatHistoryTime(item.updatedAt, locale)}
           </div>
         </div>
         <div className="settings-row-aside">

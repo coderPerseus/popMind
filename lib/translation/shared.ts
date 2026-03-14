@@ -1,13 +1,13 @@
 import type { TranslateInput, TranslationEngineId, TranslationLanguageOption, TranslationQueryMode, TranslationSettings } from './types'
 
-export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'deepseek']
+export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai']
 
 export const translationEngineLabels: Record<TranslationEngineId, string> = {
   google: 'Google',
   deepl: 'DeepL',
   bing: 'Bing',
   youdao: '有道',
-  deepseek: 'DeepSeek',
+  ai: 'AI',
 }
 
 export const translationLanguages: TranslationLanguageOption[] = [
@@ -32,7 +32,7 @@ export const defaultTranslationSettings: TranslationSettings = {
     deepl: false,
     bing: false,
     youdao: false,
-    deepseek: false,
+    ai: false,
   },
   firstLanguage: 'en',
   secondLanguage: 'zh-CN',
@@ -108,7 +108,12 @@ export const isSameLanguage = (left: string, right: string) => {
 }
 
 export const trimTranslationText = (text: string) => {
-  return text.replace(/\s+/g, ' ').trim()
+  return text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[^\S\n]+/g, ' ').trimEnd())
+    .join('\n')
+    .trim()
 }
 
 export const isEnglishWord = (text: string) => {
@@ -149,12 +154,17 @@ export const mergeSettings = (
   previous: TranslationSettings,
   patch: Partial<TranslationSettings>
 ): TranslationSettings => {
+  const patchEnabledEngines = patch.enabledEngines as Partial<TranslationSettings['enabledEngines']> & {
+    deepseek?: boolean
+  }
+
   return {
     ...previous,
     ...patch,
     enabledEngines: {
       ...previous.enabledEngines,
       ...patch.enabledEngines,
+      ai: patchEnabledEngines?.ai ?? patchEnabledEngines?.deepseek ?? previous.enabledEngines.ai,
     },
     aiService: {
       ...previous.aiService,

@@ -22,7 +22,7 @@ export const defaultCapabilitySettings: CapabilitySettings = {
     deepl: false,
     bing: false,
     youdao: false,
-    deepseek: false,
+    ai: false,
   },
   firstLanguage: 'en',
   secondLanguage: 'zh-CN',
@@ -48,6 +48,40 @@ export const defaultCapabilitySettings: CapabilitySettings = {
   },
 }
 
+const normalizeEnabledEngines = (options: {
+  previous?: CapabilitySettings['enabledEngines']
+  patch?: Partial<CapabilitySettings['enabledEngines']> & {
+    deepseek?: boolean
+  }
+}): CapabilitySettings['enabledEngines'] | undefined => {
+  const { previous, patch } = options
+
+  if (!previous && !patch) {
+    return undefined
+  }
+
+  const aiEnabled = patch?.ai ?? patch?.deepseek ?? previous?.ai ?? false
+
+  return {
+    google: patch?.google ?? previous?.google ?? false,
+    deepl: patch?.deepl ?? previous?.deepl ?? false,
+    bing: patch?.bing ?? previous?.bing ?? false,
+    youdao: patch?.youdao ?? previous?.youdao ?? false,
+    ai: aiEnabled,
+  }
+}
+
+const legacyEnabledEngines = (
+  enabledEngines?: Partial<CapabilitySettings['enabledEngines']> & {
+    deepseek?: boolean
+  }
+) => {
+  if (!enabledEngines) {
+    return undefined
+  }
+  return normalizeEnabledEngines({ patch: enabledEngines })
+}
+
 export const getCapabilitySettingsFilePath = () => join(app.getPath('userData'), capabilitySettingsFileName)
 export const getLegacyTranslationSettingsFilePath = () => join(app.getPath('userData'), legacyTranslationSettingsFileName)
 
@@ -59,10 +93,11 @@ export const mergeCapabilitySettings = (
     ...previous,
     ...patch,
     appLanguage: (patch as CapabilitySettingsPatch).appLanguage ?? previous.appLanguage,
-    enabledEngines: {
-      ...previous.enabledEngines,
-      ...patch.enabledEngines,
-    },
+    enabledEngines:
+      normalizeEnabledEngines({
+        previous: previous.enabledEngines,
+        patch: patch.enabledEngines as Partial<CapabilitySettings['enabledEngines']> & { deepseek?: boolean },
+      }) ?? previous.enabledEngines,
     aiService: {
       ...previous.aiService,
       ...patch.aiService,
@@ -139,7 +174,7 @@ export const migrateLegacyTranslationSettings = (
   }
 
   return mergeCapabilitySettings(base, {
-    enabledEngines: legacy.enabledEngines,
+    enabledEngines: legacyEnabledEngines(legacy.enabledEngines),
     firstLanguage: legacy.firstLanguage ?? base.firstLanguage,
     secondLanguage: legacy.secondLanguage ?? base.secondLanguage,
     defaultSourceLanguage: legacy.defaultSourceLanguage ?? base.defaultSourceLanguage,

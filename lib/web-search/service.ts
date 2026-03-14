@@ -15,6 +15,10 @@ const providers: Record<WebSearchProviderId, WebSearchProvider> = {
 const providerOrder: WebSearchProviderId[] = ['tavily', 'serper', 'brave', 'jina']
 
 export class WebSearchService {
+  getProvider(providerId: WebSearchProviderId) {
+    return providers[providerId]
+  }
+
   resolveProvider(settings: CapabilitySettings) {
     if (!settings.webSearch.enabled) {
       return null

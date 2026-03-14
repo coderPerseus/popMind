@@ -1,31 +1,27 @@
-import { createDeepSeek } from '@ai-sdk/deepseek'
+import { createLanguageModel, resolveAiProviderConfig } from '@/lib/ai-service/provider-factory'
 import { trimTranslationText } from '@/lib/translation/shared'
 import type { TranslationProvider, TranslationRequest, TranslationResult, TranslationSettings } from '@/lib/translation/types'
 import { translateWithAi } from './ai/translate-with-ai'
 
-const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
-const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat'
+const getActiveModel = (settings: TranslationSettings) => {
+  const resolved = createLanguageModel(settings)
 
-const getDeepSeekClient = (settings: TranslationSettings) => {
-  return createDeepSeek({
-    apiKey: settings.aiService.providers.deepseek.apiKey,
-    baseURL: settings.aiService.providers.deepseek.baseURL?.trim() || DEFAULT_DEEPSEEK_BASE_URL,
-  })
+  if (!resolved) {
+    throw new Error('AI translation is not configured')
+  }
+
+  return resolved
 }
 
-const getDeepSeekModelId = (settings: TranslationSettings) => {
-  return settings.aiService.providers.deepseek.model?.trim() || DEFAULT_DEEPSEEK_MODEL
-}
-
-export const deepseekProvider: TranslationProvider = {
-  id: 'deepseek',
+export const aiProvider: TranslationProvider = {
+  id: 'ai',
   isConfigured(settings) {
-    return Boolean(settings.aiService.providers.deepseek.apiKey.trim())
+    return Boolean(resolveAiProviderConfig(settings))
   },
   async detectLanguage(text, settings) {
-    const client = getDeepSeekClient(settings)
+    const resolved = getActiveModel(settings)
     const result = await translateWithAi({
-      model: client(getDeepSeekModelId(settings)),
+      model: resolved.model,
       text,
       sourceLanguage: 'auto',
       targetLanguage: 'en',
@@ -34,20 +30,20 @@ export const deepseekProvider: TranslationProvider = {
     return result.detectedSourceLanguage || 'auto'
   },
   async translate(request: TranslationRequest, settings: TranslationSettings): Promise<TranslationResult> {
-    const client = getDeepSeekClient(settings)
+    const resolved = getActiveModel(settings)
     const result = await translateWithAi({
-      model: client(getDeepSeekModelId(settings)),
+      model: resolved.model,
       text: request.text,
       sourceLanguage: request.sourceLanguage,
       targetLanguage: request.targetLanguage,
     })
 
     if (!result.translatedText) {
-      throw new Error('DeepSeek translate returned an empty result')
+      throw new Error('AI translate returned an empty result')
     }
 
     return {
-      engineId: 'deepseek',
+      engineId: 'ai',
       queryMode: 'text',
       sourceLanguage: request.sourceLanguage,
       targetLanguage: request.targetLanguage,

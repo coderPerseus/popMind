@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const appLanguageSchema = z.enum(['zh-CN', 'en'])
-const translationEngineIdSchema = z.enum(['google', 'deepl', 'bing', 'youdao', 'deepseek'])
+const translationEngineIdSchema = z.enum(['google', 'deepl', 'bing', 'youdao', 'ai'])
 const aiProviderSchema = z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek'])
 const webSearchProviderSchema = z.enum(['tavily', 'serper', 'brave', 'jina'])
 
@@ -22,7 +22,7 @@ const capabilitySettingsSchema = z.object({
     deepl: z.boolean(),
     bing: z.boolean(),
     youdao: z.boolean(),
-    deepseek: z.boolean(),
+    ai: z.boolean(),
   }),
   firstLanguage: z.string(),
   secondLanguage: z.string(),
@@ -57,7 +57,7 @@ const capabilitySettingsPatchSchema = z.object({
         deepl: z.boolean(),
         bing: z.boolean(),
         youdao: z.boolean(),
-        deepseek: z.boolean(),
+        ai: z.boolean(),
       })
       .partial()
       .optional(),
@@ -103,6 +103,14 @@ const aiServiceTestResultSchema = z.object({
   errorMessage: z.string().optional(),
 })
 
+const webSearchServiceTestResultSchema = z.object({
+  ok: z.boolean(),
+  providerId: webSearchProviderSchema,
+  resultCount: z.number(),
+  errorCode: z.enum(['missing-config', 'request-failed']).optional(),
+  errorMessage: z.string().optional(),
+})
+
 export const capabilityIpcSchema = {
   'capability-get-settings': {
     args: z.tuple([]),
@@ -116,6 +124,10 @@ export const capabilityIpcSchema = {
     args: z.tuple([capabilitySettingsSchema]),
     return: aiServiceTestResultSchema,
   },
+  'capability-test-web-search-provider': {
+    args: z.tuple([capabilitySettingsSchema, webSearchProviderSchema]),
+    return: webSearchServiceTestResultSchema,
+  },
 }
 
 export const capabilityRuntimeSchema = {
@@ -126,4 +138,5 @@ export const capabilityRuntimeSchema = {
   capabilitySettingsSchema,
   capabilitySettingsPatchSchema,
   aiServiceTestResultSchema,
+  webSearchServiceTestResultSchema,
 }

@@ -282,7 +282,7 @@ export class TranslationWindowManager {
         payload: {
           sourceLanguage: string
           targetLanguage?: string
-          engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek'
+          engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'ai'
         }
       ) => {
         this.noteInteraction()
@@ -340,7 +340,7 @@ export class TranslationWindowManager {
   private async runTranslation(payload: {
     sourceLanguage: string
     targetLanguage?: string
-    engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'deepseek'
+    engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'ai'
   }) {
     if (!this.pendingRequest || !this.state) {
       return

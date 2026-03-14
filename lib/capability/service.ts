@@ -1,5 +1,6 @@
 import { testAiService } from '@/lib/ai-service/test-service'
-import type { CapabilitySettings } from './types'
+import { testWebSearchProvider } from '@/lib/web-search/test-service'
+import type { CapabilitySettings, WebSearchProviderId } from './types'
 import { capabilityStore } from './store'
 
 export class CapabilityService {
@@ -13,6 +14,10 @@ export class CapabilityService {
 
   testAiService(settings: CapabilitySettings) {
     return testAiService(settings)
+  }
+
+  testWebSearchProvider(settings: CapabilitySettings, providerId: WebSearchProviderId) {
+    return testWebSearchProvider(settings, providerId)
   }
 
   subscribe(listener: (settings: Awaited<ReturnType<typeof capabilityStore.getSettings>>) => void) {
