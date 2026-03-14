@@ -19,10 +19,14 @@
     "electron:build:mac": "electron-builder --mac",
     "electron:build:linux": "electron-builder --linux",
     "electron:build:dir": "electron-builder --dir",
+    "electron:build:win:ci": "electron-builder --win --publish never",
+    "electron:build:mac:ci": "electron-builder --mac --publish never",
     "build:unpack": "run-s vite:build:app electron:build:dir",
     "build:win": "run-s vite:build:app electron:build:win",
     "build:mac": "run-s vite:build:app electron:build:mac",
-    "build:linux": "run-s vite:build:app electron:build:linux"
+    "build:linux": "run-s vite:build:app electron:build:linux",
+    "build:ci:win": "run-s generate:icons vite:build:app electron:build:win:ci",
+    "build:ci:mac": "run-s generate:icons vite:build:app electron:build:mac:ci"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
