@@ -240,4 +240,4 @@ On `v*` tags, CI also publishes the generated assets to GitHub Releases.
 
 ## License
 
-[MIT](./LICENSE)
+[GPL-3.0](./LICENSE)

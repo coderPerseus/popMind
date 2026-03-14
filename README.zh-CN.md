@@ -240,4 +240,4 @@ GitHub Actions 也已经支持 CI 打包：
 
 ## License
 
-[MIT](./LICENSE)
+[GPL-3.0](./LICENSE)

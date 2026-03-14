@@ -21,10 +21,6 @@ jobs:
             label: macOS
             build_script: build:ci:mac
             artifact_name: popmind-macos
-          - os: windows-latest
-            label: Windows
-            build_script: build:ci:win
-            artifact_name: popmind-windows
 
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -60,7 +56,6 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
-            dist/*.exe
             dist/*.yml
             dist/*.yaml
             dist/*.blockmap

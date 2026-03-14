@@ -3,7 +3,7 @@
   "version": "12.1.0",
   "description": "popMind desktop application built with Electron, React, Vite, TypeScript, Shadcn UI, and Tailwind CSS",
   "main": "./out/main/main.js",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "scripts": {
     "build-native": "node scripts/build-selection-bridge.mjs",
     "generate:icons": "node scripts/generate-icons.mjs",
