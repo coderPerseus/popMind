@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, Copy, GripHorizontal, LoaderCircle, Pin, RotateCcw, SendHorizontal, Square, X } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, Copy, GripHorizontal, LoaderCircle, Pin, RotateCcw, SendHorizontal, Square, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
@@ -389,6 +389,12 @@ function MessageBubble({
   onCopy: () => Promise<void>
   onRegenerate: () => void
 }) {
+  const [sourcesExpanded, setSourcesExpanded] = useState(false)
+  const sourceToggleLabel =
+    uiLanguage === 'en'
+      ? `Sources${message.sources?.length ? ` · ${message.sources.length}` : ''}`
+      : `参考来源${message.sources?.length ? ` · ${message.sources.length}` : ''}`
+
   return (
     <article className={`selection-chat-message is-${message.role} ${isAnimating ? 'is-animating' : ''}`}>
       {message.text ? (
@@ -407,16 +413,41 @@ function MessageBubble({
       )}
 
       {message.sources?.length ? (
-        <div className="selection-chat-sources">
-          {message.sources.map((source) => (
-            <a key={`${source.url}-${source.provider}`} href={source.url} target="_blank" rel="noreferrer">
-              <div className="selection-chat-source-head">
-                <strong>{source.title}</strong>
-                <ArrowUpRight size={12} />
-              </div>
-              <span>{source.provider}</span>
-            </a>
-          ))}
+        <div className={`selection-chat-sources-wrap ${sourcesExpanded ? 'is-expanded' : ''}`}>
+          <button
+            type="button"
+            className="selection-chat-sources-toggle"
+            onClick={() => setSourcesExpanded((current) => !current)}
+            aria-expanded={sourcesExpanded}
+          >
+            <span className="selection-chat-sources-toggle-copy">
+              <strong>{sourceToggleLabel}</strong>
+              <span>
+                {sourcesExpanded
+                  ? uiLanguage === 'en'
+                    ? 'Hide source list'
+                    : '收起来源列表'
+                  : uiLanguage === 'en'
+                    ? 'Show source list'
+                    : '展开来源列表'}
+              </span>
+            </span>
+            <ChevronDown size={14} className={`selection-chat-sources-toggle-icon ${sourcesExpanded ? 'is-expanded' : ''}`} />
+          </button>
+
+          {sourcesExpanded ? (
+            <div className="selection-chat-sources">
+              {message.sources.map((source) => (
+                <a key={`${source.url}-${source.provider}`} href={source.url} target="_blank" rel="noreferrer">
+                  <div className="selection-chat-source-head">
+                    <strong>{source.title}</strong>
+                    <ArrowUpRight size={12} />
+                  </div>
+                  <span>{source.provider}</span>
+                </a>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
