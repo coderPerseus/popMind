@@ -6,6 +6,7 @@ asarUnpack:
   - build/Release/*.node
 directories:
   buildResources: resources/build
+afterSign: scripts/macos-adhoc-sign.mjs
 files:
   - '!**/.vscode/*'
   - '!src/*'

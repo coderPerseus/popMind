@@ -47,6 +47,13 @@ jobs:
       - name: Build installer package
         run: pnpm run ${{ matrix.build_script }}
 
+      - name: Verify macOS app signature
+        if: matrix.os == 'macos-latest'
+        run: |
+          codesign --verify --deep --strict --verbose=4 dist/mac-arm64/popMind.app
+          codesign -dvvv dist/mac-arm64/popMind.app 2>&1 | grep -E 'Identifier=|Signature=|TeamIdentifier='
+          codesign -dvvv "dist/mac-arm64/popMind.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework" 2>&1 | grep -E 'Identifier=|Signature=|TeamIdentifier='
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -76,5 +83,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          overwrite_files: true
           files: |
             release-artifacts/*
