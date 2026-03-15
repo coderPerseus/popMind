@@ -281,8 +281,7 @@
   padding: 14px;
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(242, 246, 251, 0.94) 100%),
-    rgba(255, 255, 255, 0.82);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(242, 246, 251, 0.94) 100%), rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.78);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.72) inset,
@@ -291,8 +290,7 @@
 
 .ms-translate-command-card.is-error {
   background:
-    linear-gradient(180deg, rgba(255, 245, 245, 0.98) 0%, rgba(255, 235, 235, 0.94) 100%),
-    rgba(255, 255, 255, 0.82);
+    linear-gradient(180deg, rgba(255, 245, 245, 0.98) 0%, rgba(255, 235, 235, 0.94) 100%), rgba(255, 255, 255, 0.82);
 }
 
 .ms-translate-command-toolbar {
@@ -448,8 +446,7 @@
   padding: 16px;
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 247, 250, 0.88) 100%),
-    rgba(255, 255, 255, 0.8);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 247, 250, 0.88) 100%), rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.6) inset,
@@ -462,8 +459,7 @@
 
 .ms-translate-card.is-error {
   background:
-    linear-gradient(180deg, rgba(255, 244, 244, 0.96) 0%, rgba(255, 235, 235, 0.88) 100%),
-    rgba(255, 255, 255, 0.8);
+    linear-gradient(180deg, rgba(255, 244, 244, 0.96) 0%, rgba(255, 235, 235, 0.88) 100%), rgba(255, 255, 255, 0.8);
 }
 
 .ms-translate-card-header {
@@ -594,6 +590,13 @@
   background: rgba(255, 255, 255, 0.52);
 }
 
+.ms-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .ms-footer-logo {
   display: flex;
   align-items: center;
@@ -623,6 +626,35 @@
 
 .ms-footer-settings-icon {
   opacity: 0.5;
+}
+
+.ms-update-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 145, 77, 0.28);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 167, 38, 0.18) 0%, rgba(255, 111, 60, 0.22) 100%);
+  color: rgba(181, 74, 10, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.ms-update-badge:hover {
+  transform: translateY(-0.5px);
+  border-color: rgba(255, 132, 53, 0.42);
+  background: linear-gradient(135deg, rgba(255, 167, 38, 0.26) 0%, rgba(255, 111, 60, 0.28) 100%);
+  color: rgba(146, 54, 5, 0.96);
 }
 
 .ms-footer-shortcut {
@@ -710,9 +742,7 @@
 }
 
 .dark .ms-translate-command-card {
-  background:
-    linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(17, 24, 39, 0.94) 100%),
-    rgba(15, 23, 42, 0.82);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(17, 24, 39, 0.94) 100%), rgba(15, 23, 42, 0.82);
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04) inset,
@@ -720,9 +750,7 @@
 }
 
 .dark .ms-translate-command-card.is-error {
-  background:
-    linear-gradient(180deg, rgba(69, 10, 10, 0.96) 0%, rgba(31, 12, 12, 0.94) 100%),
-    rgba(15, 23, 42, 0.82);
+  background: linear-gradient(180deg, rgba(69, 10, 10, 0.96) 0%, rgba(31, 12, 12, 0.94) 100%), rgba(15, 23, 42, 0.82);
 }
 
 .dark .ms-translate-command-select-wrap [data-slot='select'] {
@@ -787,9 +815,7 @@
 }
 
 .dark .ms-translate-card {
-  background:
-    linear-gradient(180deg, rgba(30, 41, 59, 0.96) 0%, rgba(17, 24, 39, 0.92) 100%),
-    rgba(15, 23, 42, 0.8);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96) 0%, rgba(17, 24, 39, 0.92) 100%), rgba(15, 23, 42, 0.8);
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04) inset,
@@ -797,9 +823,7 @@
 }
 
 .dark .ms-translate-card.is-error {
-  background:
-    linear-gradient(180deg, rgba(69, 10, 10, 0.96) 0%, rgba(31, 12, 12, 0.92) 100%),
-    rgba(15, 23, 42, 0.8);
+  background: linear-gradient(180deg, rgba(69, 10, 10, 0.96) 0%, rgba(31, 12, 12, 0.92) 100%), rgba(15, 23, 42, 0.8);
 }
 
 .dark .ms-translate-card-title {
@@ -841,6 +865,18 @@
 .dark .ms-footer-logo:hover {
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.65);
+}
+
+.dark .ms-update-badge {
+  border-color: rgba(255, 178, 102, 0.26);
+  background: linear-gradient(135deg, rgba(255, 163, 26, 0.26) 0%, rgba(255, 110, 68, 0.22) 100%);
+  color: rgba(255, 224, 196, 0.92);
+}
+
+.dark .ms-update-badge:hover {
+  border-color: rgba(255, 193, 120, 0.4);
+  background: linear-gradient(135deg, rgba(255, 163, 26, 0.34) 0%, rgba(255, 110, 68, 0.3) 100%);
+  color: rgba(255, 239, 221, 0.96);
 }
 
 .dark .ms-kbd {

@@ -6,6 +6,15 @@ export const appIpcSchema = {
     args: z.tuple([]),
     return: z.string(),
   },
+  latestRelease: {
+    args: z.tuple([]),
+    return: z
+      .object({
+        version: z.string(),
+        url: z.string(),
+      })
+      .nullable(),
+  },
   checkAccessibility: {
     args: z.tuple([]),
     return: z.object({ granted: z.boolean(), supported: z.boolean() }),

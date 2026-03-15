@@ -114,6 +114,8 @@ const zhCN = createMessages({
   'main.placeholder': '输入问题，或使用 /chatgpt /claude /tr …',
   'main.clear': '清空',
   'main.empty': '试试输入 `/chatgpt`、`/claude`，或者 `/tr 需要翻译的文本`。',
+  'main.updateAvailable': '更新 {version}',
+  'main.updateAria': '打开 GitHub Releases 查看新版本',
   'selectionChat.title': '划词解释',
   'selectionChat.subtitle': '基于选中文本发起的解释对话',
   'selectionChat.inputPlaceholder': '继续追问…',
@@ -220,7 +222,8 @@ const en = createMessages({
   'settings.history.searchSummary': 'Search history overview',
   'settings.history.explainSummary': 'Explain history overview',
   'settings.history.retentionSearch': 'Search history is kept for 365 days and cleaned up automatically.',
-  'settings.history.retentionExplain': 'Explain history is kept for 180 days and oldest records are trimmed automatically.',
+  'settings.history.retentionExplain':
+    'Explain history is kept for 180 days and oldest records are trimmed automatically.',
   'settings.history.total': 'Total records',
   'settings.history.retention': 'Retention',
   'settings.history.lastSearch': 'Last search',
@@ -242,6 +245,8 @@ const en = createMessages({
   'main.placeholder': 'Ask something, or use /chatgpt /claude /tr …',
   'main.clear': 'Clear',
   'main.empty': 'Try `/chatgpt`, `/claude`, or `/tr text to translate`.',
+  'main.updateAvailable': 'Update {version}',
+  'main.updateAria': 'Open GitHub Releases to view the new version',
   'selectionChat.title': 'Selection Explain',
   'selectionChat.subtitle': 'A lightweight chat started from selected text',
   'selectionChat.inputPlaceholder': 'Ask a follow-up…',
@@ -286,11 +291,7 @@ export const resolveAppLanguage = (language?: string | null): AppLanguage => {
   return 'zh-CN'
 }
 
-export const translateMessage = (
-  language: AppLanguage,
-  key: I18nKey,
-  params?: Record<string, string | number>
-) => {
+export const translateMessage = (language: AppLanguage, key: I18nKey, params?: Record<string, string | number>) => {
   const value = messages[language][key] ?? messages['zh-CN'][key]
 
   if (typeof value === 'function') {

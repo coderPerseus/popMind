@@ -21,6 +21,7 @@ import {
   type MainSearchPluginResult,
 } from '@/app/plugins/main-search'
 import { getThemeLogoUrl } from '@/app/theme-assets'
+import { compareReleaseVersions } from '@/lib/app/release'
 import './styles.css'
 
 type LauncherCommandItem = {
@@ -66,6 +67,7 @@ const matchesSlashAliasQuery = (query: string, values: string[]) => {
 
 export function MainSearch() {
   const { t } = useI18n()
+  const appApi = useConveyor('app')
   const { onMainWindowReset, onMainWindowSetSearchQuery, webOpenUrl, windowDismissTopmost, windowShowRoute } =
     useConveyor('window')
   const search = useConveyor('search')
@@ -73,6 +75,7 @@ export function MainSearch() {
   const [logoUrl, setLogoUrl] = useState(() => getThemeLogoUrl())
   const [activeIndex, setActiveIndex] = useState(0)
   const [isLaunching, setIsLaunching] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const deferredQuery = useDeferredValue(query)
   const normalizedQuery = deferredQuery.trim()
@@ -190,6 +193,33 @@ export function MainSearch() {
 
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void Promise.all([appApi.version(), appApi.latestRelease()])
+      .then(([currentVersion, latestRelease]) => {
+        if (cancelled || !latestRelease) {
+          return
+        }
+
+        if (compareReleaseVersions(latestRelease.version, currentVersion) > 0) {
+          setUpdateInfo(latestRelease)
+          return
+        }
+
+        setUpdateInfo(null)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUpdateInfo(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [appApi])
 
   // Escape key: go through the shared auto-dismiss controller.
   useEffect(() => {
@@ -472,10 +502,23 @@ export function MainSearch() {
 
       {/* Footer bar */}
       <div className="ms-footer">
-        <button className="ms-footer-logo" onClick={() => void windowShowRoute('settings')} aria-label="打开配置">
-          <img src={logoUrl} alt="popMind" className="ms-logo-img" />
-          <Settings2 size={13} className="ms-footer-settings-icon" />
-        </button>
+        <div className="ms-footer-brand">
+          <button className="ms-footer-logo" onClick={() => void windowShowRoute('settings')} aria-label="打开配置">
+            <img src={logoUrl} alt="popMind" className="ms-logo-img" />
+            <Settings2 size={13} className="ms-footer-settings-icon" />
+          </button>
+          {updateInfo ? (
+            <button
+              className="ms-update-badge"
+              type="button"
+              onClick={() => void webOpenUrl(updateInfo.url)}
+              aria-label={t('main.updateAria')}
+              title={updateInfo.url}
+            >
+              {t('main.updateAvailable', { version: updateInfo.version })}
+            </button>
+          ) : null}
+        </div>
 
         <div className="ms-footer-shortcut">
           <kbd className="ms-kbd">⌥</kbd>

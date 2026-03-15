@@ -1,5 +1,6 @@
-import { clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
+import { app, clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
+import { POPMIND_RELEASES_URL } from '@/lib/app/release'
 import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-service'
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
 import { capabilityService } from '@/lib/capability/service'
@@ -99,7 +100,8 @@ export class TextPickerFeature {
         })
       },
       isSecondaryFloatingVisible: () =>
-        (this.translationWindowManager?.isVisible() ?? false) || (this.selectionChatWindowManager?.isVisible() ?? false),
+        (this.translationWindowManager?.isVisible() ?? false) ||
+        (this.selectionChatWindowManager?.isVisible() ?? false),
       isEventInsideSecondaryFloating: (event) => {
         const x = Number(event.x)
         const y = Number(event.y)
@@ -229,7 +231,10 @@ export class TextPickerFeature {
     })
 
     for (const [selectionId, snapshot] of this.commandContexts) {
-      if (this.commandContexts.size <= MAX_COMMAND_CONTEXTS && Date.now() - snapshot.createdAt <= COMMAND_CONTEXT_TTL_MS) {
+      if (
+        this.commandContexts.size <= MAX_COMMAND_CONTEXTS &&
+        Date.now() - snapshot.createdAt <= COMMAND_CONTEXT_TTL_MS
+      ) {
         continue
       }
 
@@ -463,6 +468,12 @@ export class TextPickerFeature {
         type: 'separator',
       },
       {
+        label: `版本 ${app.getVersion()}`,
+        click: () => {
+          void shell.openExternal(POPMIND_RELEASES_URL)
+        },
+      },
+      {
         label: '退出',
         role: 'quit',
       },
@@ -568,7 +579,10 @@ export class TextPickerFeature {
 
         if (commandId === SystemCommand.Explain) {
           const settings = await capabilityService.getSettings()
-          if (!settings.aiService.activeProvider || !settings.aiService.providers[settings.aiService.activeProvider].apiKey.trim()) {
+          if (
+            !settings.aiService.activeProvider ||
+            !settings.aiService.providers[settings.aiService.activeProvider].apiKey.trim()
+          ) {
             const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text, settings.appLanguage)
             if (!targetUrl) {
               return { ok: false, reason: 'missing_target_url' }
