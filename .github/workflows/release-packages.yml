@@ -61,7 +61,7 @@ jobs:
           name: ${{ matrix.artifact_name }}
           if-no-files-found: error
           path: |
-            dist/*.dmg
+            dist/*.pkg
             dist/*.zip
             dist/*.yml
             dist/*.yaml

@@ -6,7 +6,7 @@ import { themeStore } from '@/lib/main/theme-store'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 import appIcon from '@/resources/build/icon.png?asset'
 import { setupApplicationMenu } from './application-menu'
-import { toggleMainWindow, primeMainWindow } from './window-manager'
+import { showMainWindow, toggleMainWindow } from './window-manager'
 
 let textPickerFeature: TextPickerFeature | null = null
 
@@ -30,8 +30,8 @@ app.whenReady().then(async () => {
   textPickerFeature = new TextPickerFeature()
   textPickerFeature.initialize()
 
-  // Preload the hidden home route so the first shortcut show is instant.
-  void primeMainWindow('home')
+  // Show the launcher window once startup succeeds.
+  void showMainWindow('home')
 
   // Register global shortcut Option+Space to toggle the main search window
   globalShortcut.register('Alt+Space', () => {
@@ -58,6 +58,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('activate', () => {
+  void showMainWindow('home')
 })
 
 // In this file, you can include the rest of your app's specific main process
