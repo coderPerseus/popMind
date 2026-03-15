@@ -1,19 +1,56 @@
 import { app, globalShortcut, nativeImage } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { initializeAppLogging, mainLogger } from '@/lib/main/logger'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
 import { themeStore } from '@/lib/main/theme-store'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 import appIcon from '@/resources/build/icon.png?asset'
 import { setupApplicationMenu } from './application-menu'
-import { showMainWindow, toggleMainWindow } from './window-manager'
+import { isMainWindowVisible, primeMainWindow, showMainWindow, toggleMainWindow } from './window-manager'
 
 let textPickerFeature: TextPickerFeature | null = null
+
+const registerGlobalShortcutWithLogging = (accelerator: string, label: string, handler: () => void) => {
+  globalShortcut.unregister(accelerator)
+
+  const registered = globalShortcut.register(accelerator, () => {
+    mainLogger.info('[shortcut] triggered', {
+      accelerator,
+      label,
+    })
+    handler()
+  })
+
+  mainLogger.info('[shortcut] register', {
+    accelerator,
+    label,
+    registered,
+  })
+
+  if (!registered) {
+    mainLogger.warn('[shortcut] registration failed', {
+      accelerator,
+      label,
+    })
+  }
+
+  return registered
+}
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  initializeAppLogging()
+
+  mainLogger.info('[app] ready', {
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    arch: process.arch,
+  })
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -28,18 +65,20 @@ app.whenReady().then(async () => {
 
   // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()
-  textPickerFeature.initialize()
+  void textPickerFeature
+    .initialize()
+    .then((enabled) => {
+      mainLogger.info('[app] text picker initialize completed', { enabled })
+    })
+    .catch((error) => {
+      mainLogger.error('[app] text picker initialize failed', error)
+    })
 
-  // Show the launcher window once startup succeeds.
-  void showMainWindow('home')
+  // Preload the hidden home route so the first shortcut show is instant.
+  void primeMainWindow('home')
 
   // Register global shortcut Option+Space to toggle the main search window
-  globalShortcut.register('Alt+Space', () => {
-    if (!app.isPackaged) {
-      console.warn('[main-window] shortcut-triggered', {
-        accelerator: 'Alt+Space',
-      })
-    }
+  registerGlobalShortcutWithLogging('Alt+Space', 'toggle-home', () => {
     void toggleMainWindow('home')
   })
 
@@ -61,7 +100,13 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  void showMainWindow('home')
+  mainLogger.info('[app] activate', {
+    mainWindowVisible: isMainWindowVisible(),
+  })
+
+  if (!isMainWindowVisible()) {
+    void showMainWindow('home')
+  }
 })
 
 // In this file, you can include the rest of your app's specific main process

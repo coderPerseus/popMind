@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { app } from 'electron'
+import { mainLogger } from '@/lib/main/logger'
 import type { SelectionActionEvent, SelectionSceneValue, SelectionSnapshot } from '@/lib/text-picker/shared'
 
 export interface NativeMacOSAddon {
@@ -43,14 +44,16 @@ const loadNativeModule = (): NativeMacOSAddon | null => {
 
   const addonPath = resolveAddonPath()
   if (!addonPath) {
-    console.error('[macos-addon] native addon not found')
+    mainLogger.error('[macos-addon] native addon not found')
     return null
   }
+
+  mainLogger.info('[macos-addon] resolved native addon', { addonPath })
 
   try {
     return require(addonPath) as NativeMacOSAddon
   } catch (error) {
-    console.error('[macos-addon] failed to load native addon:', error)
+    mainLogger.error('[macos-addon] failed to load native addon:', error)
     return null
   }
 }

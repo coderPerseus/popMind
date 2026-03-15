@@ -1,6 +1,7 @@
 import { app, clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
 import { POPMIND_RELEASES_URL } from '@/lib/app/release'
+import { exportMainProcessLogs } from '@/lib/main/logger'
 import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-service'
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
 import { capabilityService } from '@/lib/capability/service'
@@ -62,6 +63,8 @@ export class TextPickerFeature {
   private tray: Tray | null = null
   private detachCapabilityListener: (() => void) | null = null
   private readonly commandContexts = new Map<string, CommandContextSnapshot>()
+  private permissionRetryTimer: NodeJS.Timeout | null = null
+  private lastMonitorStateKey: string | null = null
 
   constructor(
     private readonly bridge: SelectionBridge = selectionBridge,
@@ -69,6 +72,12 @@ export class TextPickerFeature {
   ) {}
 
   async initialize() {
+    this.logger.info('[TextPickerFeature] initialize start', {
+      isPackaged: app.isPackaged,
+      bridgeSupported: this.bridge.isSupported,
+      version: app.getVersion(),
+    })
+
     this.bubbleWindow = new SelectionBubbleWindow(this.bridge, this.logger)
     this.translationWindowManager = new TranslationWindowManager(this.bridge, this.logger, {
       noteInteraction: (durationMs) => {
@@ -143,32 +152,30 @@ export class TextPickerFeature {
     }
 
     const trusted = this.manager.ensurePermission({ prompt: false })
+    this.logger.info('[TextPickerFeature] accessibility permission check', { trusted })
     if (!trusted) {
       this.logger.warn(
         '[TextPickerFeature] accessibility permission not granted, text picker inactive until authorized'
       )
+      this.startPermissionRetryPolling()
       return false
     }
 
     const started = this.manager.start()
+    this.logMonitorState('initialize', trusted, started)
     if (!started) {
       this.logger.error('[TextPickerFeature] failed to start action monitor')
       return false
     }
 
+    this.stopPermissionRetryPolling()
     this.registerShortcuts()
     return true
   }
 
   /** Try to start the monitor if it was previously blocked by missing permission. */
   retryStart(): boolean {
-    if (!this.manager || !this.bridge.isSupported) return false
-    if (this.manager.ensurePermission({ prompt: false })) {
-      const started = this.manager.start()
-      if (started) this.registerShortcuts()
-      return started
-    }
-    return false
+    return this.ensureMonitoringActive('retry')
   }
 
   isBubbleVisible() {
@@ -183,6 +190,7 @@ export class TextPickerFeature {
     globalShortcut.unregister(HIDE_BUBBLE_SHORTCUT)
     globalShortcut.unregister(SCREENSHOT_TRANSLATE_SHORTCUT)
     globalShortcut.unregister(SCREENSHOT_SEARCH_SHORTCUT)
+    this.stopPermissionRetryPolling()
 
     for (const channel of IPC_HANDLE_CHANNELS) {
       ipcMain.removeHandler(channel)
@@ -477,21 +485,124 @@ export class TextPickerFeature {
         label: '退出',
         role: 'quit',
       },
+      {
+        label: '导出日志',
+        click: () => {
+          void exportMainProcessLogs()
+        },
+      },
     ])
   }
 
   private registerShortcuts() {
-    globalShortcut.register(HIDE_BUBBLE_SHORTCUT, () => {
+    this.registerGlobalShortcut(HIDE_BUBBLE_SHORTCUT, 'hide-bubble', () => {
       this.manager?.hideBubble()
     })
 
-    globalShortcut.register(SCREENSHOT_TRANSLATE_SHORTCUT, () => {
+    this.registerGlobalShortcut(SCREENSHOT_TRANSLATE_SHORTCUT, 'screenshot-translate', () => {
       void this.triggerScreenshotTranslation()
     })
 
-    globalShortcut.register(SCREENSHOT_SEARCH_SHORTCUT, () => {
+    this.registerGlobalShortcut(SCREENSHOT_SEARCH_SHORTCUT, 'screenshot-search', () => {
       void this.triggerScreenshotSearch()
     })
+  }
+
+  private registerGlobalShortcut(accelerator: string, label: string, handler: () => void) {
+    globalShortcut.unregister(accelerator)
+
+    const registered = globalShortcut.register(accelerator, () => {
+      this.logger.info('[TextPickerFeature] shortcut triggered', {
+        accelerator,
+        label,
+      })
+      handler()
+    })
+
+    this.logger.info('[TextPickerFeature] shortcut registration', {
+      accelerator,
+      label,
+      registered,
+    })
+
+    if (!registered) {
+      this.logger.warn('[TextPickerFeature] shortcut registration failed', {
+        accelerator,
+        label,
+      })
+    }
+
+    return registered
+  }
+
+  private startPermissionRetryPolling() {
+    if (this.permissionRetryTimer || !this.bridge.isSupported) {
+      return
+    }
+
+    this.logger.info('[TextPickerFeature] starting accessibility retry polling')
+    this.permissionRetryTimer = setInterval(() => {
+      this.ensureMonitoringActive('permission-poll')
+    }, 2500)
+  }
+
+  private stopPermissionRetryPolling() {
+    if (!this.permissionRetryTimer) {
+      return
+    }
+
+    clearInterval(this.permissionRetryTimer)
+    this.permissionRetryTimer = null
+    this.logger.info('[TextPickerFeature] stopped accessibility retry polling')
+  }
+
+  private logMonitorState(source: string, granted: boolean, running: boolean, started?: boolean) {
+    const stateKey = `${granted}:${running}:${started ?? 'na'}`
+    if (stateKey === this.lastMonitorStateKey) {
+      return
+    }
+
+    this.lastMonitorStateKey = stateKey
+    this.logger.info('[TextPickerFeature] monitor state', {
+      source,
+      granted,
+      running,
+      started,
+    })
+  }
+
+  private ensureMonitoringActive(source: string) {
+    if (!this.manager || !this.bridge.isSupported) {
+      return false
+    }
+
+    const granted = this.manager.ensurePermission({ prompt: false })
+    const running = this.manager.isMonitoringActive()
+
+    if (!granted) {
+      this.logMonitorState(source, false, running)
+      this.startPermissionRetryPolling()
+      return false
+    }
+
+    if (running) {
+      this.logMonitorState(source, true, true)
+      this.stopPermissionRetryPolling()
+      return true
+    }
+
+    const started = this.manager.start()
+    this.logMonitorState(source, true, started, started)
+
+    if (!started) {
+      this.logger.error('[TextPickerFeature] failed to start action monitor after permission grant', { source })
+      this.startPermissionRetryPolling()
+      return false
+    }
+
+    this.stopPermissionRetryPolling()
+    this.registerShortcuts()
+    return true
   }
 
   private async triggerScreenshotTranslation() {

@@ -176,6 +176,10 @@ export class TextPickerManager {
     this.detachBubbleMoveListener?.()
   }
 
+  isMonitoringActive() {
+    return this.isRunning
+  }
+
   setGlobalEnabled(enabled: boolean) {
     this.globalEnabled = enabled
     if (!enabled) {

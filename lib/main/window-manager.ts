@@ -7,6 +7,7 @@ import {
   type MainWindowRoute,
 } from './app'
 import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
+import { mainLogger } from '@/lib/main/logger'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 
@@ -44,11 +45,7 @@ const updateMainWindowActivationPolicy = (visible: boolean) => {
 }
 
 const logMainWindow = (event: string, details: Record<string, unknown> = {}) => {
-  if (app.isPackaged) {
-    return
-  }
-
-  console.warn('[main-window]', {
+  mainLogger.info('[main-window]', {
     event,
     route: currentRoute,
     ...details,
@@ -281,6 +278,10 @@ export const getOrCreateMainWindow = () => {
   attachMainWindowLifecycle(window)
   mainWindow = window
   return window
+}
+
+export const isMainWindowVisible = () => {
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible())
 }
 
 export const showMainWindow = async (
