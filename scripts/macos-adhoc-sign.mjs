@@ -4,7 +4,8 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-const CODESIGN_ARGS = ['--force', '--sign', '-', '--options', 'runtime', '--timestamp=none']
+const ENTITLEMENTS_PATH = path.resolve(import.meta.dirname, '..', 'resources', 'build', 'entitlements.mac.plist')
+const CODESIGN_ARGS = ['--force', '--sign', '-', '--options', 'runtime', '--entitlements', ENTITLEMENTS_PATH, '--timestamp=none']
 const BUNDLE_SUFFIXES = ['.app', '.framework', '.xpc']
 const FILE_SUFFIXES = ['.dylib', '.node']
 const IGNORE_DIRS = new Set(['_CodeSignature'])
@@ -27,12 +28,13 @@ async function walk(currentPath, targets) {
     const fullPath = path.join(currentPath, entry.name)
 
     if (entry.isDirectory()) {
+      // Always recurse into directories, including bundles, to find
+      // and sign inner binaries before signing the outer bundle.
+      await walk(fullPath, targets)
+
       if (BUNDLE_SUFFIXES.some((suffix) => entry.name.endsWith(suffix))) {
         targets.push(fullPath)
-        continue
       }
-
-      await walk(fullPath, targets)
       continue
     }
 
