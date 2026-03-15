@@ -24,7 +24,10 @@ mac:
   target:
     - pkg
     - zip
-  identity: '-'
+  # Do not force ad-hoc signing here. Accessibility/TCC permissions are matched
+  # against the app's signing identity, and ad-hoc builds are treated as a new
+  # app after rebuild/reinstall so the existing permission entry no longer
+  # applies.
   entitlements: resources/build/entitlements.mac.plist
   entitlementsInherit: resources/build/entitlements.mac.plist
   extendInfo:

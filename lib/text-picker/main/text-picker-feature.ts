@@ -2,6 +2,7 @@ import { app, clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray
 import appLogo from '@/app/assets/logo.png?asset'
 import { POPMIND_RELEASES_URL } from '@/lib/app/release'
 import { exportMainProcessLogs } from '@/lib/main/logger'
+import { getMacCodeSigningInfo } from '@/lib/main/macos-code-signing'
 import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-service'
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
 import { capabilityService } from '@/lib/capability/service'
@@ -140,6 +141,7 @@ export class TextPickerFeature {
     this.registerAutoDismissSurfaces()
     this.createStatusTray()
     this.setupIpc()
+    this.registerScreenshotShortcuts()
     const settings = await capabilityService.getSettings()
     this.manager?.setLanguage(settings.appLanguage)
     this.detachCapabilityListener = capabilityService.subscribe((nextSettings) => {
@@ -150,6 +152,8 @@ export class TextPickerFeature {
       this.logger.warn('[TextPickerFeature] platform not supported, text picker disabled')
       return false
     }
+
+    await this.logMacCodeSigningDiagnostics()
 
     const trusted = this.manager.ensurePermission({ prompt: false })
     this.logger.info('[TextPickerFeature] accessibility permission check', { trusted })
@@ -169,7 +173,7 @@ export class TextPickerFeature {
     }
 
     this.stopPermissionRetryPolling()
-    this.registerShortcuts()
+    this.registerSelectionShortcuts()
     return true
   }
 
@@ -494,11 +498,13 @@ export class TextPickerFeature {
     ])
   }
 
-  private registerShortcuts() {
+  private registerSelectionShortcuts() {
     this.registerGlobalShortcut(HIDE_BUBBLE_SHORTCUT, 'hide-bubble', () => {
       this.manager?.hideBubble()
     })
+  }
 
+  private registerScreenshotShortcuts() {
     this.registerGlobalShortcut(SCREENSHOT_TRANSLATE_SHORTCUT, 'screenshot-translate', () => {
       void this.triggerScreenshotTranslation()
     })
@@ -601,8 +607,30 @@ export class TextPickerFeature {
     }
 
     this.stopPermissionRetryPolling()
-    this.registerShortcuts()
+    this.registerSelectionShortcuts()
     return true
+  }
+
+  private async logMacCodeSigningDiagnostics() {
+    if (process.platform !== 'darwin' || !app.isPackaged) {
+      return
+    }
+
+    const signingInfo = await getMacCodeSigningInfo()
+    if (!signingInfo) {
+      return
+    }
+
+    this.logger.info('[TextPickerFeature] macOS code signing', signingInfo)
+
+    if (!signingInfo.isAdhoc) {
+      return
+    }
+
+    this.logger.warn(
+      '[TextPickerFeature] packaged macOS build is ad-hoc signed; Accessibility permission may remain unavailable after rebuild or reinstall until the app is signed with a stable identity and re-authorized',
+      signingInfo
+    )
   }
 
   private async triggerScreenshotTranslation() {
