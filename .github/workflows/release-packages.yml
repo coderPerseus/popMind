@@ -53,6 +53,7 @@ jobs:
           codesign --verify --deep --strict --verbose=4 dist/mac-arm64/popMind.app
           codesign -dvvv dist/mac-arm64/popMind.app 2>&1 | grep -E 'Identifier=|Signature=|TeamIdentifier='
           codesign -dvvv "dist/mac-arm64/popMind.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework" 2>&1 | grep -E 'Identifier=|Signature=|TeamIdentifier='
+          codesign -d --entitlements :- "dist/mac-arm64/popMind.app/Contents/MacOS/popMind" 2>&1 | grep 'com.apple.security.cs.disable-library-validation'
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
