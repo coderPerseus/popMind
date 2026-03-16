@@ -39,7 +39,9 @@ export class TranslationWindow implements TranslationWindowPort {
       fullscreenable: false,
       alwaysOnTop: true,
       skipTaskbar: true,
-      hasShadow: true,
+      // Transparent macOS panels can expose a visible outer outline when the
+      // system shadow is composited on top of custom CSS shadows.
+      hasShadow: false,
       backgroundColor: '#00000000',
       webPreferences: {
         preload: join(__dirname, '../preload/translationPreload.js'),
@@ -53,6 +55,7 @@ export class TranslationWindow implements TranslationWindowPort {
     }
 
     const translationWindow = new BrowserWindow(windowOptions)
+    translationWindow.setHasShadow(false)
     translationWindow.setAlwaysOnTop(true, 'pop-up-menu')
     translationWindow.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
