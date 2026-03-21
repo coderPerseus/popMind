@@ -1,6 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { AppApi } from './app-api'
 import { CapabilityApi } from './capability-api'
+import { ExplainApi } from './explain-api'
 import { SearchApi } from './search-api'
 import { TranslationApi } from './translation-api'
 import { WindowApi } from './window-api'
@@ -10,6 +11,7 @@ export const conveyor = {
   capability: new CapabilityApi(electronAPI),
   window: new WindowApi(electronAPI),
   translation: new TranslationApi(electronAPI),
+  explain: new ExplainApi(electronAPI),
   search: new SearchApi(electronAPI),
 }
 

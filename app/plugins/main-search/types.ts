@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 export type MainSearchPluginLogo = {
   src: string
   alt: string
@@ -11,7 +13,7 @@ export type MainSearchPluginManifest = {
   slashAliases: string[]
   order: number
   typeLabel: string
-  mode: 'link'
+  mode: 'link' | 'panel'
   keywords: string[]
   logo: MainSearchPluginLogo
   description: string
@@ -25,9 +27,16 @@ export type MainSearchPluginExecutionContext = {
   copyText: (text: string) => Promise<boolean>
 }
 
+export type MainSearchPluginPanelContext = {
+  query: string
+  trigger: string
+  setQuery: (nextQuery: string) => void
+}
+
 export interface MainSearchPlugin {
   manifest: MainSearchPluginManifest
   shouldDisplay(query: string): boolean
   toResult(query: string): MainSearchPluginResult
   run(context: MainSearchPluginExecutionContext): Promise<void>
+  renderPanel?(context: MainSearchPluginPanelContext): ReactNode
 }

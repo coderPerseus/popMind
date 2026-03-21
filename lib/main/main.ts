@@ -1,5 +1,6 @@
 import { app, globalShortcut, nativeImage } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { registerExplainHandlers } from '@/lib/conveyor/handlers/explain-handler'
 import { initializeAppLogging, mainLogger } from '@/lib/main/logger'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
@@ -60,6 +61,7 @@ app.whenReady().then(async () => {
 
   await themeStore.initialize()
   setupApplicationMenu()
+  registerExplainHandlers()
   registerTranslationHandlers()
   registerSearchHandlers()
 

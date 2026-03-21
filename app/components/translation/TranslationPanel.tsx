@@ -1,5 +1,6 @@
 import { Check, Copy, GripHorizontal, LoaderCircle, Pin, RefreshCw, Square, Volume2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
 import { Select } from '@/app/components/ui/select'
 import '@/app/components/translation/styles.css'
@@ -260,6 +261,7 @@ export function TranslationPanel() {
       : state.status === 'error'
         ? state.errorMessage || '翻译失败'
         : state.translatedText || (isIdle ? '译文会展示在这里' : '')
+  const shouldRenderMarkdown = !isWordMode && state.status !== 'loading' && state.status !== 'error' && !isIdle
 
   const stopSpeaking = () => {
     if (!('speechSynthesis' in window)) {
@@ -711,8 +713,12 @@ export function TranslationPanel() {
                       </div>
                     )}
                   </div>
+                ) : shouldRenderMarkdown ? (
+                  <Streamdown className="translation-markdown" mode="static" isAnimating={false}>
+                    {state.translatedText}
+                  </Streamdown>
                 ) : (
-                  translatedPreview
+                  <div className="translation-result-plain">{translatedPreview}</div>
                 )}
               </div>
             </div>

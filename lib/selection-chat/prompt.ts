@@ -1,7 +1,7 @@
 import { formatLanguageLabel, translateMessage } from '@/lib/i18n/shared'
 import type { AppLanguage } from '@/lib/capability/types'
+import type { ExplainConversationMessage } from '@/lib/explain/types'
 import type { WebSearchResult } from '@/lib/web-search/types'
-import type { SelectionChatMessage } from './types'
 
 export const buildExplainSystemPrompt = (language: AppLanguage) => {
   return translateMessage(language, 'prompt.explain.system', {
@@ -17,7 +17,7 @@ export const buildExplainPrompt = ({
 }: {
   language: AppLanguage
   selectionText: string
-  messages: SelectionChatMessage[]
+  messages: ExplainConversationMessage[]
   searchResults: WebSearchResult[]
 }) => {
   const sections = [translateMessage(language, 'prompt.explain.user.selection', { selection: selectionText })]

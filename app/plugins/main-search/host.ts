@@ -1,11 +1,12 @@
 import { officialAskPlugins } from '@/app/plugins/main-search/official-ask-plugins'
-import type { MainSearchPluginExecutionContext } from '@/app/plugins/main-search/types'
+import { todoFocusPlugin } from '@/app/plugins/main-search/todo-focus-plugin'
+import type { MainSearchPluginExecutionContext, MainSearchPluginPanelContext } from '@/app/plugins/main-search/types'
 
 const byOrderAndTitle = <T extends { manifest: { order: number; title: string } }>(a: T, b: T) => {
   return a.manifest.order - b.manifest.order || a.manifest.title.localeCompare(b.manifest.title)
 }
 
-const mainSearchPlugins = [...officialAskPlugins].sort(byOrderAndTitle)
+const mainSearchPlugins = [todoFocusPlugin, ...officialAskPlugins].sort(byOrderAndTitle)
 
 export const getMainSearchResultsCatalog = () => {
   return mainSearchPlugins.map((plugin) => plugin.toResult(''))
@@ -27,4 +28,9 @@ export const executeMainSearchPlugin = async (pluginId: string, context: MainSea
   }
 
   await plugin.run(context)
+}
+
+export const renderMainSearchPluginPanel = (pluginId: string, context: MainSearchPluginPanelContext) => {
+  const plugin = mainSearchPlugins.find((item) => item.manifest.id === pluginId)
+  return plugin?.renderPanel?.(context) ?? null
 }

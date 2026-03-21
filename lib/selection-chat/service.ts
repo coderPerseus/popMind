@@ -1,13 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { smoothStream, streamText } from 'ai'
-import { createLanguageModel, estimateMessageTokens } from '@/lib/ai-service/provider-factory'
-import type { AppLanguage } from '@/lib/capability/types'
+import { createLanguageModel } from '@/lib/ai-service/provider-factory'
 import { capabilityService } from '@/lib/capability/service'
 import { translateMessage } from '@/lib/i18n/shared'
+import { runExplain } from '@/lib/explain/runner'
 import { searchHistoryService } from '@/lib/search-history/service'
 import type { ExplainHistoryMessage } from '@/lib/search-history/types'
-import { webSearchService } from '@/lib/web-search/service'
-import { buildExplainPrompt, buildExplainSystemPrompt } from './prompt'
 import type { SelectionChatMessage, SelectionChatSession } from './types'
 
 const createMessage = (role: 'user' | 'assistant', text = ''): SelectionChatMessage => ({
@@ -16,16 +13,6 @@ const createMessage = (role: 'user' | 'assistant', text = ''): SelectionChatMess
   text,
   createdAt: Date.now(),
 })
-
-const createSmoothTransform = (language: AppLanguage) => {
-  const chunking =
-    language === 'zh-CN' ? new Intl.Segmenter('zh', { granularity: 'word' }) : ('word' as const)
-
-  return smoothStream({
-    delayInMs: 18,
-    chunking,
-  })
-}
 
 export class SelectionChatService {
   private session: SelectionChatSession | null = null
@@ -166,34 +153,15 @@ export class SelectionChatService {
       throw new Error('No AI provider configured')
     }
 
-    const latestQuestion =
-      this.session.messages
-        .filter((message) => message.role === 'user')
-        .at(-1)?.text ?? this.session.selectionText
-    const estimatedTokens = estimateMessageTokens(this.session.messages.map((item) => item.text))
-
-    if (estimatedTokens > model.contextLimit) {
-      this.session = {
-        ...this.session,
-        status: 'error',
-        errorMessage: translateMessage(settings.appLanguage, 'selectionChat.error.contextLimit'),
-      }
-      this.emit()
-      await this.persistSession()
-      return
-    }
-
     const conversationMessages = this.session.messages
     const assistantMessage = createMessage('assistant', '')
-    let webSearchProvider = this.session.webSearchProvider
-    let searchResults: Awaited<ReturnType<typeof webSearchService.search>>['results'] = []
 
     this.session = {
       ...this.session,
       status: settings.webSearch.enabled ? 'searching' : 'streaming',
       loadingMessage: translateMessage(
         settings.appLanguage,
-        settings.webSearch.enabled ? 'selectionChat.searching' : 'selectionChat.loading',
+        settings.webSearch.enabled ? 'selectionChat.searching' : 'selectionChat.loading'
       ),
       aiProvider: model.providerId,
       modelId: model.modelId,
@@ -202,75 +170,47 @@ export class SelectionChatService {
     }
     this.emit()
 
-    if (settings.webSearch.enabled) {
-      try {
-        const search = await webSearchService.search(settings, `${this.session.selectionText}\n${latestQuestion}`)
-        if (!this.isRunActive(runId)) {
-          return
-        }
-
-        searchResults = search.results
-        webSearchProvider = search.providerId
-      } catch {
-        if (!this.isRunActive(runId)) {
-          return
-        }
-
-        searchResults = []
-      }
-
-      if (!this.session) {
-        return
-      }
-
-      this.session = {
-        ...this.session,
-        status: 'streaming',
-        loadingMessage: translateMessage(settings.appLanguage, 'selectionChat.loading'),
-        webSearchProvider,
-      }
-      this.emit()
-    }
-
     const abortController = new AbortController()
     this.currentAbortController = abortController
 
     try {
-      const result = streamText({
-        model: model.model,
-        abortSignal: abortController.signal,
-        experimental_transform: createSmoothTransform(settings.appLanguage),
-        system: buildExplainSystemPrompt(settings.appLanguage),
-        prompt: buildExplainPrompt({
-          language: settings.appLanguage,
-          selectionText: this.session.selectionText,
-          messages: conversationMessages,
-          searchResults,
-        }),
+      const result = await runExplain({
+        selectionText: this.session.selectionText,
+        messages: conversationMessages.map((message) => ({
+          role: message.role,
+          text: message.text,
+        })),
+        signal: abortController.signal,
+        onChunk: (_chunk, fullText) => {
+          if (!this.isRunActive(runId) || !this.session) {
+            return
+          }
+
+          if (this.session.status === 'searching') {
+            this.session = {
+              ...this.session,
+              status: 'streaming',
+              loadingMessage: translateMessage(settings.appLanguage, 'selectionChat.loading'),
+            }
+          }
+
+          const lastMessage = this.session.messages.at(-1)
+          if (!lastMessage || lastMessage.id !== assistantMessage.id) {
+            return
+          }
+
+          const nextLastMessage: SelectionChatMessage = {
+            ...lastMessage,
+            text: fullText,
+          }
+
+          this.session = {
+            ...this.session,
+            messages: [...this.session.messages.slice(0, -1), nextLastMessage],
+          }
+          this.emit()
+        },
       })
-
-      for await (const chunk of result.textStream) {
-        if (!this.isRunActive(runId) || !this.session) {
-          return
-        }
-
-        const lastMessage = this.session.messages.at(-1)
-        if (!lastMessage || lastMessage.id !== assistantMessage.id) {
-          continue
-        }
-
-        const nextLastMessage: SelectionChatMessage = {
-          ...lastMessage,
-          text: `${lastMessage.text}${chunk}`,
-          sources: searchResults.length ? searchResults : undefined,
-        }
-
-        this.session = {
-          ...this.session,
-          messages: [...this.session.messages.slice(0, -1), nextLastMessage],
-        }
-        this.emit()
-      }
 
       if (!this.isRunActive(runId) || !this.session) {
         return
@@ -280,6 +220,17 @@ export class SelectionChatService {
         ...this.session,
         status: 'ready',
         loadingMessage: undefined,
+        aiProvider: result.aiProvider,
+        modelId: result.modelId,
+        webSearchProvider: result.webSearchProvider,
+        messages: [
+          ...this.session.messages.slice(0, -1),
+          {
+            ...assistantMessage,
+            text: result.text,
+            sources: result.sources.length ? result.sources : undefined,
+          },
+        ],
       }
       this.emit()
       await this.persistSession()
@@ -288,7 +239,8 @@ export class SelectionChatService {
         return
       }
 
-      const message = error instanceof Error ? error.message : translateMessage(settings.appLanguage, 'selectionChat.error.generic')
+      const message =
+        error instanceof Error ? error.message : translateMessage(settings.appLanguage, 'selectionChat.error.generic')
       const lastMessage = this.session.messages.at(-1)
       const nextLastMessage =
         lastMessage?.id === assistantMessage.id

@@ -11,6 +11,8 @@ import { ArrowUpRight, Search, Settings2 } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useI18n } from '@/app/i18n'
 import { parseMainSearchCommand } from '@/app/components/home/query-command'
+import { ExplainCard } from '@/app/components/home/ExplainCard'
+import { useExplainCommand } from '@/app/components/home/use-explain-command'
 import { useTranslateCommand } from '@/app/components/home/use-translate-command'
 import { TranslateCard } from '@/app/components/home/TranslateCard'
 import {
@@ -18,6 +20,7 @@ import {
   executeMainSearchPlugin,
   getMainSearchPluginResult,
   getMainSearchResultsCatalog,
+  renderMainSearchPluginPanel,
   type MainSearchPluginResult,
 } from '@/app/plugins/main-search'
 import { getThemeLogoUrl } from '@/app/theme-assets'
@@ -26,6 +29,7 @@ import './styles.css'
 
 type LauncherCommandItem = {
   id: string
+  kind: 'translate' | 'explain'
   title: string
   subtitle: string
   typeLabel: 'Command'
@@ -45,12 +49,23 @@ type LauncherSection = {
 const launcherCommands: LauncherCommandItem[] = [
   {
     id: 'command.translate',
+    kind: 'translate',
     title: 'Translate Text',
     subtitle: '/tr · /翻译',
     typeLabel: 'Command',
     keywords: ['translate', 'tr', 'translation', 'command', '翻译'],
     aliases: ['/tr', '/翻译'],
     order: 1,
+  },
+  {
+    id: 'command.explain',
+    kind: 'explain',
+    title: 'Explain Text',
+    subtitle: '/ex · /解释',
+    typeLabel: 'Command',
+    keywords: ['explain', 'explanation', 'command', '解释', 'ex'],
+    aliases: ['/ex', '/explain', '/解释'],
+    order: 2,
   },
 ]
 
@@ -63,6 +78,12 @@ const getPrimaryAlias = (aliases: string[]) => aliases[0] ?? ''
 const matchesSlashAliasQuery = (query: string, values: string[]) => {
   const normalizedQuery = query.toLowerCase()
   return values.some((value) => value.toLowerCase().includes(normalizedQuery))
+}
+
+const getPluginQueryWithAlias = (pluginItem: MainSearchPluginResult, currentQuery: string) => {
+  const alias = getPrimaryAlias(pluginItem.slashAliases)
+  const nextText = currentQuery.trim().startsWith('/') ? '' : currentQuery.trim()
+  return nextText ? `${alias} ${nextText}` : `${alias} `
 }
 
 export function MainSearch() {
@@ -83,7 +104,7 @@ export function MainSearch() {
   const slashEntries = useMemo(
     () => [
       ...launcherCommands.map((item) => ({
-        kind: 'translate' as const,
+        kind: item.kind,
         id: item.id,
         aliases: item.aliases,
       })),
@@ -103,12 +124,25 @@ export function MainSearch() {
     () => (command.kind === 'plugin' ? getMainSearchPluginResult(command.id, command.text) : null),
     [command]
   )
+  const activePluginPanel = useMemo(() => {
+    if (!activePlugin || activePlugin.mode !== 'panel' || command.kind !== 'plugin') {
+      return null
+    }
+
+    return renderMainSearchPluginPanel(activePlugin.id, {
+      query: command.text,
+      trigger: command.trigger,
+      setQuery,
+    })
+  }, [activePlugin, command])
 
   const translate = useTranslateCommand(command)
+  const explain = useExplainCommand(command)
   const resetTranslate = translate.reset
+  const resetExplain = explain.reset
 
   const launcherSections = useMemo(() => {
-    if (translate.isActive || activePlugin) {
+    if (translate.isActive || explain.isActive || activePlugin) {
       return [] as LauncherSection[]
     }
 
@@ -145,7 +179,7 @@ export function MainSearch() {
     }
 
     return sections
-  }, [activePlugin, normalizedQuery, pluginCatalog, translate.isActive])
+  }, [activePlugin, explain.isActive, normalizedQuery, pluginCatalog, translate.isActive])
   const launcherItems = useMemo(() => launcherSections.flatMap((section) => section.items), [launcherSections])
   const activeItem = launcherItems[activeIndex] ?? null
 
@@ -159,12 +193,13 @@ export function MainSearch() {
       setActiveIndex(0)
       setIsLaunching(false)
       resetTranslate()
+      resetExplain()
     })
 
     return () => {
       unsubscribe()
     }
-  }, [onMainWindowReset, resetTranslate])
+  }, [onMainWindowReset, resetExplain, resetTranslate])
 
   useEffect(() => {
     const unsubscribe = onMainWindowSetSearchQuery((nextQuery) => {
@@ -172,6 +207,7 @@ export function MainSearch() {
       setActiveIndex(0)
       setIsLaunching(false)
       resetTranslate()
+      resetExplain()
       requestAnimationFrame(() => {
         inputRef.current?.focus()
         inputRef.current?.select()
@@ -181,7 +217,7 @@ export function MainSearch() {
     return () => {
       unsubscribe()
     }
-  }, [onMainWindowSetSearchQuery, resetTranslate])
+  }, [onMainWindowSetSearchQuery, resetExplain, resetTranslate])
 
   useEffect(() => {
     const root = document.documentElement
@@ -241,6 +277,12 @@ export function MainSearch() {
   }, [launcherItems.length])
 
   const launchPlugin = async (result: MainSearchPluginResult, executionQuery = query.trim()) => {
+    if (result.mode === 'panel') {
+      setQuery(getPluginQueryWithAlias(result, executionQuery))
+      requestAnimationFrame(() => inputRef.current?.focus())
+      return
+    }
+
     if (isLaunching) return
     if (!executionQuery.trim()) return
 
@@ -284,6 +326,12 @@ export function MainSearch() {
   const activatePlugin = async (pluginItem: MainSearchPluginResult) => {
     const currentQuery = query.trim()
 
+    if (pluginItem.mode === 'panel') {
+      setQuery(getPluginQueryWithAlias(pluginItem, currentQuery))
+      requestAnimationFrame(() => inputRef.current?.focus())
+      return
+    }
+
     if (!currentQuery) {
       activatePluginAlias(pluginItem)
       return
@@ -301,7 +349,15 @@ export function MainSearch() {
       return
     }
 
-    if (activePlugin && command.kind === 'plugin') {
+    if (explain.isActive) {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        explain.runImmediately()
+      }
+      return
+    }
+
+    if (activePlugin?.mode === 'link' && command.kind === 'plugin') {
       if (event.key === 'Enter') {
         event.preventDefault()
         await launchPlugin(activePlugin, command.text)
@@ -387,6 +443,18 @@ export function MainSearch() {
             }}
             onRetranslate={translate.retranslate}
           />
+        ) : explain.isActive && command.kind === 'explain' ? (
+          <ExplainCard
+            command={command}
+            cardState={explain.cardState}
+            copied={explain.copied}
+            onCopy={() => {
+              void explain.copyResult()
+            }}
+            onReexplain={explain.reexplain}
+          />
+        ) : activePluginPanel ? (
+          activePluginPanel
         ) : activePlugin && command.kind === 'plugin' ? (
           <div className="ms-command-stack">
             <div className="ms-command-chip">

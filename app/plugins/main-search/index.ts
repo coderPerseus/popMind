@@ -3,6 +3,7 @@ export {
   executeMainSearchPlugin,
   getMainSearchPluginResult,
   getMainSearchResultsCatalog,
+  renderMainSearchPluginPanel,
   resolveMainSearchResults,
 } from '@/app/plugins/main-search/host'
 export type { MainSearchPluginResult } from '@/app/plugins/main-search/types'

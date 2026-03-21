@@ -439,6 +439,272 @@
   animation: ms-spin 1s linear infinite;
 }
 
+.ms-explain-command-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 246, 241, 0.94) 100%), rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.72) inset,
+    0 22px 40px rgba(15, 23, 42, 0.08);
+}
+
+.ms-explain-command-card.is-error {
+  background:
+    linear-gradient(180deg, rgba(255, 245, 245, 0.98) 0%, rgba(255, 235, 235, 0.94) 100%), rgba(255, 255, 255, 0.82);
+}
+
+.ms-explain-command-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ms-explain-command-head-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ms-explain-command-eyebrow {
+  color: rgba(120, 53, 15, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ms-explain-command-query {
+  color: rgba(15, 23, 42, 0.92);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ms-explain-command-status,
+.ms-explain-command-meta,
+.ms-explain-command-footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(71, 85, 105, 0.78);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.ms-explain-command-meta span,
+.ms-explain-command-footer-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.ms-explain-command-body {
+  min-height: 116px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 247, 237, 0.98) 0%, rgba(255, 251, 235, 0.98) 100%);
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.ms-explain-command-body.is-placeholder {
+  background: rgba(15, 23, 42, 0.04);
+  color: rgba(71, 85, 105, 0.76);
+}
+
+.ms-explain-command-body.is-error {
+  background: rgba(239, 68, 68, 0.08);
+  color: rgba(153, 27, 27, 0.9);
+}
+
+.ms-explain-command-plain {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.68;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.ms-explain-command-markdown {
+  color: rgba(15, 23, 42, 0.92);
+  line-height: 1.72;
+  font-size: 14px;
+}
+
+.ms-explain-command-markdown :where(p, ul, ol, blockquote, pre, table) {
+  margin: 0 0 0.8em;
+}
+
+.ms-explain-command-markdown :where(h1, h2, h3, h4) {
+  margin: 0 0 0.55em;
+  color: rgba(120, 53, 15, 0.9);
+  letter-spacing: -0.02em;
+}
+
+.ms-explain-command-markdown :where(h1) {
+  font-size: 1.15rem;
+}
+
+.ms-explain-command-markdown :where(h2) {
+  font-size: 1.05rem;
+}
+
+.ms-explain-command-markdown :where(h3, h4) {
+  font-size: 0.96rem;
+}
+
+.ms-explain-command-markdown :where(ul, ol) {
+  padding-left: 1.2rem;
+}
+
+.ms-explain-command-markdown :where(li + li) {
+  margin-top: 0.3em;
+}
+
+.ms-explain-command-markdown :where(blockquote) {
+  padding-left: 0.85rem;
+  border-left: 2px solid rgba(245, 158, 11, 0.35);
+  color: rgba(120, 53, 15, 0.82);
+}
+
+.ms-explain-command-markdown :where(code) {
+  padding: 0.14em 0.38em;
+  border-radius: 0.45rem;
+  background: rgba(120, 53, 15, 0.08);
+  font-size: 0.92em;
+}
+
+.ms-explain-command-markdown :where(pre) {
+  overflow-x: auto;
+  padding: 0.9rem;
+  border-radius: 0.9rem;
+  background: rgba(120, 53, 15, 0.08);
+}
+
+.ms-explain-command-markdown :where(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.ms-explain-command-markdown :where(th, td) {
+  border: 1px solid rgba(120, 53, 15, 0.12);
+  padding: 0.48rem 0.6rem;
+}
+
+.ms-explain-command-markdown :where(a) {
+  color: rgb(180 83 9);
+  text-decoration: none;
+}
+
+.ms-explain-command-markdown :where(a:hover) {
+  text-decoration: underline;
+}
+
+.ms-explain-command-markdown > :first-child {
+  margin-top: 0;
+}
+
+.ms-explain-command-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.ms-explain-command-sources-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ms-explain-command-sources-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  color: rgba(15, 23, 42, 0.86);
+  cursor: pointer;
+}
+
+.ms-explain-command-sources-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.ms-explain-command-sources-copy strong {
+  font-size: 12px;
+}
+
+.ms-explain-command-sources-copy span,
+.ms-explain-command-source-head,
+.ms-explain-command-sources a span {
+  font-size: 12px;
+  color: rgba(71, 85, 105, 0.76);
+}
+
+.ms-explain-command-sources-icon {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.ms-explain-command-sources-icon.is-expanded {
+  transform: rotate(180deg);
+}
+
+.ms-explain-command-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ms-explain-command-sources a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+}
+
+.ms-explain-command-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(15, 23, 42, 0.88);
+}
+
+.ms-explain-command-source-head strong {
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.ms-explain-command-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
 .ms-translate-card {
   display: flex;
   flex-direction: column;
