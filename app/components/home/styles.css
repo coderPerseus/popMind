@@ -497,8 +497,7 @@
 }
 
 .ms-explain-command-status,
-.ms-explain-command-meta,
-.ms-explain-command-footer-meta {
+.ms-explain-command-meta {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -507,8 +506,7 @@
   flex-wrap: wrap;
 }
 
-.ms-explain-command-meta span,
-.ms-explain-command-footer-meta span {
+.ms-explain-command-meta span {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -954,7 +952,7 @@
 .ms-explain-command-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   padding-top: 2px;
   border-top: 1px solid rgba(15, 23, 42, 0.06);

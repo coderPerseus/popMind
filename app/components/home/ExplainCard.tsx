@@ -225,14 +225,6 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
         )}
 
         <div className="ms-explain-command-footer">
-          <div className="ms-explain-command-footer-meta">
-            {session ? (
-              <span>{session.language === 'en' ? 'English output' : '中文输出'}</span>
-            ) : (
-              <span>{language === 'en' ? 'Press Enter to ask' : '按回车开始提问'}</span>
-            )}
-          </div>
-
           <div className="ms-translate-command-footer-actions">
             <Button
               className="ms-translate-command-action-btn is-primary"
@@ -257,7 +249,7 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
               onChange={(event) => setDraft(event.target.value)}
               placeholder={language === 'en' ? 'Ask a follow-up…' : '继续提问…'}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && event.shiftKey) {
+                if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault()
                   if (session) {
                     void submit()

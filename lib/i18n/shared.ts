@@ -122,6 +122,7 @@ const zhCN = createMessages({
   'selectionChat.loading': '正在生成解释…',
   'selectionChat.searching': '正在搜索相关资料…',
   'selectionChat.error.generic': '解释失败，请稍后重试。',
+  'selectionChat.error.missingAiConfig': '未配置 AI 服务，请先前往配置中心选择 Provider 并填写 API Key。',
   'selectionChat.error.contextLimit': '当前对话上下文已超过模型上限，请开启新的解释会话或缩短输入。',
   'selectionChat.empty': '选择文本后点击“解释”，这里会开始一个轻量对话。',
   'selectionChat.source.title': '参考来源',
@@ -253,6 +254,8 @@ const en = createMessages({
   'selectionChat.loading': 'Generating explanation…',
   'selectionChat.searching': 'Searching the web…',
   'selectionChat.error.generic': 'Explanation failed. Please try again.',
+  'selectionChat.error.missingAiConfig':
+    'AI service is not configured. Open Settings and set a provider with an API key first.',
   'selectionChat.error.contextLimit':
     'The conversation has exceeded the model context limit. Start a new explanation or shorten the input.',
   'selectionChat.empty': 'Select text and click "Explain" to start a lightweight chat.',

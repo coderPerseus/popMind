@@ -24,7 +24,7 @@ export const runExplain = async ({
   const settings = await capabilityService.getSettings()
   const model = createLanguageModel(settings)
   if (!model) {
-    throw new Error('No AI provider configured')
+    throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
   }
 
   const estimatedTokens = estimateMessageTokens([selectionText, ...messages.map((item) => item.text)])

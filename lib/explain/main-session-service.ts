@@ -35,11 +35,31 @@ export class MainExplainSessionService {
     }
   }
 
+  private setMissingAiConfigState(selectionText: string, language: 'zh-CN' | 'en') {
+    const firstUserMessage = createMessage('user', selectionText.trim())
+    if (!firstUserMessage.text) {
+      this.session = null
+      this.emit()
+      return null
+    }
+
+    this.session = {
+      id: randomUUID(),
+      selectionText: firstUserMessage.text,
+      messages: [firstUserMessage],
+      status: 'error',
+      language,
+      errorMessage: translateMessage(language, 'selectionChat.error.missingAiConfig'),
+    }
+    this.emit()
+    return this.session
+  }
+
   async startSession(selectionText: string) {
     const settings = await capabilityService.getSettings()
     const model = createLanguageModel(settings)
     if (!model) {
-      return null
+      return this.setMissingAiConfigState(selectionText, settings.appLanguage)
     }
 
     const firstUserMessage = createMessage('user', selectionText.trim())
@@ -141,7 +161,7 @@ export class MainExplainSessionService {
 
     const model = createLanguageModel(settings)
     if (!model) {
-      throw new Error('No AI provider configured')
+      throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
     }
 
     const conversationMessages = this.session.messages
