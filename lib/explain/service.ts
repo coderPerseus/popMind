@@ -5,27 +5,38 @@ import type { ExplainInput, ExplainResult } from './types'
 
 export class ExplainService {
   async explain(input: ExplainInput): Promise<ExplainResult> {
-    const text = input.text.trim()
-    if (!text) {
-      throw new Error('Text is required')
+    const selectionText = input.selectionText.trim()
+    const messages = input.messages
+      .map((message) => ({
+        role: message.role,
+        text: message.text.trim(),
+      }))
+      .filter((message) => message.text)
+
+    if (!selectionText) {
+      throw new Error('Selection text is required')
+    }
+
+    if (!messages.length) {
+      throw new Error('Messages are required')
     }
 
     const createdAt = Date.now()
     const result = await runExplain({
-      selectionText: text,
-      messages: [{ role: 'user', text }],
+      selectionText,
+      messages,
     })
 
     await searchHistoryService.recordExplain({
       id: randomUUID(),
-      selectionText: text,
+      selectionText,
       messages: [
-        {
+        ...messages.map((message, index) => ({
           id: randomUUID(),
-          role: 'user',
-          text,
-          createdAt,
-        },
+          role: message.role,
+          text: message.text,
+          createdAt: createdAt + index,
+        })),
         {
           id: randomUUID(),
           role: 'assistant',

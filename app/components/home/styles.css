@@ -465,6 +465,12 @@
   gap: 12px;
 }
 
+.ms-explain-command-meta-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
 .ms-explain-command-head-copy {
   min-width: 0;
   display: flex;
@@ -520,8 +526,9 @@
 }
 
 .ms-explain-command-body.is-placeholder {
-  background: rgba(15, 23, 42, 0.04);
-  color: rgba(71, 85, 105, 0.76);
+  background: linear-gradient(180deg, rgba(244, 245, 247, 0.96) 0%, rgba(238, 240, 243, 0.96) 100%);
+  color: rgba(100, 116, 139, 0.78);
+  font-weight: 500;
 }
 
 .ms-explain-command-body.is-error {
@@ -535,6 +542,254 @@
   line-height: 1.68;
   font-size: 15px;
   font-weight: 500;
+}
+
+.ms-explain-command-body.is-placeholder .ms-explain-command-plain {
+  color: inherit;
+}
+
+.ms-explain-context-card,
+.ms-explain-thread-shell {
+  border: 1px solid rgb(226 231 239 / 0.92);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.82);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72);
+}
+
+.ms-explain-context-card {
+  padding: 14px 16px;
+}
+
+.ms-explain-context-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgb(30 41 59 / 0.9);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.ms-explain-thread-shell {
+  padding: 8px;
+}
+
+.ms-explain-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.ms-explain-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgb(226 231 239 / 0.92);
+}
+
+.ms-explain-message.is-user {
+  margin-left: 24px;
+  background: linear-gradient(160deg, rgb(243 244 246 / 0.96), rgb(236 239 244 / 0.92));
+}
+
+.ms-explain-message.is-assistant {
+  margin-right: 24px;
+  background: linear-gradient(180deg, rgb(255 251 235 / 0.96), rgb(255 247 237 / 0.92));
+}
+
+.ms-explain-markdown {
+  color: rgb(15 23 42 / 0.92);
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.ms-explain-markdown :where(p, ul, ol, blockquote, pre, table) {
+  margin: 0 0 0.8em;
+}
+
+.ms-explain-markdown :where(h1, h2, h3, h4) {
+  margin: 0 0 0.55em;
+  color: rgba(120, 53, 15, 0.9);
+  letter-spacing: -0.02em;
+}
+
+.ms-explain-markdown :where(h1) {
+  font-size: 1.15rem;
+}
+
+.ms-explain-markdown :where(h2) {
+  font-size: 1.05rem;
+}
+
+.ms-explain-markdown :where(h3, h4) {
+  font-size: 0.96rem;
+}
+
+.ms-explain-markdown :where(ul, ol) {
+  padding-left: 1.2rem;
+}
+
+.ms-explain-markdown :where(li + li) {
+  margin-top: 0.3em;
+}
+
+.ms-explain-markdown :where(blockquote) {
+  padding-left: 0.85rem;
+  border-left: 2px solid rgba(245, 158, 11, 0.35);
+  color: rgba(120, 53, 15, 0.82);
+}
+
+.ms-explain-markdown :where(code) {
+  padding: 0.14em 0.38em;
+  border-radius: 0.45rem;
+  background: rgba(120, 53, 15, 0.08);
+  font-size: 0.92em;
+}
+
+.ms-explain-markdown :where(pre) {
+  overflow-x: auto;
+  padding: 0.9rem;
+  border-radius: 0.9rem;
+  background: rgba(120, 53, 15, 0.08);
+}
+
+.ms-explain-markdown :where(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.ms-explain-markdown :where(th, td) {
+  border: 1px solid rgba(120, 53, 15, 0.12);
+  padding: 0.48rem 0.6rem;
+}
+
+.ms-explain-markdown :where(a) {
+  color: rgb(180 83 9);
+  text-decoration: none;
+}
+
+.ms-explain-markdown :where(a:hover) {
+  text-decoration: underline;
+}
+
+.ms-explain-markdown > :first-child {
+  margin-top: 0;
+}
+
+.ms-explain-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.ms-explain-streaming,
+.ms-explain-status,
+.ms-explain-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ms-explain-status {
+  padding: 10px 12px 2px;
+  color: rgb(148 163 184);
+}
+
+.ms-explain-status.is-error,
+.ms-explain-error {
+  color: rgb(153 27 27 / 0.9);
+}
+
+.ms-explain-sources-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ms-explain-sources-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  color: rgba(15, 23, 42, 0.86);
+  cursor: pointer;
+}
+
+.ms-explain-sources-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.ms-explain-sources-toggle-copy strong {
+  font-size: 12px;
+}
+
+.ms-explain-sources-toggle-copy span,
+.ms-explain-source-head,
+.ms-explain-sources a span {
+  font-size: 12px;
+  color: rgba(71, 85, 105, 0.76);
+}
+
+.ms-explain-sources-toggle-icon {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.ms-explain-sources-toggle-icon.is-expanded {
+  transform: rotate(180deg);
+}
+
+.ms-explain-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ms-explain-sources a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+}
+
+.ms-explain-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(15, 23, 42, 0.88);
+}
+
+.ms-explain-source-head strong {
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.ms-explain-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(226 231 239 / 0.88);
+}
+
+.ms-explain-inline-btn,
+.ms-explain-action-btn {
+  gap: 5px;
 }
 
 .ms-explain-command-markdown {
@@ -703,6 +958,45 @@
   gap: 10px;
   padding-top: 2px;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.ms-explain-command-composer {
+  padding-top: 2px;
+}
+
+.ms-explain-command-composer-frame {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(226 231 239 / 0.92);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.05),
+    inset 0 1px 0 rgb(255 255 255 / 0.74);
+  padding: 8px;
+}
+
+.ms-explain-command-input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 36px !important;
+  max-height: 128px;
+  resize: none;
+  padding: 7px 8px !important;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+
+.ms-explain-command-input:focus {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.ms-explain-command-send-btn {
+  flex-shrink: 0;
+  border-radius: 10px;
 }
 
 .ms-translate-card {

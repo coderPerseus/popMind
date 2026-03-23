@@ -446,12 +446,10 @@ export function MainSearch() {
         ) : explain.isActive && command.kind === 'explain' ? (
           <ExplainCard
             command={command}
-            cardState={explain.cardState}
-            copied={explain.copied}
-            onCopy={() => {
-              void explain.copyResult()
-            }}
-            onReexplain={explain.reexplain}
+            session={explain.session}
+            onReexplain={explain.regenerate}
+            onSubmitFollowup={explain.submitFollowup}
+            onStop={explain.stop}
           />
         ) : activePluginPanel ? (
           activePluginPanel

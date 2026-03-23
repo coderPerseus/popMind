@@ -1,191 +1,102 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
-import { copyTextToClipboard } from '@/app/plugins/main-search'
-import type { ExplainMessageSource } from '@/lib/search-history/types'
+import type { MainExplainState } from '@/lib/explain/types'
 
-export type ExplainCardState =
-  | { status: 'idle' }
-  | {
-      status: 'loading'
-      query: string
-      trigger: string
-    }
-  | {
-      status: 'success'
-      query: string
-      trigger: string
-      text: string
-      language: 'zh-CN' | 'en'
-      aiProvider: string
-      modelId: string
-      webSearchProvider?: string
-      sources: ExplainMessageSource[]
-    }
-  | {
-      status: 'error'
-      query: string
-      trigger: string
-      error: string
-    }
+const emptyState: MainExplainState = {
+  session: null,
+}
 
 export function useExplainCommand(command: MainSearchCommand) {
   const explain = useConveyor('explain')
-  const search = useConveyor('search')
-  const [cardState, setCardState] = useState<ExplainCardState>({ status: 'idle' })
-  const [copied, setCopied] = useState(false)
-  const requestIdRef = useRef(0)
-  const debounceTimerRef = useRef<number | null>(null)
+  const [state, setState] = useState<MainExplainState>(emptyState)
 
   const isActive = command.kind === 'explain'
 
-  const runExplain = useCallback(
-    async (trigger: string, text: string) => {
-      const normalizedText = text.trim()
-      if (!normalizedText) {
-        setCardState({ status: 'idle' })
-        return
-      }
-
-      const requestId = ++requestIdRef.current
-      setCopied(false)
-      setCardState({
-        status: 'loading',
-        query: normalizedText,
-        trigger,
-      })
-
-      try {
-        const result = await explain.explain({ text: normalizedText })
-        if (requestId !== requestIdRef.current) {
-          return
-        }
-
-        setCardState({
-          status: 'success',
-          query: normalizedText,
-          trigger,
-          text: result.text,
-          language: result.language,
-          aiProvider: result.aiProvider,
-          modelId: result.modelId,
-          webSearchProvider: result.webSearchProvider,
-          sources: result.sources,
-        })
-
-        void search
-          .recordHistory({
-            kind: 'command',
-            query: `${trigger} ${normalizedText}`,
-            actionId: 'command.explain',
-            actionLabel: trigger,
-            metadata: {
-              resultText: result.text,
-            },
-          })
-          .catch(() => undefined)
-      } catch (error) {
-        if (requestId !== requestIdRef.current) {
-          return
-        }
-
-        setCardState({
-          status: 'error',
-          query: normalizedText,
-          trigger,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    },
-    [explain, search]
-  )
-
   useEffect(() => {
-    if (!copied) {
-      return
+    let mounted = true
+    const syncState = (nextState: MainExplainState) => {
+      if (mounted) {
+        setState(nextState)
+      }
     }
 
-    const timer = window.setTimeout(() => setCopied(false), 1500)
-    return () => window.clearTimeout(timer)
-  }, [copied])
-
-  useEffect(() => {
-    if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-
-    if (!isActive) {
-      requestIdRef.current += 1
-      setCardState({ status: 'idle' })
-      return
-    }
-
-    if (command.kind !== 'explain' || !command.text) {
-      requestIdRef.current += 1
-      setCardState({ status: 'idle' })
-      return
-    }
-
-    requestIdRef.current += 1
-    setCopied(false)
-    setCardState({
-      status: 'loading',
-      query: command.text.trim(),
-      trigger: command.trigger,
-    })
-    debounceTimerRef.current = window.setTimeout(() => {
-      void runExplain(command.trigger, command.text)
-    }, 260)
+    const unsubscribe = explain.onState(syncState)
+    void explain.getState().then(syncState)
 
     return () => {
-      if (debounceTimerRef.current) {
-        window.clearTimeout(debounceTimerRef.current)
-        debounceTimerRef.current = null
-      }
+      mounted = false
+      unsubscribe()
     }
-  }, [command, isActive, runExplain])
+  }, [explain])
 
-  const runImmediately = useCallback(() => {
-    if (command.kind !== 'explain' || !command.text) {
+  useEffect(() => {
+    if (!isActive || command.kind !== 'explain') {
+      void explain.reset()
       return
     }
 
-    if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
+    const nextQuery = command.text.trim()
+    if (!nextQuery) {
+      if (state.session) {
+        void explain.reset()
+      }
+      return
     }
 
-    void runExplain(command.trigger, command.text)
-  }, [command, runExplain])
+    if (state.session && state.session.selectionText !== nextQuery) {
+      void explain.reset()
+    }
+  }, [command, explain, isActive, state.session])
 
-  const copyResult = useCallback(async () => {
-    if (cardState.status !== 'success' || !cardState.text) {
-      return false
+  const runImmediately = useCallback(() => {
+    if (command.kind !== 'explain' || !command.text.trim()) {
+      return
     }
 
-    const didCopy = await copyTextToClipboard(cardState.text)
-    setCopied(didCopy)
-    return didCopy
-  }, [cardState])
+    void explain.startSession(command.text.trim())
+  }, [command, explain])
+
+  const submitFollowup = useCallback(
+    async (text: string) => {
+      const message = text.trim()
+      if (!message) {
+        return false
+      }
+
+      await explain.submitMessage(message)
+      return true
+    },
+    [explain]
+  )
+
+  const regenerate = useCallback(() => {
+    if (state.session) {
+      void explain.regenerate()
+      return
+    }
+
+    if (command.kind === 'explain' && command.text.trim()) {
+      void explain.startSession(command.text.trim())
+    }
+  }, [command, explain, state.session])
+
+  const stop = useCallback(() => {
+    void explain.stop()
+  }, [explain])
 
   const reset = useCallback(() => {
-    requestIdRef.current += 1
-    if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-    setCardState({ status: 'idle' })
-    setCopied(false)
-  }, [])
+    void explain.reset()
+  }, [explain])
 
   return {
     isActive,
-    cardState,
-    copied,
+    state,
+    session: state.session,
     runImmediately,
-    copyResult,
-    reexplain: runImmediately,
+    submitFollowup,
+    regenerate,
+    stop,
     reset,
   }
 }

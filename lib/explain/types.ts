@@ -7,7 +7,8 @@ export type ExplainConversationMessage = {
 }
 
 export type ExplainInput = {
-  text: string
+  selectionText: string
+  messages: ExplainConversationMessage[]
 }
 
 export type ExplainResult = {
@@ -24,4 +25,30 @@ export type RunExplainInput = {
   messages: ExplainConversationMessage[]
   signal?: AbortSignal
   onChunk?: (chunk: string, fullText: string) => void
+}
+
+export interface ExplainSessionMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  createdAt: number
+  sources?: ExplainMessageSource[]
+  errorMessage?: string
+}
+
+export interface ExplainSession {
+  id: string
+  selectionText: string
+  messages: ExplainSessionMessage[]
+  status: 'idle' | 'searching' | 'streaming' | 'ready' | 'error'
+  language: AppLanguage
+  aiProvider?: AiProviderId
+  webSearchProvider?: WebSearchProviderId
+  errorMessage?: string
+  loadingMessage?: string
+  modelId?: string
+}
+
+export interface MainExplainState {
+  session: ExplainSession | null
 }
