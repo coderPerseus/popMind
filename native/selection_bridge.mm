@@ -113,6 +113,11 @@ bool GetAXStringAttr(AXUIElementRef el, CFStringRef attr, std::string* out) {
   return ok;
 }
 
+bool BundleIdEquals(NSString* bundleId, const char* expected) {
+  if (!bundleId || !expected) return false;
+  return [bundleId isEqualToString:@(expected)];
+}
+
 std::string GetAXRoleDebug(AXUIElementRef el) {
   if (!el) return "";
 
@@ -126,6 +131,10 @@ std::string GetAXRoleDebug(AXUIElementRef el) {
   }
 
   return role;
+}
+
+bool IsWindowRoleDebug(const std::string& roleDebug) {
+  return roleDebug == "AXWindow" || roleDebug == "AXWindow/AXStandardWindow";
 }
 
 bool GetAXBoolAttr(AXUIElementRef el, CFStringRef attr, bool def) {
@@ -1108,6 +1117,7 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   AXUIElementRef focusedApp = nullptr;
   bool hasFocusedElem = false;
   bool hasSelection = false;
+  std::string roleDebug;
   const bool nearFocusedWindowEdge = IsPointNearFocusedWindowEdge(loc);
   const NSInteger dragPasteboardChangeCount = GetDragPasteboardChangeCount();
   const bool hasFreshFileDragPayload =
@@ -1115,6 +1125,8 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
       gDragPasteboardChangeCountOnMouseDown >= 0 &&
       dragPasteboardChangeCount != gDragPasteboardChangeCountOnMouseDown &&
       DragPasteboardHasFilePayload();
+  NSRunningApplication* frontApp = NSWorkspace.sharedWorkspace.frontmostApplication;
+  NSString* frontBundleId = frontApp.bundleIdentifier ?: @"";
 
   if (sysWide) {
     AXUIElementCopyAttributeValue(sysWide, kAXFocusedApplicationAttribute, (CFTypeRef*)&focusedApp);
@@ -1126,7 +1138,7 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
 
   if (focusedElem) {
     hasFocusedElem = true;
-    std::string roleDebug = GetAXRoleDebug(focusedElem);
+    roleDebug = GetAXRoleDebug(focusedElem);
     const bool editable = GetAXBoolAttr(focusedElem, CFSTR("AXEditable"), false);
     hasSelection = HasTextSelectionForDrag(focusedElem);
     NSLog(@"[selection_bridge] drag focused role=%s editable=%d", roleDebug.c_str(), editable);
@@ -1137,15 +1149,24 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   SelectionScene scene = SelectionScene::kNone;
   if (hasSelection) {
     scene = SelectionScene::kBoxSelect;
+  } else if (BundleIdEquals(frontBundleId, "org.zotero.zotero") &&
+             hasFocusedElem &&
+             IsWindowRoleDebug(roleDebug) &&
+             !hasFreshFileDragPayload &&
+             !nearFocusedWindowEdge) {
+    // Zotero can leave AX focus on the reader window itself on mouseUp even
+    // when text is selected. Let the snapshot path recover the text via
+    // clipboard fallback instead of dropping the gesture here.
+    scene = SelectionScene::kBoxSelect;
   } else if (!hasFocusedElem && !hasFreshFileDragPayload && !nearFocusedWindowEdge) {
     // Some Chromium/native editors lose the focused AX element on mouseUp, but
     // the later snapshot/clipboard fallback can still recover selected text.
     scene = SelectionScene::kBoxSelect;
   }
 
-  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f hasFocusedElem=%d hasSelection=%d nearFocusedWindowEdge=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
-        dist, hasFocusedElem, hasSelection, nearFocusedWindowEdge, hasFreshFileDragPayload, (long)dragPasteboardChangeCount,
-        (long)gDragPasteboardChangeCountOnMouseDown, SceneToString(scene));
+  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f bundle=%@ hasFocusedElem=%d role=%s hasSelection=%d nearFocusedWindowEdge=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
+        dist, frontBundleId, hasFocusedElem, roleDebug.c_str(), hasSelection, nearFocusedWindowEdge, hasFreshFileDragPayload,
+        (long)dragPasteboardChangeCount, (long)gDragPasteboardChangeCountOnMouseDown, SceneToString(scene));
 
   return scene;
 }
