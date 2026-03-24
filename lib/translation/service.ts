@@ -8,9 +8,18 @@ import {
 } from '@/lib/translation/shared'
 import { capabilityService } from '@/lib/capability/service'
 import { normalizeTextForTranslation } from '@/lib/translation/text-normalizer'
-import type { TranslateInput, TranslationEngineId, TranslationQueryMode, TranslationRequest, TranslationResult } from '@/lib/translation/types'
+import type {
+  TranslateInput,
+  TranslationEngineId,
+  TranslationQueryMode,
+  TranslationRequest,
+  TranslationResult,
+} from '@/lib/translation/types'
 
-const resolveEngineId = (settings: Awaited<ReturnType<typeof capabilityService.getSettings>>, preferred?: TranslationEngineId) => {
+const resolveEngineId = (
+  settings: Awaited<ReturnType<typeof capabilityService.getSettings>>,
+  preferred?: TranslationEngineId
+) => {
   if (preferred && settings.enabledEngines[preferred]) {
     return preferred
   }
@@ -18,11 +27,7 @@ const resolveEngineId = (settings: Awaited<ReturnType<typeof capabilityService.g
   return translationEngineOrder.find((engineId) => settings.enabledEngines[engineId])
 }
 
-const resolveExplicitTargetLanguage = ({
-  targetLanguage,
-}: {
-  targetLanguage?: string
-}) => {
+const resolveExplicitTargetLanguage = ({ targetLanguage }: { targetLanguage?: string }) => {
   if (targetLanguage && targetLanguage !== 'auto') {
     return targetLanguage
   }
@@ -69,7 +74,7 @@ const resolveWordTargetLanguage = ({
 }
 
 const isWordProviderAvailable = (settings: Awaited<ReturnType<typeof capabilityService.getSettings>>) => {
-  return settings.enabledEngines.youdao && translationProviders.youdao.isConfigured(settings)
+  return translationProviders.youdao.isConfigured(settings)
 }
 
 export class TranslationService {
@@ -112,8 +117,7 @@ export class TranslationService {
       targetLanguage: input.targetLanguage,
     })
 
-    let detectedSourceLanguage =
-      requestedSourceLanguage !== 'auto' ? requestedSourceLanguage : undefined
+    let detectedSourceLanguage = requestedSourceLanguage !== 'auto' ? requestedSourceLanguage : undefined
 
     if (!explicitTargetLanguage && requestedSourceLanguage === 'auto' && provider.detectLanguage) {
       try {

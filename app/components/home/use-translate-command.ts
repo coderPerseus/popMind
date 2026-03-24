@@ -2,8 +2,28 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
 import { copyTextToClipboard } from '@/app/plugins/main-search'
-import { translationEngineOrder, translationLanguages } from '@/lib/translation/shared'
-import type { TranslationEngineId, TranslationLanguageOption, TranslationQueryMode } from '@/lib/translation/types'
+import { getLanguageFamily, translationEngineOrder, translationLanguages } from '@/lib/translation/shared'
+import type {
+  TranslationEngineId,
+  TranslationLanguageOption,
+  TranslationQueryMode,
+  TranslationSettings,
+  TranslationWordEntry,
+} from '@/lib/translation/types'
+
+const DEFAULT_TARGET_LANGUAGE = 'zh-CN'
+
+const resolveDefaultTargetLanguage = (settings: TranslationSettings) => {
+  const preferredFamily = settings.appLanguage === 'en' ? 'en' : 'zh'
+  const fallbackTarget = settings.appLanguage === 'en' ? 'en' : DEFAULT_TARGET_LANGUAGE
+  const candidates = [settings.secondLanguage, settings.firstLanguage, fallbackTarget]
+
+  return (
+    candidates.find((item) => item && getLanguageFamily(item) === preferredFamily) ??
+    candidates.find(Boolean) ??
+    fallbackTarget
+  )
+}
 
 export type TranslateCardState =
   | { status: 'idle' }
@@ -24,6 +44,7 @@ export type TranslateCardState =
       targetLanguage: string
       engineId: TranslationEngineId
       detectedSourceLanguage?: string
+      wordEntry?: TranslationWordEntry
     }
   | {
       status: 'error'
@@ -39,7 +60,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
   const search = useConveyor('search')
   const [cardState, setCardState] = useState<TranslateCardState>({ status: 'idle' })
   const [sourceLanguage, setSourceLanguage] = useState('auto')
-  const [targetLanguage, setTargetLanguage] = useState('en')
+  const [targetLanguage, setTargetLanguage] = useState(DEFAULT_TARGET_LANGUAGE)
   const [engineId, setEngineId] = useState<TranslationEngineId>('google')
   const [enabledEngineIds, setEnabledEngineIds] = useState<TranslationEngineId[]>(['google'])
   const [copied, setCopied] = useState(false)
@@ -47,7 +68,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
   const debounceTimerRef = useRef<number | null>(null)
   const defaultLanguagesRef = useRef({
     sourceLanguage: 'auto',
-    targetLanguage: 'en',
+    targetLanguage: DEFAULT_TARGET_LANGUAGE,
     engineId: 'google' as TranslationEngineId,
     enabledEngineIds: ['google'] as TranslationEngineId[],
   })
@@ -65,7 +86,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
         }
 
         const nextSourceLanguage = settings.defaultSourceLanguage || 'auto'
-        const nextTargetLanguage = settings.firstLanguage || 'en'
+        const nextTargetLanguage = resolveDefaultTargetLanguage(settings)
         const nextEnabledEngineIds = translationEngineOrder.filter((item) => settings.enabledEngines[item])
         const nextEngineId = nextEnabledEngineIds[0] ?? 'google'
 
@@ -76,7 +97,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
           enabledEngineIds: nextEnabledEngineIds.length ? nextEnabledEngineIds : [nextEngineId],
         }
         setSourceLanguage((current) => (current === 'auto' ? nextSourceLanguage : current))
-        setTargetLanguage((current) => (current === 'en' ? nextTargetLanguage : current))
+        setTargetLanguage((current) => (current === DEFAULT_TARGET_LANGUAGE ? nextTargetLanguage : current))
         setEngineId((current) => (current === 'google' ? nextEngineId : current))
         setEnabledEngineIds(nextEnabledEngineIds.length ? nextEnabledEngineIds : [nextEngineId])
       })
@@ -119,7 +140,9 @@ export function useTranslateCommand(command: MainSearchCommand) {
 
         if (requestId !== requestIdRef.current) return
 
-        setEngineId(result.engineId)
+        if (result.queryMode !== 'word') {
+          setEngineId(result.engineId)
+        }
         setCardState({
           status: 'success',
           query: normalizedText,
@@ -130,6 +153,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
           targetLanguage: result.targetLanguage,
           engineId: result.engineId,
           detectedSourceLanguage: result.detectedSourceLanguage,
+          wordEntry: result.wordEntry,
         })
 
         void search
@@ -160,7 +184,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
         })
       }
     },
-    [search, translation],
+    [search, translation]
   )
 
   useEffect(() => {

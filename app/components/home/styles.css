@@ -380,6 +380,122 @@
   color: rgba(153, 27, 27, 0.9);
 }
 
+.ms-translate-word-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ms-translate-word-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ms-translate-word-title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.ms-translate-word-phonetics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ms-translate-word-phonetic {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: rgba(30, 41, 59, 0.82);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ms-translate-word-phonetic-label {
+  font-weight: 700;
+  color: rgba(59, 91, 168, 0.88);
+}
+
+.ms-translate-word-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ms-translate-word-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: rgba(71, 85, 105, 0.86);
+}
+
+.ms-translate-word-definition {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.ms-translate-word-part {
+  min-width: 42px;
+  color: rgba(59, 91, 168, 0.92);
+  font-weight: 700;
+}
+
+.ms-translate-word-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ms-translate-word-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.56);
+  color: rgba(30, 41, 59, 0.82);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ms-translate-word-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ms-translate-word-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.ms-translate-word-list-title,
+.ms-translate-word-example-source {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.ms-translate-word-list-desc,
+.ms-translate-word-example-target {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(71, 85, 105, 0.84);
+  line-height: 1.6;
+}
+
 .ms-translate-command-footer {
   display: flex;
   align-items: center;
@@ -1339,6 +1455,31 @@
 .dark .ms-translate-command-panel-body.is-error {
   background: rgba(220, 38, 38, 0.16);
   color: rgba(254, 202, 202, 0.96);
+}
+
+.dark .ms-translate-word-phonetic,
+.dark .ms-translate-word-tag,
+.dark .ms-translate-word-list-item {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dark .ms-translate-word-phonetic,
+.dark .ms-translate-word-tag,
+.dark .ms-translate-word-list-desc,
+.dark .ms-translate-word-example-target,
+.dark .ms-translate-word-section-title {
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.dark .ms-translate-word-title,
+.dark .ms-translate-word-list-title,
+.dark .ms-translate-word-example-source {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.dark .ms-translate-word-phonetic-label,
+.dark .ms-translate-word-part {
+  color: rgba(191, 219, 254, 0.96);
 }
 
 .dark .ms-translate-command-footer {

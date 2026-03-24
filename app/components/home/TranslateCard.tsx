@@ -39,9 +39,10 @@ export function TranslateCard({
   onRetranslate,
 }: TranslateCardProps) {
   const { language } = useI18n()
-  const isWordMode = cardState.status === 'success' && cardState.queryMode === 'word'
+  const isWordMode = cardState.status === 'success' && cardState.queryMode === 'word' && Boolean(cardState.wordEntry)
   const isLoading = cardState.status === 'loading'
   const translatedText = cardState.status === 'success' ? cardState.translatedText : ''
+  const wordEntry = cardState.status === 'success' ? cardState.wordEntry : undefined
   const translatedContent =
     !command.text && cardState.status === 'idle'
       ? language === 'en'
@@ -101,7 +102,9 @@ export function TranslateCard({
         <div className="ms-translate-command-panels">
           <section className="ms-translate-command-panel">
             <div className="ms-translate-command-panel-head">
-              <span className="ms-translate-command-panel-label">{language === 'en' ? 'Translation' : '译文'}</span>
+              <span className="ms-translate-command-panel-label">
+                {isWordMode ? (language === 'en' ? 'Dictionary' : '词典') : language === 'en' ? 'Translation' : '译文'}
+              </span>
               {isLoading ? (
                 <span className="ms-translate-command-status">
                   <LoaderCircle size={13} className="ms-translate-command-spin" />
@@ -123,7 +126,83 @@ export function TranslateCard({
                     : ''
               }`}
             >
-              {translatedContent}
+              {isWordMode && wordEntry ? (
+                <div className="ms-translate-word-card">
+                  <div className="ms-translate-word-head">
+                    <div className="ms-translate-word-title">{wordEntry.headword}</div>
+                    {wordEntry.phonetics.length > 0 ? (
+                      <div className="ms-translate-word-phonetics">
+                        {wordEntry.phonetics.map((item) => (
+                          <span key={`${item.label}-${item.value}`} className="ms-translate-word-phonetic">
+                            <span className="ms-translate-word-phonetic-label">{item.label}</span>
+                            <span>{item.value}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {wordEntry.definitions.length > 0 ? (
+                    <div className="ms-translate-word-section">
+                      {wordEntry.definitions.map((item, index) => (
+                        <div key={`${item.part ?? 'def'}-${index}`} className="ms-translate-word-definition">
+                          {item.part ? <span className="ms-translate-word-part">{item.part}</span> : null}
+                          <span>{item.meaning}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {wordEntry.forms.length > 0 ? (
+                    <div className="ms-translate-word-section">
+                      <div className="ms-translate-word-section-title">
+                        {language === 'en' ? 'Word Forms' : '词形变化'}
+                      </div>
+                      <div className="ms-translate-word-tags">
+                        {wordEntry.forms.map((item) => (
+                          <span key={`${item.label}-${item.value}`} className="ms-translate-word-tag">
+                            {item.label} · {item.value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {wordEntry.phrases.length > 0 ? (
+                    <div className="ms-translate-word-section">
+                      <div className="ms-translate-word-section-title">
+                        {language === 'en' ? 'Common Phrases' : '常见短语'}
+                      </div>
+                      <div className="ms-translate-word-list">
+                        {wordEntry.phrases.map((item) => (
+                          <div key={`${item.text}-${item.meaning}`} className="ms-translate-word-list-item">
+                            <div className="ms-translate-word-list-title">{item.text}</div>
+                            <div className="ms-translate-word-list-desc">{item.meaning}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {wordEntry.examples.length > 0 ? (
+                    <div className="ms-translate-word-section">
+                      <div className="ms-translate-word-section-title">
+                        {language === 'en' ? 'Examples' : '双语例句'}
+                      </div>
+                      <div className="ms-translate-word-list">
+                        {wordEntry.examples.map((item, index) => (
+                          <div key={`${item.source}-${index}`} className="ms-translate-word-list-item">
+                            <div className="ms-translate-word-example-source">{item.source}</div>
+                            <div className="ms-translate-word-example-target">{item.translated}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                translatedContent
+              )}
             </div>
           </section>
         </div>
