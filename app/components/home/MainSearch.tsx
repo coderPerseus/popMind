@@ -632,12 +632,11 @@ export function MainSearch() {
 
                     if (entry.kind === 'app') {
                       const appItem = entry.item
-                      const secondaryHandle = appItem.bundleId || appItem.path
 
                       return (
                         <button
                           key={appItem.path}
-                          className={`ms-result-item ${flatIndex === activeIndex ? 'is-active' : ''}`}
+                          className={`ms-result-item is-app-result ${flatIndex === activeIndex ? 'is-active' : ''}`}
                           type="button"
                           onMouseEnter={() => setActiveIndex(flatIndex)}
                           onClick={() => void launchInstalledApp(appItem)}
@@ -653,8 +652,7 @@ export function MainSearch() {
 
                           <span className="ms-result-copy">
                             <span className="ms-result-title-row">
-                              <span className="ms-result-title">{appItem.name}</span>
-                              <span className="ms-result-handle">{secondaryHandle}</span>
+                              <span className="ms-result-title is-app">{appItem.name}</span>
                             </span>
                           </span>
 

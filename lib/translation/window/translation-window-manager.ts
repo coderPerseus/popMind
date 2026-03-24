@@ -94,13 +94,6 @@ export class TranslationWindowManager {
     anchor: TranslationAnchorPoint | null
     presentation?: TranslationWindowPresentation
   }) {
-    this.logger.info('[TranslationWindowManager] showTranslation start', {
-      selectionId: payload.selectionId,
-      sourceAppId: payload.sourceAppId,
-      textLength: payload.text.length,
-      anchor: payload.anchor,
-      presentation: payload.presentation ?? 'anchored',
-    })
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
@@ -142,11 +135,6 @@ export class TranslationWindowManager {
     this.positionWindow(payload.anchor, presentation)
     this.sendState()
     this.showWindow()
-    this.logger.info('[TranslationWindowManager] showTranslation visible', {
-      selectionId: payload.selectionId,
-      bounds: this.window?.getBounds() ?? null,
-      visible: this.window?.isVisible() ?? false,
-    })
 
     void this.runTranslation({
       sourceLanguage: 'auto',
@@ -233,10 +221,6 @@ export class TranslationWindowManager {
   }
 
   hide() {
-    this.logger.info('[TranslationWindowManager] hide', {
-      visibleBeforeHide: this.window?.isVisible() ?? false,
-      pinned: this.state?.pinned ?? false,
-    })
     this.window?.hide()
   }
 
@@ -672,31 +656,16 @@ export class TranslationWindowManager {
       return
     }
 
-    this.logger.info('[TranslationWindowManager] sendState', {
-      status: this.state.status,
-      queryMode: this.state.queryMode,
-      sourceTextLength: this.state.sourceText.length,
-      translatedTextLength: this.state.translatedText.length,
-      errorMessage: this.state.errorMessage,
-    })
     this.window.sendState(this.state)
   }
 
   private showWindow() {
     const window = this.ensureWindow()
-    this.logger.info('[TranslationWindowManager] showWindow', {
-      alreadyVisible: window.isVisible(),
-      bounds: window.getBounds(),
-    })
 
     if (!window.isVisible()) {
       window.showInactive()
     }
 
     window.orderFront()
-    this.logger.info('[TranslationWindowManager] showWindow done', {
-      visible: window.isVisible(),
-      bounds: window.getBounds(),
-    })
   }
 }

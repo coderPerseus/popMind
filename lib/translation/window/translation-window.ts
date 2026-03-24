@@ -23,7 +23,6 @@ export class TranslationWindow implements TranslationWindowPort {
 
   constructor(private readonly bridge: SelectionBridge) {
     this.window = this.createWindow()
-    this.attachLifecycle()
   }
 
   private createWindow() {
@@ -74,25 +73,6 @@ export class TranslationWindow implements TranslationWindowPort {
 
     return translationWindow
   }
-
-  private attachLifecycle() {
-    this.window.on('show', () => {
-      console.info('[TranslationWindow]', 'show', this.window.getBounds())
-    })
-
-    this.window.on('hide', () => {
-      console.info('[TranslationWindow]', 'hide')
-    })
-
-    this.window.on('focus', () => {
-      console.info('[TranslationWindow]', 'focus')
-    })
-
-    this.window.on('blur', () => {
-      console.info('[TranslationWindow]', 'blur')
-    })
-  }
-
   isDestroyed() {
     return this.window.isDestroyed()
   }

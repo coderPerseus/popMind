@@ -707,21 +707,11 @@ export class TextPickerFeature {
       ) {
         if (commandId === SystemCommand.Translate) {
           const anchor = commandContext.anchor
-          this.logger.info('[TextPickerFeature] translate command start', {
-            selectionId: pickedInfo.selectionId,
-            sourceAppId: pickedInfo.appId,
-            textLength: pickedInfo.text.length,
-            anchor,
-          })
           await this.translationWindowManager?.showTranslation({
             text: pickedInfo.text,
             selectionId: pickedInfo.selectionId,
             sourceAppId: pickedInfo.appId,
             anchor,
-          })
-          this.logger.info('[TextPickerFeature] translate command completed', {
-            selectionId: pickedInfo.selectionId,
-            translationVisible: this.translationWindowManager?.isVisible() ?? false,
           })
           return { ok: true, commandId }
         }

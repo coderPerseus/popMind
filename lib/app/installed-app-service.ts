@@ -1,7 +1,9 @@
 import { execFile } from 'node:child_process'
-import { basename } from 'node:path'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { basename, extname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
-import { app } from 'electron'
+import { app, nativeImage } from 'electron'
 import { mainLogger } from '@/lib/main/logger'
 
 const execFileAsync = promisify(execFile)
@@ -34,6 +36,19 @@ const buildSpotlightPattern = (query: string) => {
 }
 
 const isNestedApplication = (appPath: string) => /\.app\/Contents\/Applications\/.+\.app$/i.test(appPath)
+const getIconCandidates = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === '(null)') {
+    return []
+  }
+
+  const ext = extname(trimmed).toLowerCase()
+  if (ext) {
+    return [trimmed]
+  }
+
+  return [`${trimmed}.icns`, `${trimmed}.png`]
+}
 
 const parseMdlsBatchOutput = (stdout: string, paths: string[]) => {
   const parts = stdout.split('\0')
@@ -201,14 +216,19 @@ class InstalledAppService {
       return cached
     }
 
-    const iconPromise = app
-      .getFileIcon(appPath)
-      .then((icon) => {
-        if (icon.isEmpty()) {
-          return null
+    const iconPromise = this.getBundleIconDataUrl(appPath)
+      .then((iconDataUrl) => {
+        if (iconDataUrl) {
+          return iconDataUrl
         }
 
-        return icon.toDataURL()
+        return app.getFileIcon(appPath).then((icon) => {
+          if (icon.isEmpty()) {
+            return null
+          }
+
+          return icon.resize({ width: 64, height: 64 }).toDataURL()
+        })
       })
       .catch((error) => {
         mainLogger.warn('[installed-app-service] getFileIcon failed', { appPath, error })
@@ -217,6 +237,90 @@ class InstalledAppService {
 
     this.iconCache.set(appPath, iconPromise)
     return iconPromise
+  }
+
+  private async getBundleIconDataUrl(appPath: string) {
+    const iconPath = await this.resolveBundleIconPath(appPath)
+    if (!iconPath) {
+      return null
+    }
+
+    const iconImage = nativeImage.createFromPath(iconPath)
+    if (!iconImage.isEmpty()) {
+      return iconImage.resize({ width: 64, height: 64 }).toDataURL()
+    }
+
+    if (extname(iconPath).toLowerCase() === '.icns') {
+      return this.convertIcnsToDataUrl(iconPath)
+    }
+
+    return null
+  }
+
+  private async resolveBundleIconPath(appPath: string) {
+    const infoPlistPath = join(appPath, 'Contents', 'Info.plist')
+    const resourcesDir = join(appPath, 'Contents', 'Resources')
+    const explicitCandidates = await Promise.all([
+      this.readPlistValue(infoPlistPath, 'CFBundleIconFile'),
+      this.readPlistValue(infoPlistPath, 'CFBundleIconName'),
+    ])
+
+    for (const candidate of explicitCandidates.flatMap((value) => getIconCandidates(value))) {
+      const iconPath = join(resourcesDir, candidate)
+      if (await this.pathExists(iconPath)) {
+        return iconPath
+      }
+    }
+
+    const fallbackCandidates = ['AppIcon.icns', 'AppIcon.png', 'electron.icns']
+    for (const candidate of fallbackCandidates) {
+      const iconPath = join(resourcesDir, candidate)
+      if (await this.pathExists(iconPath)) {
+        return iconPath
+      }
+    }
+
+    return null
+  }
+
+  private async readPlistValue(infoPlistPath: string, key: string) {
+    try {
+      const { stdout } = await execFileAsync('plutil', ['-extract', key, 'raw', '-o', '-', infoPlistPath], {
+        encoding: 'utf8',
+      })
+
+      return stdout.trim()
+    } catch {
+      return ''
+    }
+  }
+
+  private async pathExists(path: string) {
+    try {
+      await access(path)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async convertIcnsToDataUrl(iconPath: string) {
+    const tempDir = await mkdtemp(join(tmpdir(), 'popmind-icon-'))
+    const outputPath = join(tempDir, 'icon.png')
+
+    try {
+      await execFileAsync('sips', ['-s', 'format', 'png', '-z', '128', '128', iconPath, '--out', outputPath], {
+        encoding: 'utf8',
+      })
+
+      const pngBuffer = await readFile(outputPath)
+      return `data:image/png;base64,${pngBuffer.toString('base64')}`
+    } catch (error) {
+      mainLogger.warn('[installed-app-service] icns conversion failed', { iconPath, error })
+      return null
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
   }
 }
 
