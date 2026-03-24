@@ -38,7 +38,18 @@ type LauncherCommandItem = {
   order: number
 }
 
-type LauncherItem = { kind: 'plugin'; item: MainSearchPluginResult } | { kind: 'command'; item: LauncherCommandItem }
+type InstalledAppItem = {
+  name: string
+  fileName: string
+  bundleId: string
+  path: string
+  iconDataUrl: string | null
+}
+
+type LauncherItem =
+  | { kind: 'plugin'; item: MainSearchPluginResult }
+  | { kind: 'command'; item: LauncherCommandItem }
+  | { kind: 'app'; item: InstalledAppItem }
 
 type LauncherSection = {
   id: string
@@ -86,6 +97,19 @@ const getPluginQueryWithAlias = (pluginItem: MainSearchPluginResult, currentQuer
   return nextText ? `${alias} ${nextText}` : `${alias} `
 }
 
+const getAppInitial = (name: string) => {
+  const trimmed = name.trim()
+  return (trimmed[0] ?? '?').toUpperCase()
+}
+
+const getLauncherItemKey = (item: LauncherItem) => {
+  if (item.kind === 'app') {
+    return item.item.path
+  }
+
+  return item.item.id
+}
+
 export function MainSearch() {
   const { t } = useI18n()
   const appApi = useConveyor('app')
@@ -96,10 +120,13 @@ export function MainSearch() {
   const [logoUrl, setLogoUrl] = useState(() => getThemeLogoUrl())
   const [activeIndex, setActiveIndex] = useState(0)
   const [isLaunching, setIsLaunching] = useState(false)
+  const [installedApps, setInstalledApps] = useState<InstalledAppItem[]>([])
+  const [isSearchingApps, setIsSearchingApps] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const deferredQuery = useDeferredValue(query)
   const normalizedQuery = deferredQuery.trim()
+  const isAppSearchMode = Boolean(normalizedQuery && !normalizedQuery.startsWith('/'))
   const pluginCatalog = useMemo(() => getMainSearchResultsCatalog(), [])
   const slashEntries = useMemo(
     () => [
@@ -146,6 +173,18 @@ export function MainSearch() {
       return [] as LauncherSection[]
     }
 
+    if (isAppSearchMode) {
+      return installedApps.length
+        ? [
+            {
+              id: 'apps',
+              title: 'Apps',
+              items: installedApps.map((item) => ({ kind: 'app' as const, item })),
+            },
+          ]
+        : []
+    }
+
     const pluginItems = normalizedQuery.startsWith('/')
       ? pluginCatalog.filter((item) =>
           matchesSlashAliasQuery(normalizedQuery, [item.title, item.handle, ...item.keywords, ...item.slashAliases])
@@ -179,7 +218,15 @@ export function MainSearch() {
     }
 
     return sections
-  }, [activePlugin, explain.isActive, normalizedQuery, pluginCatalog, translate.isActive])
+  }, [
+    activePlugin,
+    explain.isActive,
+    installedApps,
+    isAppSearchMode,
+    normalizedQuery,
+    pluginCatalog,
+    translate.isActive,
+  ])
   const launcherItems = useMemo(() => launcherSections.flatMap((section) => section.items), [launcherSections])
   const activeItem = launcherItems[activeIndex] ?? null
 
@@ -256,6 +303,40 @@ export function MainSearch() {
       cancelled = true
     }
   }, [appApi])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!isAppSearchMode) {
+      setInstalledApps([])
+      setIsSearchingApps(false)
+      return
+    }
+
+    setIsSearchingApps(true)
+
+    void appApi
+      .searchInstalledApps(normalizedQuery, 8)
+      .then((results) => {
+        if (!cancelled) {
+          setInstalledApps(results)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInstalledApps([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsSearchingApps(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [appApi, isAppSearchMode, normalizedQuery])
 
   // Escape key: go through the shared auto-dismiss controller.
   useEffect(() => {
@@ -340,6 +421,21 @@ export function MainSearch() {
     await launchPlugin(pluginItem, currentQuery)
   }
 
+  const launchInstalledApp = async (appItem: InstalledAppItem) => {
+    if (isLaunching) {
+      return
+    }
+
+    setIsLaunching(true)
+    try {
+      await appApi.openInstalledApp(appItem.path)
+      setQuery('')
+      window.close()
+    } finally {
+      setIsLaunching(false)
+    }
+  }
+
   const handleInputKeyDown = async (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (translate.isActive) {
       if (event.key === 'Enter') {
@@ -383,6 +479,8 @@ export function MainSearch() {
       event.preventDefault()
       if (activeItem.kind === 'plugin') {
         await activatePlugin(activeItem.item)
+      } else if (activeItem.kind === 'app') {
+        await launchInstalledApp(activeItem.item)
       } else {
         activateCommand(activeItem.item)
       }
@@ -495,8 +593,9 @@ export function MainSearch() {
                 <div className="ms-section-title">{section.title}</div>
                 <div className="ms-result-list">
                   {section.items.map((entry) => {
+                    const entryKey = getLauncherItemKey(entry)
                     const flatIndex = launcherItems.findIndex(
-                      (item) => item.kind === entry.kind && item.item.id === entry.item.id
+                      (item) => item.kind === entry.kind && getLauncherItemKey(item) === entryKey
                     )
 
                     if (entry.kind === 'plugin') {
@@ -531,6 +630,39 @@ export function MainSearch() {
                       )
                     }
 
+                    if (entry.kind === 'app') {
+                      const appItem = entry.item
+                      const secondaryHandle = appItem.bundleId || appItem.path
+
+                      return (
+                        <button
+                          key={appItem.path}
+                          className={`ms-result-item ${flatIndex === activeIndex ? 'is-active' : ''}`}
+                          type="button"
+                          onMouseEnter={() => setActiveIndex(flatIndex)}
+                          onClick={() => void launchInstalledApp(appItem)}
+                          disabled={isLaunching}
+                        >
+                          <span className="ms-result-logo">
+                            {appItem.iconDataUrl ? (
+                              <img src={appItem.iconDataUrl} alt={appItem.name} className="ms-result-logo-img" />
+                            ) : (
+                              <span className="ms-result-logo-fallback">{getAppInitial(appItem.name)}</span>
+                            )}
+                          </span>
+
+                          <span className="ms-result-copy">
+                            <span className="ms-result-title-row">
+                              <span className="ms-result-title">{appItem.name}</span>
+                              <span className="ms-result-handle">{secondaryHandle}</span>
+                            </span>
+                          </span>
+
+                          <span className="ms-result-type">App</span>
+                        </button>
+                      )
+                    }
+
                     return (
                       <button
                         key={entry.item.id}
@@ -557,6 +689,16 @@ export function MainSearch() {
                 </div>
               </section>
             ))}
+          </div>
+        ) : isAppSearchMode && isSearchingApps ? (
+          <div className="ms-empty">
+            <div className="ms-empty-title">正在搜索应用…</div>
+            <div className="ms-empty-desc">已在本机已安装应用中查找匹配项</div>
+          </div>
+        ) : isAppSearchMode ? (
+          <div className="ms-empty">
+            <div className="ms-empty-title">没有找到匹配应用</div>
+            <div className="ms-empty-desc">试试输入应用名称、英文名，或 bundle id 的一部分</div>
           </div>
         ) : (
           <div className="ms-empty">

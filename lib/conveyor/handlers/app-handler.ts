@@ -1,4 +1,5 @@
 import { type App, shell } from 'electron'
+import { installedAppService } from '@/lib/app/installed-app-service'
 import { fetchLatestRelease } from '@/lib/app/latest-release'
 import { handle } from '@/lib/main/shared'
 import { themeStore } from '@/lib/main/theme-store'
@@ -25,5 +26,19 @@ export const registerAppHandlers = (app: App) => {
 
   handle('setThemeMode', async (mode) => {
     return themeStore.setThemeMode(mode)
+  })
+
+  handle('searchInstalledApps', async (query, limit) => {
+    return installedAppService.search(query, limit)
+  })
+
+  handle('openInstalledApp', async (appPath) => {
+    const errorMessage = await shell.openPath(appPath)
+
+    if (errorMessage) {
+      throw new Error(errorMessage)
+    }
+
+    return true
   })
 }
