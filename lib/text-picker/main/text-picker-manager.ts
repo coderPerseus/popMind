@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { screen } from 'electron'
 import type { AppLanguage } from '@/lib/capability/types'
 import { translateMessage } from '@/lib/i18n/shared'
+import { normalizeSelectedLink } from '@/lib/text-picker/link-utils'
 import type {
   EnabledSelectionScene,
   PickedInfo,
@@ -19,6 +20,7 @@ import {
   RETRY_DELAY_MS,
   SelectionScene,
   SystemCommand,
+  TOOLBAR_COMPACT_MIN_WIDTH,
   TOOLBAR_GAP,
   TOOLBAR_HEIGHT,
   TOOLBAR_MIN_WIDTH,
@@ -70,6 +72,12 @@ const createDefaultSkills = (language: AppLanguage): SelectionSkill[] => [
   { commandId: SystemCommand.Search, label: translateMessage(language, 'bubble.search'), enabled: true },
 ]
 
+const createOpenLinkSkill = (language: AppLanguage): SelectionSkill => ({
+  commandId: SystemCommand.OpenLink,
+  label: translateMessage(language, 'bubble.open'),
+  enabled: true,
+})
+
 export class TextPickerManager {
   private readonly bubbleWindow: BubbleWindowPort
   private readonly bridge: SelectionBridge
@@ -100,6 +108,7 @@ export class TextPickerManager {
   private currentAnchor: AnchorPoint | null = null
   private bubbleWidth = TOOLBAR_MIN_WIDTH
   private pickedInfo: PickedInfo | null = null
+  private language: AppLanguage = 'zh-CN'
   private skills: SelectionSkill[] = createDefaultSkills('zh-CN')
 
   constructor({
@@ -234,6 +243,10 @@ export class TextPickerManager {
   }
 
   getSkills() {
+    if (normalizeSelectedLink(this.pickedInfo?.text ?? '')) {
+      return [createOpenLinkSkill(this.language)]
+    }
+
     return this.skills.filter((skill) => skill.enabled)
   }
 
@@ -242,6 +255,7 @@ export class TextPickerManager {
   }
 
   setLanguage(language: AppLanguage) {
+    this.language = language
     this.skills = this.skills.map((skill) => ({
       ...skill,
       label:
@@ -335,7 +349,8 @@ export class TextPickerManager {
       return
     }
 
-    const nextWidth = Math.max(TOOLBAR_MIN_WIDTH, Math.round(requestedWidth))
+    const minimumWidth = normalizeSelectedLink(this.pickedInfo?.text ?? '') ? TOOLBAR_COMPACT_MIN_WIDTH : TOOLBAR_MIN_WIDTH
+    const nextWidth = Math.max(minimumWidth, Math.round(requestedWidth))
     if (nextWidth === this.bubbleWidth) {
       return
     }

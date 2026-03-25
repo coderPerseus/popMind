@@ -7,6 +7,7 @@ import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-serv
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
 import { capabilityService } from '@/lib/capability/service'
 import { formatLanguageLabel } from '@/lib/i18n/shared'
+import { normalizeSelectedLink } from '@/lib/text-picker/link-utils'
 import { SelectionChatWindowManager } from '@/lib/selection-chat/window/selection-chat-window-manager'
 import { TranslationWindowManager } from '@/lib/translation/window/translation-window-manager'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
@@ -697,6 +698,22 @@ export class TextPickerFeature {
 
       if (commandId === SystemCommand.HideTextPicker) {
         this.manager?.hideBubble()
+        return { ok: true, commandId }
+      }
+
+      if (commandId === SystemCommand.OpenLink) {
+        const targetUrl = normalizeSelectedLink(pickedInfo.text)
+        if (!targetUrl) {
+          this.logger.warn('[TextPickerFeature] ipc command rejected: invalid_link_selection', {
+            commandId,
+            selectionId: pickedInfo.selectionId,
+            textPreview: pickedInfo.text.slice(0, 120),
+          })
+          return { ok: false, reason: 'invalid_link_selection' }
+        }
+
+        this.manager?.hideBubble()
+        await shell.openExternal(targetUrl)
         return { ok: true, commandId }
       }
 

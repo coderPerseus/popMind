@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
 import { copyTextToClipboard } from '@/app/plugins/main-search'
-import { getLanguageFamily, translationEngineOrder, translationLanguages } from '@/lib/translation/shared'
+import { translationEngineOrder, translationLanguages } from '@/lib/translation/shared'
 import type {
   TranslationEngineId,
   TranslationLanguageOption,
@@ -12,18 +12,10 @@ import type {
 } from '@/lib/translation/types'
 
 const DEFAULT_TARGET_LANGUAGE = 'zh-CN'
+type TargetLanguageMode = 'auto' | 'manual'
 
-const resolveDefaultTargetLanguage = (settings: TranslationSettings) => {
-  const preferredFamily = settings.appLanguage === 'en' ? 'en' : 'zh'
-  const fallbackTarget = settings.appLanguage === 'en' ? 'en' : DEFAULT_TARGET_LANGUAGE
-  const candidates = [settings.secondLanguage, settings.firstLanguage, fallbackTarget]
-
-  return (
-    candidates.find((item) => item && getLanguageFamily(item) === preferredFamily) ??
-    candidates.find(Boolean) ??
-    fallbackTarget
-  )
-}
+const resolveDefaultTargetLanguage = (settings: TranslationSettings) =>
+  settings.firstLanguage || DEFAULT_TARGET_LANGUAGE
 
 export type TranslateCardState =
   | { status: 'idle' }
@@ -61,6 +53,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
   const [cardState, setCardState] = useState<TranslateCardState>({ status: 'idle' })
   const [sourceLanguage, setSourceLanguage] = useState('auto')
   const [targetLanguage, setTargetLanguage] = useState(DEFAULT_TARGET_LANGUAGE)
+  const [targetLanguageMode, setTargetLanguageMode] = useState<TargetLanguageMode>('auto')
   const [engineId, setEngineId] = useState<TranslationEngineId>('google')
   const [enabledEngineIds, setEnabledEngineIds] = useState<TranslationEngineId[]>(['google'])
   const [copied, setCopied] = useState(false)
@@ -69,6 +62,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
   const defaultLanguagesRef = useRef({
     sourceLanguage: 'auto',
     targetLanguage: DEFAULT_TARGET_LANGUAGE,
+    targetLanguageMode: 'auto' as TargetLanguageMode,
     engineId: 'google' as TranslationEngineId,
     enabledEngineIds: ['google'] as TranslationEngineId[],
   })
@@ -93,6 +87,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
         defaultLanguagesRef.current = {
           sourceLanguage: nextSourceLanguage,
           targetLanguage: nextTargetLanguage,
+          targetLanguageMode: 'auto',
           engineId: nextEngineId,
           enabledEngineIds: nextEnabledEngineIds.length ? nextEnabledEngineIds : [nextEngineId],
         }
@@ -112,7 +107,12 @@ export function useTranslateCommand(command: MainSearchCommand) {
     async (
       trigger: string,
       text: string,
-      options: { sourceLanguage: string; targetLanguage: string; engineId: TranslationEngineId }
+      options: {
+        sourceLanguage: string
+        targetLanguage: string
+        targetLanguageMode: TargetLanguageMode
+        engineId: TranslationEngineId
+      }
     ) => {
       const normalizedText = text.trim()
       if (!normalizedText) {
@@ -134,11 +134,18 @@ export function useTranslateCommand(command: MainSearchCommand) {
         const result = await translation.translate({
           text: normalizedText,
           sourceLanguage: options.sourceLanguage,
-          targetLanguage: options.targetLanguage,
+          targetLanguage:
+            options.sourceLanguage === 'auto' && options.targetLanguageMode === 'auto'
+              ? undefined
+              : options.targetLanguage,
           engineId: options.engineId,
         })
 
         if (requestId !== requestIdRef.current) return
+
+        if (options.targetLanguageMode === 'auto') {
+          setTargetLanguage(result.targetLanguage)
+        }
 
         if (result.queryMode !== 'word') {
           setEngineId(result.engineId)
@@ -225,7 +232,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
       targetLanguage,
     })
     debounceTimerRef.current = window.setTimeout(() => {
-      void runTranslate(trigger, text, { sourceLanguage, targetLanguage, engineId })
+      void runTranslate(trigger, text, { sourceLanguage, targetLanguage, targetLanguageMode, engineId })
     }, 260)
 
     return () => {
@@ -234,7 +241,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
         debounceTimerRef.current = null
       }
     }
-  }, [command, engineId, isActive, runTranslate, sourceLanguage, targetLanguage])
+  }, [command, engineId, isActive, runTranslate, sourceLanguage, targetLanguage, targetLanguageMode])
 
   const runImmediately = useCallback(() => {
     if (command.kind !== 'translate' || !command.text) return
@@ -242,8 +249,24 @@ export function useTranslateCommand(command: MainSearchCommand) {
       window.clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = null
     }
-    void runTranslate(command.trigger, command.text, { sourceLanguage, targetLanguage, engineId })
-  }, [command, engineId, runTranslate, sourceLanguage, targetLanguage])
+    void runTranslate(command.trigger, command.text, { sourceLanguage, targetLanguage, targetLanguageMode, engineId })
+  }, [command, engineId, runTranslate, sourceLanguage, targetLanguage, targetLanguageMode])
+
+  const handleSourceLanguageChange = useCallback(
+    (value: string) => {
+      setSourceLanguage(value)
+
+      if (targetLanguageMode === 'auto' && value !== 'auto') {
+        setTargetLanguage(defaultLanguagesRef.current.targetLanguage)
+      }
+    },
+    [targetLanguageMode]
+  )
+
+  const handleTargetLanguageChange = useCallback((value: string) => {
+    setTargetLanguageMode('manual')
+    setTargetLanguage(value)
+  }, [])
 
   const copyResult = useCallback(async () => {
     if (cardState.status !== 'success' || !cardState.translatedText) {
@@ -264,6 +287,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
     setCardState({ status: 'idle' })
     setSourceLanguage(defaultLanguagesRef.current.sourceLanguage)
     setTargetLanguage(defaultLanguagesRef.current.targetLanguage)
+    setTargetLanguageMode(defaultLanguagesRef.current.targetLanguageMode)
     setEngineId(defaultLanguagesRef.current.engineId)
     setEnabledEngineIds(defaultLanguagesRef.current.enabledEngineIds)
     setCopied(false)
@@ -279,8 +303,8 @@ export function useTranslateCommand(command: MainSearchCommand) {
     engineId,
     enabledEngineIds,
     copied,
-    setSourceLanguage,
-    setTargetLanguage,
+    setSourceLanguage: handleSourceLanguageChange,
+    setTargetLanguage: handleTargetLanguageChange,
     setEngineId,
     copyResult,
     retranslate: runImmediately,

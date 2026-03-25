@@ -118,6 +118,11 @@ bool BundleIdEquals(NSString* bundleId, const char* expected) {
   return [bundleId isEqualToString:@(expected)];
 }
 
+bool IsVSCodeBundleId(NSString* bundleId) {
+  if (!bundleId) return false;
+  return [bundleId hasPrefix:@"com.microsoft.VSCode"];
+}
+
 std::string GetAXRoleDebug(AXUIElementRef el) {
   if (!el) return "";
 
@@ -1047,18 +1052,6 @@ bool ShouldClipboardFallback(NSString* bundleId, SelectionScene scene, bool axGo
   return true;
 }
 
-bool HasTextSelectionForDrag(AXUIElementRef focusedElem) {
-  if (!focusedElem) return false;
-  if (HasNonEmptyRange(focusedElem)) return true;
-
-  std::string text;
-  if (GetAXSelectedText(focusedElem, &text) && !text.empty()) {
-    return true;
-  }
-
-  return GetTextByRange(focusedElem, &text) && !text.empty();
-}
-
 bool DragPasteboardHasFilePayload() {
   NSPasteboard* dragPasteboard = [NSPasteboard pasteboardWithName:NSPasteboardNameDrag];
   if (!dragPasteboard) return false;
@@ -1139,15 +1132,28 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   if (focusedElem) {
     hasFocusedElem = true;
     roleDebug = GetAXRoleDebug(focusedElem);
-    const bool editable = GetAXBoolAttr(focusedElem, CFSTR("AXEditable"), false);
-    hasSelection = HasTextSelectionForDrag(focusedElem);
-    NSLog(@"[selection_bridge] drag focused role=%s editable=%d", roleDebug.c_str(), editable);
+    hasSelection = HasNonEmptyRange(focusedElem);
+    if (!hasSelection) {
+      std::string text;
+      if (GetAXSelectedText(focusedElem, &text) && !text.empty()) {
+        hasSelection = true;
+      } else if (GetTextByRange(focusedElem, &text) && !text.empty()) {
+        hasSelection = true;
+      }
+    }
     CFRelease(focusedElem);
   }
   if (focusedApp) CFRelease(focusedApp);
 
   SelectionScene scene = SelectionScene::kNone;
   if (hasSelection) {
+    scene = SelectionScene::kBoxSelect;
+  } else if (IsVSCodeBundleId(frontBundleId) &&
+             !hasFreshFileDragPayload &&
+             !nearFocusedWindowEdge) {
+    // VS Code terminal often keeps AX focus on an unfriendly text field that
+    // exposes no selected-range metadata on mouseUp. Still allow the later
+    // snapshot + clipboard fallback path to recover the selection text.
     scene = SelectionScene::kBoxSelect;
   } else if (BundleIdEquals(frontBundleId, "org.zotero.zotero") &&
              hasFocusedElem &&

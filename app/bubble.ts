@@ -8,7 +8,9 @@ const SKILL_ICONS: Record<string, string> = {
   [SystemCommand.Explain]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`,
   [SystemCommand.Copy]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
   [SystemCommand.Search]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
+  [SystemCommand.OpenLink]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`,
 }
+const COMPACT_COMMAND_IDS = new Set([SystemCommand.OpenLink])
 
 const skillsContainer = document.querySelector<HTMLDivElement>('#skills')
 const toolbarNode = document.querySelector<HTMLDivElement>('#toolbar')
@@ -134,6 +136,11 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
   if (!skillsContainer) {
     return
   }
+
+  toolbarNode?.classList.toggle(
+    'is-compact',
+    Boolean(skills?.length === 1 && skills[0] && COMPACT_COMMAND_IDS.has(skills[0].commandId))
+  )
 
   skillsContainer.replaceChildren()
 

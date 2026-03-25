@@ -1,3 +1,4 @@
+import { calculatorPlugin } from '@/app/plugins/main-search/calculator-plugin'
 import { officialAskPlugins } from '@/app/plugins/main-search/official-ask-plugins'
 import { todoFocusPlugin } from '@/app/plugins/main-search/todo-focus-plugin'
 import type { MainSearchPluginExecutionContext, MainSearchPluginPanelContext } from '@/app/plugins/main-search/types'
@@ -6,7 +7,7 @@ const byOrderAndTitle = <T extends { manifest: { order: number; title: string } 
   return a.manifest.order - b.manifest.order || a.manifest.title.localeCompare(b.manifest.title)
 }
 
-const mainSearchPlugins = [todoFocusPlugin, ...officialAskPlugins].sort(byOrderAndTitle)
+const mainSearchPlugins = [calculatorPlugin, todoFocusPlugin, ...officialAskPlugins].sort(byOrderAndTitle)
 
 export const getMainSearchResultsCatalog = () => {
   return mainSearchPlugins.map((plugin) => plugin.toResult(''))

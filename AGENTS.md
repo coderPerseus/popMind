@@ -43,3 +43,8 @@ Before reporting back to me, if at all possible, verify your own work. Don't jus
 Define finishing criteria for yourself before you start: what does "done" look like for this task? Use that as your checklist before you come back to me. If something fails or looks off, fix it and re-test. Don't just flag it and hand it back. The goal is to keep me out of the loop on iteration. I want to receive finished, working results, not a first draft that needs me to spot-check it. Only come back to me when you've confirmed things work, or when you've genuinely hit a wall that requires my input.
 
 use simple Chinese reply
+
+### 协作模式
+
+AI：编写相关代码和日志 log ，然后启动后台项目，收集日志
+开发者：进行对应功能的调试，给 AI 提供调试日志修复 bug

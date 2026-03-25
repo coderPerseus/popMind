@@ -8,6 +8,7 @@ export const SystemCommand = {
   Grammar: '6',
   Copy: '7',
   AskAI: '8',
+  OpenLink: '9',
   TextToSpeech: 'TextToSpeech',
 } as const
 
@@ -57,6 +58,7 @@ export const CHECK_DELAY_MS = 70
 export const RETRY_DELAY_MS = 65
 export const MAX_RETRIES = 2
 export const TOOLBAR_MIN_WIDTH = 350
+export const TOOLBAR_COMPACT_MIN_WIDTH = 96
 export const TOOLBAR_HEIGHT = 36
 export const TOOLBAR_GAP = 12
 

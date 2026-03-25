@@ -153,6 +153,7 @@ class InstalledAppService {
 
     const expression = [
       `kMDItemContentType == 'com.apple.application-bundle'`,
+      `&&`,
       `(`,
       `kMDItemDisplayName == "${pattern}"cd`,
       `|| kMDItemFSName == "${pattern}"cd`,
