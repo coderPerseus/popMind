@@ -1,4 +1,5 @@
 import { clipboard, ipcMain, screen } from 'electron'
+import type { ExplainImageContext } from '@/lib/explain/types'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 import { selectionChatService } from '@/lib/selection-chat/service'
 import type { SelectionChatWindowState } from '@/lib/selection-chat/types'
@@ -29,7 +30,14 @@ export class SelectionChatWindowManager {
     })
   }
 
-  async open(payload: { text: string; selectionId?: string; sourceAppId?: string; anchor: { x: number; topY: number; bottomY: number } | null }) {
+  async open(payload: {
+    text: string
+    selectionId?: string
+    sourceAppId?: string
+    sourceAppName?: string
+    contextImage?: ExplainImageContext
+    anchor: { x: number; topY: number; bottomY: number } | null
+  }) {
     autoDismissController.dispatch({
       reason: 'surface-opened',
       target: 'selection-chat',
@@ -42,6 +50,8 @@ export class SelectionChatWindowManager {
       selectionText: payload.text,
       selectionId: payload.selectionId,
       sourceAppId: payload.sourceAppId,
+      sourceAppName: payload.sourceAppName,
+      contextImage: payload.contextImage,
     })
   }
 

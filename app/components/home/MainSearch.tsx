@@ -15,6 +15,7 @@ import { ExplainCard } from '@/app/components/home/ExplainCard'
 import { useExplainCommand } from '@/app/components/home/use-explain-command'
 import { useTranslateCommand } from '@/app/components/home/use-translate-command'
 import { TranslateCard } from '@/app/components/home/TranslateCard'
+import { AccessibilityPermission } from '@/app/components/welcome/AccessibilityPermission'
 import {
   copyTextToClipboard,
   executeMainSearchPlugin,
@@ -520,6 +521,10 @@ export function MainSearch() {
 
       {/* Divider */}
       <div className="ms-divider" />
+
+      <div className="ms-permission-guide">
+        <AccessibilityPermission />
+      </div>
 
       {/* Results area */}
       <div className="ms-results">

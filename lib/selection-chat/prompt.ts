@@ -14,13 +14,29 @@ export const buildExplainPrompt = ({
   selectionText,
   messages,
   searchResults,
+  sourceAppName,
+  hasImageContext,
 }: {
   language: AppLanguage
   selectionText: string
   messages: ExplainConversationMessage[]
   searchResults: WebSearchResult[]
+  sourceAppName?: string
+  hasImageContext?: boolean
 }) => {
-  const sections = [translateMessage(language, 'prompt.explain.user.selection', { selection: selectionText })]
+  const sections = []
+
+  if (sourceAppName?.trim()) {
+    sections.push(`Current application:\n${sourceAppName.trim()}`)
+  }
+
+  if (hasImageContext) {
+    sections.push(
+      'Attached context image:\nA screenshot of the current application window is attached. Use it as additional visual context when it helps explain the selected text.'
+    )
+  }
+
+  sections.push(translateMessage(language, 'prompt.explain.user.selection', { selection: selectionText }))
 
   if (messages.length > 1) {
     sections.push(

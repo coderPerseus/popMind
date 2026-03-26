@@ -1,7 +1,8 @@
-import { smoothStream, streamText } from 'ai'
+import { smoothStream, streamText, type ModelMessage } from 'ai'
 import { createLanguageModel, estimateMessageTokens } from '@/lib/ai-service/provider-factory'
 import { capabilityService } from '@/lib/capability/service'
 import { translateMessage } from '@/lib/i18n/shared'
+import { mainLogger } from '@/lib/main/logger'
 import { webSearchService } from '@/lib/web-search/service'
 import { buildExplainPrompt, buildExplainSystemPrompt } from '@/lib/selection-chat/prompt'
 import type { ExplainResult, RunExplainInput } from './types'
@@ -15,9 +16,20 @@ const createSmoothTransform = (language: ExplainResult['language']) => {
   })
 }
 
+const shouldRetryWithoutImage = (error: unknown, hasPartialText: boolean) => {
+  if (hasPartialText) {
+    return false
+  }
+
+  const message = error instanceof Error ? error.message : String(error)
+  return /image|vision|multimodal|media type|unsupported/i.test(message)
+}
+
 export const runExplain = async ({
   selectionText,
   messages,
+  sourceAppName,
+  contextImage,
   signal,
   onChunk,
 }: RunExplainInput): Promise<ExplainResult> => {
@@ -46,23 +58,73 @@ export const runExplain = async ({
     }
   }
 
-  const result = streamText({
-    model: model.model,
-    abortSignal: signal,
-    experimental_transform: createSmoothTransform(settings.appLanguage),
-    system: buildExplainSystemPrompt(settings.appLanguage),
-    prompt: buildExplainPrompt({
-      language: settings.appLanguage,
-      selectionText,
-      messages,
-      searchResults,
-    }),
+  let text = ''
+  const executeExplainRequest = async (includeImage: boolean) => {
+    const result = streamText({
+      model: model.model,
+      abortSignal: signal,
+      experimental_transform: createSmoothTransform(settings.appLanguage),
+      system: buildExplainSystemPrompt(settings.appLanguage),
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: buildExplainPrompt({
+                language: settings.appLanguage,
+                selectionText,
+                messages,
+                searchResults,
+                sourceAppName,
+                hasImageContext: includeImage,
+              }),
+            },
+            ...(includeImage && contextImage
+              ? [
+                  {
+                    type: 'image' as const,
+                    image: contextImage.data,
+                    mediaType: contextImage.mediaType,
+                  },
+                ]
+              : []),
+          ],
+        },
+      ] satisfies ModelMessage[],
+    })
+
+    for await (const chunk of result.textStream) {
+      text += chunk
+      onChunk?.(chunk, text)
+    }
+  }
+
+  const includeImage = Boolean(contextImage && model.supportsImageInput)
+  mainLogger.info('[ExplainRunner] start', {
+    providerId: model.providerId,
+    modelId: model.modelId,
+    supportsImageInput: model.supportsImageInput,
+    includeImage,
+    imageBytes: contextImage?.data.length ?? 0,
+    sourceAppName: sourceAppName ?? 'unknown',
+    webSearchEnabled: settings.webSearch.enabled,
   })
 
-  let text = ''
-  for await (const chunk of result.textStream) {
-    text += chunk
-    onChunk?.(chunk, text)
+  try {
+    await executeExplainRequest(includeImage)
+  } catch (error) {
+    if (!includeImage || !shouldRetryWithoutImage(error, text.length > 0)) {
+      throw error
+    }
+
+    mainLogger.warn('[ExplainRunner] retry_without_image', {
+      providerId: model.providerId,
+      modelId: model.modelId,
+      reason: error instanceof Error ? error.message : String(error),
+    })
+    text = ''
+    await executeExplainRequest(false)
   }
 
   return {

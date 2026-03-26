@@ -749,10 +749,14 @@ export class TextPickerFeature {
             return { ok: true, commandId }
           }
 
+          const contextImage = this.captureExplainContextImage(pickedInfo.appName)
+
           await this.selectionChatWindowManager?.open({
             text: pickedInfo.text,
             selectionId: pickedInfo.selectionId,
             sourceAppId: pickedInfo.appId,
+            sourceAppName: pickedInfo.appName,
+            contextImage,
             anchor: commandContext.anchor,
           })
           return { ok: true, commandId }
@@ -871,5 +875,32 @@ export class TextPickerFeature {
     }
 
     return ''
+  }
+
+  private captureExplainContextImage(sourceAppName?: string) {
+    try {
+      const image = this.bridge.captureFrontmostWindowImage()
+      if (!image?.length) {
+        this.logger.info('[TextPickerFeature] explain context image unavailable', {
+          sourceAppName: sourceAppName || 'unknown',
+        })
+        return undefined
+      }
+
+      this.logger.info('[TextPickerFeature] explain context image captured', {
+        sourceAppName: sourceAppName || 'unknown',
+        bytes: image.length,
+      })
+
+      return {
+        data: image,
+        mediaType: 'image/png',
+      }
+    } catch (error) {
+      this.logger.warn('[TextPickerFeature] failed to capture explain context image', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return undefined
+    }
   }
 }

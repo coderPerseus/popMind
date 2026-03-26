@@ -78,10 +78,47 @@ export const resolveAiProviderConfig = (settings: CapabilitySettings) => {
   }
 }
 
+const supportsOpenAiImageInput = (modelId: string) => {
+  const normalized = modelId.toLowerCase()
+  return (
+    normalized.startsWith('gpt-5') ||
+    normalized.startsWith('gpt-4.1') ||
+    normalized.startsWith('gpt-4o') ||
+    normalized.startsWith('gpt-4.5') ||
+    normalized.startsWith('gpt-4-turbo') ||
+    normalized.startsWith('o1') ||
+    normalized.startsWith('o3') ||
+    normalized.startsWith('o4')
+  )
+}
+
+export const supportsImageInput = (providerId: AiProviderId, modelId: string) => {
+  const normalized = modelId.toLowerCase()
+
+  if (providerId === 'openai') {
+    return supportsOpenAiImageInput(modelId)
+  }
+
+  if (providerId === 'anthropic') {
+    return normalized.startsWith('claude-3') || normalized.startsWith('claude-4')
+  }
+
+  if (providerId === 'google') {
+    return normalized.startsWith('gemini')
+  }
+
+  if (providerId === 'kimi') {
+    return /(vision|vl|image)/.test(normalized)
+  }
+
+  return /(vision|vl)/.test(normalized)
+}
+
 export const createLanguageModel = (settings: CapabilitySettings): {
   providerId: AiProviderId
   modelId: string
   contextLimit: number
+  supportsImageInput: boolean
   model: LanguageModel
 } | null => {
   const resolved = resolveAiProviderConfig(settings)
@@ -106,6 +143,7 @@ export const createLanguageModel = (settings: CapabilitySettings): {
       providerId,
       modelId,
       contextLimit,
+      supportsImageInput: supportsImageInput(providerId, modelId),
       model,
     }
   }
@@ -124,6 +162,7 @@ export const createLanguageModel = (settings: CapabilitySettings): {
       providerId,
       modelId,
       contextLimit,
+      supportsImageInput: supportsImageInput(providerId, modelId),
       model: provider(modelId),
     }
   }
@@ -142,6 +181,7 @@ export const createLanguageModel = (settings: CapabilitySettings): {
       providerId,
       modelId,
       contextLimit,
+      supportsImageInput: supportsImageInput(providerId, modelId),
       model: provider(modelId),
     }
   }
@@ -156,6 +196,7 @@ export const createLanguageModel = (settings: CapabilitySettings): {
       providerId,
       modelId,
       contextLimit,
+      supportsImageInput: supportsImageInput(providerId, modelId),
       model: provider(modelId),
     }
   }
@@ -169,6 +210,7 @@ export const createLanguageModel = (settings: CapabilitySettings): {
     providerId,
     modelId,
     contextLimit,
+    supportsImageInput: supportsImageInput(providerId, modelId),
     model: provider(modelId),
   }
 }

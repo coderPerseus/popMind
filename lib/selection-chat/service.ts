@@ -5,6 +5,7 @@ import { translateMessage } from '@/lib/i18n/shared'
 import { runExplain } from '@/lib/explain/runner'
 import { searchHistoryService } from '@/lib/search-history/service'
 import type { ExplainHistoryMessage } from '@/lib/search-history/types'
+import type { ExplainImageContext } from '@/lib/explain/types'
 import type { SelectionChatMessage, SelectionChatSession } from './types'
 
 const createMessage = (role: 'user' | 'assistant', text = ''): SelectionChatMessage => ({
@@ -19,6 +20,8 @@ export class SelectionChatService {
   private currentAbortController: AbortController | null = null
   private listeners = new Set<(session: SelectionChatSession | null) => void>()
   private activeRunId = 0
+  private sourceAppName: string | undefined
+  private contextImage: ExplainImageContext | undefined
 
   subscribe(listener: (session: SelectionChatSession | null) => void) {
     this.listeners.add(listener)
@@ -31,7 +34,10 @@ export class SelectionChatService {
     }
   }
 
-  private setMissingAiConfigState(input: { selectionText: string; selectionId?: string; sourceAppId?: string }, language: 'zh-CN' | 'en') {
+  private setMissingAiConfigState(
+    input: { selectionText: string; selectionId?: string; sourceAppId?: string },
+    language: 'zh-CN' | 'en'
+  ) {
     const firstUserMessage = createMessage('user', input.selectionText.trim())
     if (!firstUserMessage.text) {
       this.session = null
@@ -58,7 +64,16 @@ export class SelectionChatService {
     return this.session
   }
 
-  async openSession(input: { selectionText: string; selectionId?: string; sourceAppId?: string }) {
+  async openSession(input: {
+    selectionText: string
+    selectionId?: string
+    sourceAppId?: string
+    sourceAppName?: string
+    contextImage?: ExplainImageContext
+  }) {
+    this.sourceAppName = input.sourceAppName?.trim() || undefined
+    this.contextImage = input.contextImage
+
     const settings = await capabilityService.getSettings()
     const model = createLanguageModel(settings)
     if (!model) {
@@ -145,6 +160,8 @@ export class SelectionChatService {
     this.currentAbortController?.abort()
     this.currentAbortController = null
     this.session = null
+    this.sourceAppName = undefined
+    this.contextImage = undefined
     this.emit()
   }
 
@@ -203,6 +220,8 @@ export class SelectionChatService {
           role: message.role,
           text: message.text,
         })),
+        sourceAppName: this.sourceAppName,
+        contextImage: this.contextImage,
         signal: abortController.signal,
         onChunk: (_chunk, fullText) => {
           if (!this.isRunActive(runId) || !this.session) {

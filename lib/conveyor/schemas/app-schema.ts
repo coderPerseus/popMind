@@ -31,6 +31,14 @@ export const appIpcSchema = {
     args: z.tuple([]),
     return: z.boolean(),
   },
+  checkScreenRecording: {
+    args: z.tuple([]),
+    return: z.object({ granted: z.boolean(), supported: z.boolean() }),
+  },
+  openScreenRecordingSettings: {
+    args: z.tuple([]),
+    return: z.boolean(),
+  },
   getThemeMode: {
     args: z.tuple([]),
     return: z.enum(themeModes),

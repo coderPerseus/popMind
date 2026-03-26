@@ -54,7 +54,8 @@ export function SettingsPage() {
   const search = useConveyor('search')
   const { windowShowRoute } = useConveyor('window')
   const { language, t } = useI18n()
-  const [status, setStatus] = useState<PermissionStatus | null>(null)
+  const [accessibilityStatus, setAccessibilityStatus] = useState<PermissionStatus | null>(null)
+  const [screenRecordingStatus, setScreenRecordingStatus] = useState<PermissionStatus | null>(null)
   const [settings, setSettings] = useState<CapabilitySettings | null>(null)
   const [historySummary, setHistorySummary] = useState<Record<HistoryTab, SearchHistorySummary | null>>({
     search: null,
@@ -92,9 +93,14 @@ export function SettingsPage() {
     await app.setThemeMode(mode)
   }
 
-  const refreshStatus = useCallback(async () => {
-    const result = await app.checkAccessibility()
-    setStatus(result)
+  const refreshPermissions = useCallback(async () => {
+    const [nextAccessibilityStatus, nextScreenRecordingStatus] = await Promise.all([
+      app.checkAccessibility(),
+      app.checkScreenRecording(),
+    ])
+
+    setAccessibilityStatus(nextAccessibilityStatus)
+    setScreenRecordingStatus(nextScreenRecordingStatus)
   }, [app])
 
   const refreshSettings = useCallback(async () => {
@@ -113,7 +119,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     void app.getThemeMode().then(setThemeMode)
-    void refreshStatus()
+    void refreshPermissions()
     void refreshSettings()
     void refreshHistory('search')
     void refreshHistory('explain')
@@ -123,14 +129,14 @@ export function SettingsPage() {
     })
 
     const timer = window.setInterval(() => {
-      void refreshStatus()
+      void refreshPermissions()
     }, 2500)
 
     return () => {
       unsubscribe()
       window.clearInterval(timer)
     }
-  }, [app, capability, refreshHistory, refreshSettings, refreshStatus])
+  }, [app, capability, refreshHistory, refreshPermissions, refreshSettings])
 
   useEffect(() => {
     return () => {
@@ -535,14 +541,14 @@ export function SettingsPage() {
 
                   <div className="settings-row-aside">
                     <Switch
-                      checked={Boolean(status?.granted)}
+                      checked={Boolean(accessibilityStatus?.granted)}
                       onCheckedChange={() => {
                         void app.openAccessibilitySettings()
                       }}
                       aria-label={t('settings.accessibility.status')}
                     />
-                    <span className={`settings-pill ${status?.granted ? 'is-on' : 'is-off'}`}>
-                      {status?.granted ? t('common.enabled') : t('common.disabled')}
+                    <span className={`settings-pill ${accessibilityStatus?.granted ? 'is-on' : 'is-off'}`}>
+                      {accessibilityStatus?.granted ? t('common.enabled') : t('common.disabled')}
                     </span>
                   </div>
                 </div>
@@ -552,8 +558,40 @@ export function SettingsPage() {
                     <LockKeyhole />
                     {t('common.openSettings')}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => void refreshStatus()}>
+                  <Button size="sm" variant="outline" onClick={() => void refreshPermissions()}>
                     {t('settings.accessibility.refresh')}
+                  </Button>
+                </div>
+              </section>
+
+              <section className="settings-surface">
+                <div className="settings-row">
+                  <div>
+                    <div className="settings-item-title">{t('settings.screenRecording.title')}</div>
+                    <div className="settings-item-desc">{t('settings.screenRecording.desc')}</div>
+                  </div>
+
+                  <div className="settings-row-aside">
+                    <Switch
+                      checked={Boolean(screenRecordingStatus?.granted)}
+                      onCheckedChange={() => {
+                        void app.openScreenRecordingSettings()
+                      }}
+                      aria-label={t('settings.screenRecording.status')}
+                    />
+                    <span className={`settings-pill ${screenRecordingStatus?.granted ? 'is-on' : 'is-off'}`}>
+                      {screenRecordingStatus?.granted ? t('common.enabled') : t('common.disabled')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="settings-action-row">
+                  <Button size="sm" onClick={() => void app.openScreenRecordingSettings()}>
+                    <Monitor />
+                    {t('common.openSettings')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => void refreshPermissions()}>
+                    {t('settings.screenRecording.refresh')}
                   </Button>
                 </div>
               </section>

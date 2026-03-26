@@ -14,6 +14,7 @@ const createStub = (): SelectionBridge => ({
   }),
   getTextByClipboardAsync: () => Promise.resolve(''),
   copySelectionAsync: () => Promise.resolve(false),
+  captureFrontmostWindowImage: () => null,
   startActionMonitor: () => false,
   stopActionMonitor: () => true,
   getCursorPosition: () => ({ x: 0, y: 0 }),
@@ -42,6 +43,9 @@ export const selectionBridge: SelectionBridge = nativeModule
       },
       copySelectionAsync(useMenu, pid, expectedText) {
         return nativeModule.copySelectionAsync(useMenu, pid, expectedText)
+      },
+      captureFrontmostWindowImage() {
+        return nativeModule.captureFrontmostWindowImage()
       },
       startActionMonitor(callback) {
         return Boolean(nativeModule.startActionMonitor(callback))

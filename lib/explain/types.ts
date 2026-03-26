@@ -6,9 +6,16 @@ export type ExplainConversationMessage = {
   text: string
 }
 
+export type ExplainImageContext = {
+  data: Buffer
+  mediaType: string
+}
+
 export type ExplainInput = {
   selectionText: string
   messages: ExplainConversationMessage[]
+  sourceAppName?: string
+  contextImage?: ExplainImageContext
 }
 
 export type ExplainResult = {
@@ -23,6 +30,8 @@ export type ExplainResult = {
 export type RunExplainInput = {
   selectionText: string
   messages: ExplainConversationMessage[]
+  sourceAppName?: string
+  contextImage?: ExplainImageContext
   signal?: AbortSignal
   onChunk?: (chunk: string, fullText: string) => void
 }

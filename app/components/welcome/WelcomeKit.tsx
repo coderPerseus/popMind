@@ -15,7 +15,7 @@ export default function WelcomeKit() {
       >
         <div className="welcome-wordmark">popMind</div>
         <DarkModeToggle />
-        <AccessibilityPermission />
+        <AccessibilityPermission showGrantedState />
       </motion.div>
     </div>
   )

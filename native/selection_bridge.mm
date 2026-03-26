@@ -276,6 +276,89 @@ bool GetFocusedWindowFrame(CGRect* outFrame) {
   return ok;
 }
 
+CGImageRef CopyFrontmostWindowImage() {
+  NSRunningApplication* frontApp = NSWorkspace.sharedWorkspace.frontmostApplication;
+  if (!frontApp) return nullptr;
+
+  const pid_t appPid = frontApp.processIdentifier;
+  CFArrayRef windowInfoList =
+      CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly |
+                                     kCGWindowListExcludeDesktopElements,
+                                 kCGNullWindowID);
+  if (!windowInfoList) return nullptr;
+
+  CGImageRef image = nullptr;
+  CGRect fallbackBounds = CGRectNull;
+  NSArray* windows = (__bridge NSArray*)windowInfoList;
+  for (id rawWindow in windows) {
+    if (![rawWindow isKindOfClass:[NSDictionary class]]) {
+      continue;
+    }
+
+    NSDictionary* window = (NSDictionary*)rawWindow;
+    NSNumber* ownerPid = window[(id)kCGWindowOwnerPID];
+    NSNumber* layer = window[(id)kCGWindowLayer];
+    NSNumber* windowNumber = window[(id)kCGWindowNumber];
+    NSNumber* alpha = window[(id)kCGWindowAlpha];
+    NSNumber* sharingState = window[(id)kCGWindowSharingState];
+    NSDictionary* boundsDict = window[(id)kCGWindowBounds];
+
+    if (![ownerPid isKindOfClass:[NSNumber class]] ||
+        ownerPid.intValue != appPid) {
+      continue;
+    }
+
+    if ([layer isKindOfClass:[NSNumber class]] && layer.intValue != 0) {
+      continue;
+    }
+
+    if ([alpha isKindOfClass:[NSNumber class]] && alpha.doubleValue <= 0.0) {
+      continue;
+    }
+
+    CGRect bounds = CGRectNull;
+    if (![boundsDict isKindOfClass:[NSDictionary class]] ||
+        !CGRectMakeWithDictionaryRepresentation((CFDictionaryRef)boundsDict,
+                                                &bounds) ||
+        CGRectIsEmpty(bounds) || bounds.size.width < 2 || bounds.size.height < 2) {
+      continue;
+    }
+
+    if (![windowNumber isKindOfClass:[NSNumber class]]) {
+      continue;
+    }
+
+    fallbackBounds = bounds;
+
+    if ([sharingState isKindOfClass:[NSNumber class]] &&
+        sharingState.intValue == kCGWindowSharingNone) {
+      break;
+    }
+
+    image = CGWindowListCreateImage(CGRectNull,
+                                    kCGWindowListOptionIncludingWindow,
+                                    (CGWindowID)windowNumber.unsignedIntValue,
+                                    kCGWindowImageBoundsIgnoreFraming |
+                                        kCGWindowImageBestResolution);
+    if (image) {
+      break;
+    }
+
+    break;
+  }
+
+  CFRelease(windowInfoList);
+
+  if (!image && !CGRectIsNull(fallbackBounds) && !CGRectIsEmpty(fallbackBounds)) {
+    image = CGWindowListCreateImage(fallbackBounds,
+                                    kCGWindowListOptionOnScreenOnly,
+                                    kCGNullWindowID,
+                                    kCGWindowImageBestResolution);
+  }
+
+  return image;
+}
+
 bool IsPointNearFocusedWindowEdge(NSPoint point) {
   static constexpr double kResizeEdgeThreshold = 14.0;
 
@@ -1724,6 +1807,29 @@ Napi::Value GetFrontmostAppInfo(const Napi::CallbackInfo& info) {
   return result;
 }
 
+Napi::Value CaptureFrontmostWindowImage(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  CGImageRef image = CopyFrontmostWindowImage();
+  if (!image) {
+    return env.Null();
+  }
+
+  NSData* pngData = nil;
+  @autoreleasepool {
+    NSBitmapImageRep* bitmap = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    pngData = [bitmap representationUsingType:NSBitmapImageFileTypePNG
+                                   properties:@{}];
+  }
+  CGImageRelease(image);
+
+  if (!pngData || pngData.length == 0) {
+    return env.Null();
+  }
+
+  return Napi::Buffer<uint8_t>::Copy(
+      env, static_cast<const uint8_t*>(pngData.bytes), pngData.length);
+}
+
 Napi::Value ConfigureBubbleWindow(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsBuffer()) {
@@ -1800,6 +1906,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getSelectionSnapshot", Napi::Function::New(env, GetSelectionSnapshot));
   exports.Set("getTextByClipboardAsync", Napi::Function::New(env, GetTextByClipboardAsync));
   exports.Set("copySelectionAsync", Napi::Function::New(env, CopySelectionAsync));
+  exports.Set("captureFrontmostWindowImage", Napi::Function::New(env, CaptureFrontmostWindowImage));
   exports.Set("recognizeTextInImageAsync", Napi::Function::New(env, RecognizeTextInImageAsync));
   exports.Set("startActionMonitor", Napi::Function::New(env, StartActionMonitor));
   exports.Set("stopActionMonitor", Napi::Function::New(env, StopActionMonitor));
