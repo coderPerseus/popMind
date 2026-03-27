@@ -33,7 +33,7 @@ type LauncherCommandItem = {
   kind: 'translate' | 'explain'
   title: string
   subtitle: string
-  typeLabel: 'Command'
+  typeLabel: string
   keywords: string[]
   aliases: string[]
   order: number
@@ -57,29 +57,6 @@ type LauncherSection = {
   title: string
   items: LauncherItem[]
 }
-
-const launcherCommands: LauncherCommandItem[] = [
-  {
-    id: 'command.translate',
-    kind: 'translate',
-    title: 'Translate Text',
-    subtitle: '/tr · /翻译',
-    typeLabel: 'Command',
-    keywords: ['translate', 'tr', 'translation', 'command', '翻译'],
-    aliases: ['/tr', '/翻译'],
-    order: 1,
-  },
-  {
-    id: 'command.explain',
-    kind: 'explain',
-    title: 'Explain Text',
-    subtitle: '/ex · /解释',
-    typeLabel: 'Command',
-    keywords: ['explain', 'explanation', 'command', '解释', 'ex'],
-    aliases: ['/ex', '/explain', '/解释'],
-    order: 2,
-  },
-]
 
 const compareByOrder = <T extends { order: number; title: string }>(left: T, right: T) => {
   return left.order - right.order || left.title.localeCompare(right.title)
@@ -112,7 +89,7 @@ const getLauncherItemKey = (item: LauncherItem) => {
 }
 
 export function MainSearch() {
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   const appApi = useConveyor('app')
   const { onMainWindowReset, onMainWindowSetSearchQuery, webOpenUrl, windowDismissTopmost, windowShowRoute } =
     useConveyor('window')
@@ -128,7 +105,32 @@ export function MainSearch() {
   const deferredQuery = useDeferredValue(query)
   const normalizedQuery = deferredQuery.trim()
   const isAppSearchMode = Boolean(normalizedQuery && !normalizedQuery.startsWith('/'))
-  const pluginCatalog = useMemo(() => getMainSearchResultsCatalog(), [])
+  const launcherCommands = useMemo<LauncherCommandItem[]>(
+    () => [
+      {
+        id: 'command.translate',
+        kind: 'translate',
+        title: t('launcher.command.translate.title'),
+        subtitle: t('launcher.command.translate.subtitle'),
+        typeLabel: t('main.resultType.command'),
+        keywords: ['translate', 'tr', 'translation', 'command', '翻译'],
+        aliases: ['/tr', '/translate', '/翻译'],
+        order: 1,
+      },
+      {
+        id: 'command.explain',
+        kind: 'explain',
+        title: t('launcher.command.explain.title'),
+        subtitle: t('launcher.command.explain.subtitle'),
+        typeLabel: t('main.resultType.command'),
+        keywords: ['explain', 'explanation', 'command', '解释', 'ex'],
+        aliases: ['/ex', '/explain', '/解释'],
+        order: 2,
+      },
+    ],
+    [t]
+  )
+  const pluginCatalog = useMemo(() => getMainSearchResultsCatalog(language), [language])
   const slashEntries = useMemo(
     () => [
       ...launcherCommands.map((item) => ({
@@ -142,27 +144,27 @@ export function MainSearch() {
         aliases: item.slashAliases,
       })),
     ],
-    [pluginCatalog]
+    [launcherCommands, pluginCatalog]
   )
   const command: any = useMemo(
     () => parseMainSearchCommand(normalizedQuery, slashEntries),
     [normalizedQuery, slashEntries]
   )
   const activePlugin = useMemo(
-    () => (command.kind === 'plugin' ? getMainSearchPluginResult(command.id, command.text) : null),
-    [command]
+    () => (command.kind === 'plugin' ? getMainSearchPluginResult(language, command.id, command.text) : null),
+    [command, language]
   )
   const activePluginPanel = useMemo(() => {
     if (!activePlugin || activePlugin.mode !== 'panel' || command.kind !== 'plugin') {
       return null
     }
 
-    return renderMainSearchPluginPanel(activePlugin.id, {
+    return renderMainSearchPluginPanel(language, activePlugin.id, {
       query: command.text,
       trigger: command.trigger,
       setQuery,
     })
-  }, [activePlugin, command])
+  }, [activePlugin, command, language])
 
   const translate = useTranslateCommand(command)
   const explain = useExplainCommand(command)
@@ -179,7 +181,7 @@ export function MainSearch() {
         ? [
             {
               id: 'apps',
-              title: 'Apps',
+              title: t('main.apps'),
               items: installedApps.map((item) => ({ kind: 'app' as const, item })),
             },
           ]
@@ -205,7 +207,7 @@ export function MainSearch() {
     if (pluginItems.length) {
       sections.push({
         id: 'plugins',
-        title: normalizedQuery ? 'Matching Plugins' : 'Plugins',
+        title: normalizedQuery ? t('main.plugins.matching') : t('main.plugins'),
         items: pluginItems.map((item) => ({ kind: 'plugin', item })),
       })
     }
@@ -213,7 +215,7 @@ export function MainSearch() {
     if (commandItems.length) {
       sections.push({
         id: 'commands',
-        title: normalizedQuery ? 'Matching Commands' : 'Commands',
+        title: normalizedQuery ? t('main.commands.matching') : t('main.commands'),
         items: commandItems.map((item) => ({ kind: 'command', item })),
       })
     }
@@ -224,8 +226,10 @@ export function MainSearch() {
     explain.isActive,
     installedApps,
     isAppSearchMode,
+    launcherCommands,
     normalizedQuery,
     pluginCatalog,
+    t,
     translate.isActive,
   ])
   const launcherItems = useMemo(() => launcherSections.flatMap((section) => section.items), [launcherSections])
@@ -370,7 +374,7 @@ export function MainSearch() {
 
     setIsLaunching(true)
     try {
-      await executeMainSearchPlugin(result.id, {
+      await executeMainSearchPlugin(language, result.id, {
         query: executionQuery.trim(),
         openUrl: webOpenUrl,
         copyText: copyTextToClipboard,
@@ -577,9 +581,7 @@ export function MainSearch() {
                 <div>
                   <div className="ms-translate-card-title">{activePlugin.title}</div>
                   <div className="ms-translate-card-subtitle">
-                    {command.text
-                      ? '回车后会在对应平台打开，并携带当前问题。'
-                      : `继续输入问题，然后回车在 ${activePlugin.title} 中打开。`}
+                    {command.text ? t('main.plugin.openReady') : t('main.plugin.openHint', { title: activePlugin.title })}
                   </div>
                 </div>
               </div>
@@ -587,7 +589,7 @@ export function MainSearch() {
               {command.text ? (
                 <div className="ms-translate-source">{command.text}</div>
               ) : (
-                <div className="ms-translate-source">示例：{command.trigger} 帮我把这段中文翻译成英文并润色一下</div>
+                <div className="ms-translate-source">{t('main.plugin.example', { trigger: command.trigger })}</div>
               )}
             </section>
           </div>
@@ -661,7 +663,7 @@ export function MainSearch() {
                             </span>
                           </span>
 
-                          <span className="ms-result-type">App</span>
+                          <span className="ms-result-type">{t('main.resultType.app')}</span>
                         </button>
                       )
                     }
@@ -695,17 +697,17 @@ export function MainSearch() {
           </div>
         ) : isAppSearchMode && isSearchingApps ? (
           <div className="ms-empty">
-            <div className="ms-empty-title">正在搜索应用…</div>
-            <div className="ms-empty-desc">已在本机已安装应用中查找匹配项</div>
+            <div className="ms-empty-title">{t('main.searchingAppsTitle')}</div>
+            <div className="ms-empty-desc">{t('main.searchingAppsDesc')}</div>
           </div>
         ) : isAppSearchMode ? (
           <div className="ms-empty">
-            <div className="ms-empty-title">没有找到匹配应用</div>
-            <div className="ms-empty-desc">试试输入应用名称、英文名，或 bundle id 的一部分</div>
+            <div className="ms-empty-title">{t('main.noAppsTitle')}</div>
+            <div className="ms-empty-desc">{t('main.noAppsDesc')}</div>
           </div>
         ) : (
           <div className="ms-empty">
-            <div className="ms-empty-title">没有匹配结果</div>
+            <div className="ms-empty-title">{t('main.emptyTitle')}</div>
             <div className="ms-empty-desc">{t('main.empty')}</div>
           </div>
         )}
@@ -714,7 +716,7 @@ export function MainSearch() {
       {/* Footer bar */}
       <div className="ms-footer">
         <div className="ms-footer-brand">
-          <button className="ms-footer-logo" onClick={() => void windowShowRoute('settings')} aria-label="打开配置">
+          <button className="ms-footer-logo" onClick={() => void windowShowRoute('settings')} aria-label={t('main.settingsAria')}>
             <img src={logoUrl} alt="popMind" className="ms-logo-img" />
             <Settings2 size={13} className="ms-footer-settings-icon" />
           </button>

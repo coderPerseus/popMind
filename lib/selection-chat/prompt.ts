@@ -25,6 +25,17 @@ export const buildExplainPrompt = ({
   hasImageContext?: boolean
 }) => {
   const sections = []
+  const normalizedSelectionText = selectionText.trim()
+  const normalizedMessages = messages.filter(
+    (message, index) => !(index === 0 && message.role === 'user' && message.text.trim() === normalizedSelectionText)
+  )
+  const latestUserMessageIndex = [...normalizedMessages].map((message) => message.role).lastIndexOf('user')
+  const latestUserQuestion =
+    latestUserMessageIndex >= 0 ? normalizedMessages[latestUserMessageIndex]?.text.trim() ?? '' : ''
+  const historyMessages =
+    latestUserMessageIndex >= 0
+      ? normalizedMessages.filter((_message, index) => index !== latestUserMessageIndex)
+      : normalizedMessages
 
   if (sourceAppName?.trim()) {
     sections.push(`Current application:\n${sourceAppName.trim()}`)
@@ -38,13 +49,17 @@ export const buildExplainPrompt = ({
 
   sections.push(translateMessage(language, 'prompt.explain.user.selection', { selection: selectionText }))
 
-  if (messages.length > 1) {
+  if (historyMessages.length > 0) {
     sections.push(
       [
         'Conversation history:',
-        ...messages.map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.text}`),
+        ...historyMessages.map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.text}`),
       ].join('\n')
     )
+  }
+
+  if (latestUserQuestion) {
+    sections.push(translateMessage(language, 'prompt.explain.user.followup', { question: latestUserQuestion }))
   }
 
   if (searchResults.length > 0) {

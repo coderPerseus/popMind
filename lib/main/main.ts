@@ -11,6 +11,7 @@ import { setupApplicationMenu } from './application-menu'
 import { isMainWindowVisible, primeMainWindow, showMainWindow, toggleMainWindow } from './window-manager'
 
 let textPickerFeature: TextPickerFeature | null = null
+let disposeApplicationMenu: (() => void) | null = null
 
 const registerGlobalShortcutWithLogging = (accelerator: string, label: string, handler: () => void) => {
   globalShortcut.unregister(accelerator)
@@ -60,7 +61,7 @@ app.whenReady().then(async () => {
   }
 
   await themeStore.initialize()
-  setupApplicationMenu()
+  disposeApplicationMenu = await setupApplicationMenu()
   registerExplainHandlers()
   registerTranslationHandlers()
   registerSearchHandlers()
@@ -114,6 +115,8 @@ app.on('activate', () => {
 // In this file, you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
 app.on('will-quit', () => {
+  disposeApplicationMenu?.()
+  disposeApplicationMenu = null
   globalShortcut.unregisterAll()
   textPickerFeature?.dispose()
   textPickerFeature = null

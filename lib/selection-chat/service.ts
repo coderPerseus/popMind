@@ -35,22 +35,25 @@ export class SelectionChatService {
   }
 
   private setMissingAiConfigState(
-    input: { selectionText: string; selectionId?: string; sourceAppId?: string },
+    input: { mode: 'explain' | 'ask'; selectionText: string; selectionId?: string; sourceAppId?: string },
     language: 'zh-CN' | 'en'
   ) {
-    const firstUserMessage = createMessage('user', input.selectionText.trim())
-    if (!firstUserMessage.text) {
+    const selectionText = input.selectionText.trim()
+    if (!selectionText) {
       this.session = null
       this.emit()
       return null
     }
 
+    const messages = input.mode === 'explain' ? [createMessage('user', selectionText)] : []
+
     this.session = {
       id: randomUUID(),
+      mode: input.mode,
       selectionId: input.selectionId,
       sourceAppId: input.sourceAppId,
-      selectionText: firstUserMessage.text,
-      messages: [firstUserMessage],
+      selectionText,
+      messages,
       status: 'error',
       pinned: false,
       language,
@@ -65,6 +68,7 @@ export class SelectionChatService {
   }
 
   async openSession(input: {
+    mode: 'explain' | 'ask'
     selectionText: string
     selectionId?: string
     sourceAppId?: string
@@ -80,13 +84,22 @@ export class SelectionChatService {
       return this.setMissingAiConfigState(input, settings.appLanguage)
     }
 
-    const firstUserMessage = createMessage('user', input.selectionText)
+    const selectionText = input.selectionText.trim()
+    if (!selectionText) {
+      this.session = null
+      this.emit()
+      return null
+    }
+
+    const messages = input.mode === 'explain' ? [createMessage('user', selectionText)] : []
+
     this.session = {
       id: randomUUID(),
+      mode: input.mode,
       selectionId: input.selectionId,
       sourceAppId: input.sourceAppId,
-      selectionText: input.selectionText,
-      messages: [firstUserMessage],
+      selectionText,
+      messages,
       status: 'ready',
       pinned: false,
       language: settings.appLanguage,
@@ -94,7 +107,11 @@ export class SelectionChatService {
       modelId: model.modelId,
     }
     this.emit()
-    await this.runAssistantTurn()
+
+    if (input.mode === 'explain') {
+      await this.runAssistantTurn()
+    }
+
     return this.session
   }
 

@@ -60,6 +60,14 @@ export const runExplain = async ({
 
   let text = ''
   const executeExplainRequest = async (includeImage: boolean) => {
+    mainLogger.info('[ExplainRunner] request', {
+      providerId: model.providerId,
+      modelId: model.modelId,
+      includeImage,
+      imageBytes: includeImage ? (contextImage?.data.length ?? 0) : 0,
+      mediaType: includeImage ? contextImage?.mediaType ?? null : null,
+    })
+
     const result = streamText({
       model: model.model,
       abortSignal: signal,
@@ -98,6 +106,13 @@ export const runExplain = async ({
       text += chunk
       onChunk?.(chunk, text)
     }
+
+    mainLogger.info('[ExplainRunner] completed', {
+      providerId: model.providerId,
+      modelId: model.modelId,
+      includeImage,
+      outputChars: text.length,
+    })
   }
 
   const includeImage = Boolean(contextImage && model.supportsImageInput)
@@ -114,6 +129,14 @@ export const runExplain = async ({
   try {
     await executeExplainRequest(includeImage)
   } catch (error) {
+    mainLogger.warn('[ExplainRunner] request_failed', {
+      providerId: model.providerId,
+      modelId: model.modelId,
+      includeImage,
+      partialChars: text.length,
+      reason: error instanceof Error ? error.message : String(error),
+    })
+
     if (!includeImage || !shouldRetryWithoutImage(error, text.length > 0)) {
       throw error
     }

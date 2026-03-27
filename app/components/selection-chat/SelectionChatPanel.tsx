@@ -68,13 +68,42 @@ export function SelectionChatPanel() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  useEffect(() => {
+    setDraft('')
+  }, [state.session?.id])
+
   const session = state.session
   const uiLanguage = session?.language ?? 'zh-CN'
   const isStreaming = session?.status === 'streaming' || session?.status === 'searching'
   const statusLabel = session?.status === 'error' ? session.errorMessage ?? '' : ''
   const topbarMeta = [session?.aiProvider, session?.modelId, session?.webSearchProvider].filter(Boolean).join(' · ')
-  const visibleMessages = session?.messages.filter((message, index) => !(index === 0 && message.role === 'user')) ?? []
+  const visibleMessages =
+    session?.messages.filter(
+      (message, index) =>
+        !(
+          session.mode === 'explain' &&
+          index === 0 &&
+          message.role === 'user' &&
+          message.text.trim() === session.selectionText.trim()
+        )
+    ) ?? []
   const latestAssistantMessageId = [...visibleMessages].reverse().find((message) => message.role === 'assistant')?.id
+  const eyebrowTitle =
+    session?.mode === 'ask'
+      ? uiLanguage === 'en'
+        ? 'Ask AI'
+        : '问 AI'
+      : uiLanguage === 'en'
+        ? 'Selection Explain'
+        : '划词解释'
+  const inputPlaceholder =
+    session?.mode === 'ask'
+      ? uiLanguage === 'en'
+        ? 'Add your question based on the selected text…'
+        : '基于这段内容补充你的问题…'
+      : uiLanguage === 'en'
+        ? 'Ask a follow-up…'
+        : '继续追问…'
 
   const resizeComposer = () => {
     const composer = composerRef.current
@@ -266,7 +295,7 @@ export function SelectionChatPanel() {
             </Button>
 
             <div className="selection-chat-topbar-copy">
-              <div className="selection-chat-eyebrow">{uiLanguage === 'en' ? 'Selection Explain' : '划词解释'}</div>
+              <div className="selection-chat-eyebrow">{eyebrowTitle}</div>
               <div className="selection-chat-subtitle">{topbarMeta || (uiLanguage === 'en' ? 'Ready' : '就绪')}</div>
             </div>
           </div>
@@ -347,7 +376,7 @@ export function SelectionChatPanel() {
               rows={1}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder={uiLanguage === 'en' ? 'Ask a follow-up…' : '继续追问…'}
+              placeholder={inputPlaceholder}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && event.shiftKey) {
                   event.preventDefault()

@@ -1,25 +1,27 @@
+import { translateMessage } from '@/lib/i18n/shared'
+import type { AppLanguage } from '@/lib/capability/types'
 import type { TitlebarMenu } from '@/app/components/window/TitlebarMenu'
 
-export const menuItems: TitlebarMenu[] = [
+export const buildTitlebarMenus = (language: AppLanguage): TitlebarMenu[] => [
   {
-    name: 'File',
+    name: translateMessage(language, 'titlebar.menu.file'),
     items: [
       {
-        name: 'Exit',
+        name: translateMessage(language, 'titlebar.item.exit'),
         action: 'window-close',
       },
     ],
   },
   {
-    name: 'Edit',
+    name: translateMessage(language, 'titlebar.menu.edit'),
     items: [
       {
-        name: 'Undo',
+        name: translateMessage(language, 'titlebar.item.undo'),
         action: 'web-undo',
         shortcut: 'Ctrl+Z',
       },
       {
-        name: 'Redo',
+        name: translateMessage(language, 'titlebar.item.redo'),
         action: 'web-redo',
         shortcut: 'Ctrl+Y',
       },
@@ -27,49 +29,49 @@ export const menuItems: TitlebarMenu[] = [
         name: '---',
       },
       {
-        name: 'Cut',
+        name: translateMessage(language, 'titlebar.item.cut'),
         action: 'web-cut',
         shortcut: 'Ctrl+X',
       },
       {
-        name: 'Copy',
+        name: translateMessage(language, 'titlebar.item.copy'),
         action: 'web-copy',
         shortcut: 'Ctrl+C',
       },
       {
-        name: 'Paste',
+        name: translateMessage(language, 'titlebar.item.paste'),
         action: 'web-paste',
         shortcut: 'Ctrl+V',
       },
       {
-        name: 'Delete',
+        name: translateMessage(language, 'titlebar.item.delete'),
         action: 'web-delete',
       },
       {
         name: '---',
       },
       {
-        name: 'Select All',
+        name: translateMessage(language, 'titlebar.item.selectAll'),
         action: 'web-select-all',
         shortcut: 'Ctrl+A',
       },
     ],
   },
   {
-    name: 'View',
+    name: translateMessage(language, 'titlebar.menu.view'),
     items: [
       {
-        name: 'Reload',
+        name: translateMessage(language, 'titlebar.item.reload'),
         action: 'web-reload',
         shortcut: 'Ctrl+R',
       },
       {
-        name: 'Force Reload',
+        name: translateMessage(language, 'titlebar.item.forceReload'),
         action: 'web-force-reload',
         shortcut: 'Ctrl+Shift+R',
       },
       {
-        name: 'Toggle Developer Tools',
+        name: translateMessage(language, 'titlebar.item.toggleDevTools'),
         action: 'web-toggle-devtools',
         shortcut: 'Ctrl+Shift+I',
       },
@@ -77,17 +79,17 @@ export const menuItems: TitlebarMenu[] = [
         name: '---',
       },
       {
-        name: 'Actual Size',
+        name: translateMessage(language, 'titlebar.item.actualSize'),
         action: 'web-actual-size',
         shortcut: 'Ctrl+0',
       },
       {
-        name: 'Zoom In',
+        name: translateMessage(language, 'titlebar.item.zoomIn'),
         action: 'web-zoom-in',
         shortcut: 'Ctrl++',
       },
       {
-        name: 'Zoom Out',
+        name: translateMessage(language, 'titlebar.item.zoomOut'),
         action: 'web-zoom-out',
         shortcut: 'Ctrl+-',
       },
@@ -95,19 +97,19 @@ export const menuItems: TitlebarMenu[] = [
         name: '---',
       },
       {
-        name: 'Toggle Fullscreen',
+        name: translateMessage(language, 'titlebar.item.toggleFullscreen'),
         action: 'web-toggle-fullscreen',
         shortcut: 'F11',
       },
     ],
   },
   {
-    name: 'Window',
+    name: translateMessage(language, 'titlebar.menu.window'),
     items: [
       {
-        name: 'Toggle Dark Mode',
+        name: translateMessage(language, 'titlebar.item.toggleDarkMode'),
         action: 'window-darkmode-toggle',
-        shortcut: 'Toggle',
+        shortcut: translateMessage(language, 'titlebar.item.toggle'),
         actionCallback: () => {
           document.documentElement.classList.toggle('dark')
         },
@@ -116,24 +118,24 @@ export const menuItems: TitlebarMenu[] = [
         name: '---',
       },
       {
-        name: 'Maximize',
+        name: translateMessage(language, 'titlebar.item.maximize'),
         action: 'window-maximize-toggle',
-        shortcut: 'Toggle',
+        shortcut: translateMessage(language, 'titlebar.item.toggle'),
       },
       {
-        name: 'Minimize',
+        name: translateMessage(language, 'titlebar.item.minimize'),
         action: 'window-minimize',
         shortcut: 'Ctrl+M',
       },
       {
-        name: 'Close',
+        name: translateMessage(language, 'titlebar.item.close'),
         action: 'window-close',
         shortcut: 'Ctrl+W',
       },
     ],
   },
   {
-    name: 'Credits',
+    name: translateMessage(language, 'titlebar.menu.credits'),
     items: [
       {
         name: 'Guasam',

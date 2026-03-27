@@ -21,6 +21,7 @@ export class SelectionChatWindowManager {
     private readonly floatingBridge?: {
       noteInteraction?: (durationMs?: number) => void
       setDragging?: (isDragging: boolean) => void
+      onVisibilityChange?: () => void
     }
   ) {
     this.setupIpc()
@@ -31,6 +32,7 @@ export class SelectionChatWindowManager {
   }
 
   async open(payload: {
+    mode: 'explain' | 'ask'
     text: string
     selectionId?: string
     sourceAppId?: string
@@ -47,6 +49,7 @@ export class SelectionChatWindowManager {
     this.positionWindow(payload.anchor)
     this.showWindow()
     await selectionChatService.openSession({
+      mode: payload.mode,
       selectionText: payload.text,
       selectionId: payload.selectionId,
       sourceAppId: payload.sourceAppId,
@@ -58,6 +61,7 @@ export class SelectionChatWindowManager {
   hide() {
     void selectionChatService.close()
     this.window?.hide()
+    this.floatingBridge?.onVisibilityChange?.()
   }
 
   isVisible() {
@@ -137,6 +141,7 @@ export class SelectionChatWindowManager {
       this.noteInteraction()
       await selectionChatService.close()
       this.window?.hide()
+      this.floatingBridge?.onVisibilityChange?.()
       return { ok: true }
     })
     ipcMain.handle(SelectionChatWindowChannel.DismissTopmost, async () => {
@@ -215,5 +220,6 @@ export class SelectionChatWindowManager {
     this.window.showInactive()
     this.window.orderFront()
     this.sendState()
+    this.floatingBridge?.onVisibilityChange?.()
   }
 }

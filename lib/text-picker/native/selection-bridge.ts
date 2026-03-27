@@ -17,6 +17,7 @@ const createStub = (): SelectionBridge => ({
   captureFrontmostWindowImage: () => null,
   startActionMonitor: () => false,
   stopActionMonitor: () => true,
+  setKeyMonitorEnabled: () => false,
   getCursorPosition: () => ({ x: 0, y: 0 }),
   getFrontmostAppInfo: () => ({ bundleId: '', name: '', pid: -1 }),
   configureBubbleWindow: () => false,
@@ -44,14 +45,17 @@ export const selectionBridge: SelectionBridge = nativeModule
       copySelectionAsync(useMenu, pid, expectedText) {
         return nativeModule.copySelectionAsync(useMenu, pid, expectedText)
       },
-      captureFrontmostWindowImage() {
-        return nativeModule.captureFrontmostWindowImage()
+      captureFrontmostWindowImage(pid) {
+        return nativeModule.captureFrontmostWindowImage(pid)
       },
       startActionMonitor(callback) {
         return Boolean(nativeModule.startActionMonitor(callback))
       },
       stopActionMonitor() {
         return Boolean(nativeModule.stopActionMonitor())
+      },
+      setKeyMonitorEnabled(enabled) {
+        return Boolean(nativeModule.setKeyMonitorEnabled(Boolean(enabled)))
       },
       getCursorPosition() {
         return nativeModule.getCursorPosition()

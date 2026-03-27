@@ -122,9 +122,10 @@ export interface SelectionBridge {
   getSelectionSnapshot(scene?: SelectionSceneValue | string | null): SelectionSnapshot
   getTextByClipboardAsync(useMenu: boolean, pid: number): Promise<string>
   copySelectionAsync(useMenu: boolean, pid: number, expectedText?: string): Promise<boolean>
-  captureFrontmostWindowImage(): Buffer | null
+  captureFrontmostWindowImage(pid?: number): Buffer | null
   startActionMonitor(callback: (event: SelectionActionEvent) => void): boolean
   stopActionMonitor(): boolean
+  setKeyMonitorEnabled(enabled: boolean): boolean
   getCursorPosition(): { x: number; y: number }
   getFrontmostAppInfo(): { bundleId: string; name: string; pid: number }
   configureBubbleWindow(nativeHandle: Buffer): boolean

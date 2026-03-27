@@ -1,5 +1,7 @@
 import { CalculatorPanel } from '@/app/components/home/CalculatorPanel'
 import type { MainSearchPlugin } from '@/app/plugins/main-search/types'
+import type { AppLanguage } from '@/lib/capability/types'
+import { translateMessage } from '@/lib/i18n/shared'
 
 const calculatorLogo = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
@@ -24,22 +26,22 @@ const calculatorLogo = `data:image/svg+xml;utf8,${encodeURIComponent(`
 </svg>
 `)}`
 
-export const calculatorPlugin: MainSearchPlugin = {
+export const createCalculatorPlugin = (language: AppLanguage): MainSearchPlugin => ({
   manifest: {
     id: 'tool.calculator',
-    title: 'Calculator',
+    title: translateMessage(language, 'plugin.calculator.title'),
     handle: '@calculator',
     slashAliases: ['/cal'],
     order: 0,
-    typeLabel: 'Utility',
+    typeLabel: translateMessage(language, 'plugin.type.utility'),
     mode: 'panel',
     keywords: ['calculator', 'calc', 'math', 'compute', 'number', '计算器', '计算'],
     logo: {
       src: calculatorLogo,
-      alt: 'Calculator',
+      alt: translateMessage(language, 'plugin.calculator.alt'),
       background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.94) 0%, rgba(29, 78, 216, 0.94) 100%)',
     },
-    description: '在主窗口里直接计算四则运算表达式',
+    description: translateMessage(language, 'plugin.calculator.description'),
   },
   shouldDisplay() {
     return true
@@ -51,4 +53,4 @@ export const calculatorPlugin: MainSearchPlugin = {
   renderPanel(context) {
     return <CalculatorPanel query={context.query} trigger={context.trigger} setQuery={context.setQuery} />
   },
-}
+})

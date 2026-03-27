@@ -6,7 +6,7 @@ import { getMacCodeSigningInfo } from '@/lib/main/macos-code-signing'
 import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-service'
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
 import { capabilityService } from '@/lib/capability/service'
-import { formatLanguageLabel } from '@/lib/i18n/shared'
+import { formatLanguageLabel, translateMessage } from '@/lib/i18n/shared'
 import { normalizeSelectedLink } from '@/lib/text-picker/link-utils'
 import { SelectionChatWindowManager } from '@/lib/selection-chat/window/selection-chat-window-manager'
 import { TranslationWindowManager } from '@/lib/translation/window/translation-window-manager'
@@ -17,6 +17,7 @@ import { showMainWindow } from '@/lib/main/window-manager'
 import { autoDismissController, type DismissContext } from '@/lib/windowing/auto-dismiss-controller'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
+import type { AppLanguage } from '@/lib/capability/types'
 
 const IPC_HANDLE_CHANNELS = [
   TextPickerChannel.Command,
@@ -67,6 +68,7 @@ export class TextPickerFeature {
   private readonly commandContexts = new Map<string, CommandContextSnapshot>()
   private permissionRetryTimer: NodeJS.Timeout | null = null
   private lastMonitorStateKey: string | null = null
+  private appLanguage: AppLanguage = 'zh-CN'
 
   constructor(
     private readonly bridge: SelectionBridge = selectionBridge,
@@ -88,6 +90,9 @@ export class TextPickerFeature {
       setDragging: (isDragging) => {
         this.manager?.setBubbleDragging(isDragging)
       },
+      onVisibilityChange: () => {
+        this.manager?.syncDismissKeyMonitor()
+      },
     })
     this.selectionChatWindowManager = new SelectionChatWindowManager(this.bridge, this.logger, {
       noteInteraction: (durationMs) => {
@@ -95,6 +100,9 @@ export class TextPickerFeature {
       },
       setDragging: (isDragging) => {
         this.manager?.setBubbleDragging(isDragging)
+      },
+      onVisibilityChange: () => {
+        this.manager?.syncDismissKeyMonitor()
       },
     })
     this.screenshotTranslationService = new ScreenshotTranslationService(this.translationWindowManager)
@@ -144,8 +152,10 @@ export class TextPickerFeature {
     this.setupIpc()
     this.registerScreenshotShortcuts()
     const settings = await capabilityService.getSettings()
+    this.appLanguage = settings.appLanguage
     this.manager?.setLanguage(settings.appLanguage)
     this.detachCapabilityListener = capabilityService.subscribe((nextSettings) => {
+      this.appLanguage = nextSettings.appLanguage
       this.manager?.setLanguage(nextSettings.appLanguage)
     })
 
@@ -436,10 +446,11 @@ export class TextPickerFeature {
 
   private buildTrayMenu() {
     const isEnabled = this.manager?.isGlobalEnabled() ?? true
+    const language = this.appLanguage
 
     return Menu.buildFromTemplate([
       {
-        label: '打开主页',
+        label: translateMessage(language, 'tray.openHome'),
         accelerator: 'Alt+Space',
         click: () => {
           this.manager?.hideBubble()
@@ -447,14 +458,14 @@ export class TextPickerFeature {
         },
       },
       {
-        label: '截图翻译',
+        label: translateMessage(language, 'tray.screenshotTranslate'),
         accelerator: SCREENSHOT_TRANSLATE_SHORTCUT,
         click: () => {
           void this.triggerScreenshotTranslation()
         },
       },
       {
-        label: '截图搜索',
+        label: translateMessage(language, 'tray.screenshotSearch'),
         accelerator: SCREENSHOT_SEARCH_SHORTCUT,
         click: () => {
           void this.triggerScreenshotSearch()
@@ -464,13 +475,13 @@ export class TextPickerFeature {
         type: 'separator',
       },
       {
-        label: isEnabled ? '关闭划词' : '开启划词',
+        label: isEnabled ? translateMessage(language, 'tray.disableSelection') : translateMessage(language, 'tray.enableSelection'),
         click: () => {
           this.manager?.setGlobalEnabled(!isEnabled)
         },
       },
       {
-        label: '显示配置页面',
+        label: translateMessage(language, 'tray.openSettings'),
         accelerator: 'Command+,',
         click: () => {
           this.manager?.hideBubble()
@@ -481,17 +492,17 @@ export class TextPickerFeature {
         type: 'separator',
       },
       {
-        label: `版本 ${app.getVersion()}`,
+        label: translateMessage(language, 'tray.version', { version: app.getVersion() }),
         click: () => {
           void shell.openExternal(POPMIND_RELEASES_URL)
         },
       },
       {
-        label: '退出',
+        label: translateMessage(language, 'tray.quit'),
         role: 'quit',
       },
       {
-        label: '导出日志',
+        label: translateMessage(language, 'tray.exportLogs'),
         click: () => {
           void exportMainProcessLogs()
         },
@@ -720,6 +731,7 @@ export class TextPickerFeature {
       if (
         commandId === SystemCommand.Translate ||
         commandId === SystemCommand.Explain ||
+        commandId === SystemCommand.AskAI ||
         commandId === SystemCommand.Search
       ) {
         if (commandId === SystemCommand.Translate) {
@@ -749,9 +761,25 @@ export class TextPickerFeature {
             return { ok: true, commandId }
           }
 
-          const contextImage = this.captureExplainContextImage(pickedInfo.appName)
+          const contextImage = this.captureExplainContextImage(pickedInfo.appName, pickedInfo.sourceAppPid)
 
           await this.selectionChatWindowManager?.open({
+            mode: 'explain',
+            text: pickedInfo.text,
+            selectionId: pickedInfo.selectionId,
+            sourceAppId: pickedInfo.appId,
+            sourceAppName: pickedInfo.appName,
+            contextImage,
+            anchor: commandContext.anchor,
+          })
+          return { ok: true, commandId }
+        }
+
+        if (commandId === SystemCommand.AskAI) {
+          const contextImage = this.captureExplainContextImage(pickedInfo.appName, pickedInfo.sourceAppPid)
+
+          await this.selectionChatWindowManager?.open({
+            mode: 'ask',
             text: pickedInfo.text,
             selectionId: pickedInfo.selectionId,
             sourceAppId: pickedInfo.appId,
@@ -877,19 +905,27 @@ export class TextPickerFeature {
     return ''
   }
 
-  private captureExplainContextImage(sourceAppName?: string) {
+  private captureExplainContextImage(sourceAppName?: string, sourceAppPid?: number) {
     try {
-      const image = this.bridge.captureFrontmostWindowImage()
+      const targetPid = Number.isFinite(sourceAppPid) && Number(sourceAppPid) > 0 ? Number(sourceAppPid) : undefined
+      const image = this.bridge.captureFrontmostWindowImage(targetPid)
       if (!image?.length) {
         this.logger.info('[TextPickerFeature] explain context image unavailable', {
           sourceAppName: sourceAppName || 'unknown',
+          sourceAppPid: targetPid ?? null,
         })
         return undefined
       }
 
+      const pngSignatureHex = image.subarray(0, 8).toString('hex')
+      const isPng = pngSignatureHex === '89504e470d0a1a0a'
+
       this.logger.info('[TextPickerFeature] explain context image captured', {
         sourceAppName: sourceAppName || 'unknown',
+        sourceAppPid: targetPid ?? null,
         bytes: image.length,
+        isPng,
+        pngSignatureHex,
       })
 
       return {
@@ -898,6 +934,8 @@ export class TextPickerFeature {
       }
     } catch (error) {
       this.logger.warn('[TextPickerFeature] failed to capture explain context image', {
+        sourceAppName: sourceAppName || 'unknown',
+        sourceAppPid: Number.isFinite(sourceAppPid) && Number(sourceAppPid) > 0 ? Number(sourceAppPid) : null,
         error: error instanceof Error ? error.message : String(error),
       })
       return undefined

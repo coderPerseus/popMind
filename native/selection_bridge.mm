@@ -3,6 +3,9 @@
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <Carbon/Carbon.h>
+#if __has_include(<ScreenCaptureKit/ScreenCaptureKit.h>)
+#import <ScreenCaptureKit/ScreenCaptureKit.h>
+#endif
 #import <Vision/Vision.h>
 
 #include <algorithm>
@@ -75,6 +78,8 @@ NSInteger gDragPasteboardChangeCountOnMouseDown = -1;
 
 static constexpr double kScrollGestureDeltaThreshold = 4.0;
 static constexpr double kDragThreshold = 3.0;
+
+void HandleKeyEvent(NSEvent* event);
 
 std::string ToStdString(NSString* value) {
   if (value == nil) return "";
@@ -276,11 +281,161 @@ bool GetFocusedWindowFrame(CGRect* outFrame) {
   return ok;
 }
 
-CGImageRef CopyFrontmostWindowImage() {
+CGImageRef CopyFrontmostWindowImageByPid(pid_t requestedPid);
+
+#if __has_include(<ScreenCaptureKit/ScreenCaptureKit.h>)
+SCWindow* CopyBestShareableWindowForPid(NSArray<SCWindow*>* windows, pid_t appPid) API_AVAILABLE(macos(12.3)) {
+  if (appPid <= 0 || windows.count == 0) {
+    return nil;
+  }
+
+  SCWindow* bestWindow = nil;
+  double bestScore = -1.0;
+  for (SCWindow* window in windows) {
+    SCRunningApplication* owningApplication = window.owningApplication;
+    if (!owningApplication || owningApplication.processID != appPid || !window.isOnScreen) {
+      continue;
+    }
+
+    if (window.windowLayer != 0) {
+      continue;
+    }
+
+    const CGRect frame = window.frame;
+    if (CGRectIsEmpty(frame) || frame.size.width < 2.0 || frame.size.height < 2.0) {
+      continue;
+    }
+
+    double score = frame.size.width * frame.size.height;
+    if (@available(macOS 13.1, *)) {
+      if (window.isActive) {
+        score += 1e12;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestWindow = window;
+    }
+  }
+
+  return bestWindow ? [bestWindow retain] : nil;
+}
+
+CGImageRef CopyWindowImageWithScreenCaptureKit(pid_t requestedPid) {
+  if (@available(macOS 14.0, *)) {
+    if (requestedPid <= 0) {
+      return nullptr;
+    }
+
+    if (!CGPreflightScreenCaptureAccess()) {
+      NSLog(@"[selection_bridge] sck capture skipped: no screen capture access pid=%d", requestedPid);
+      return nullptr;
+    }
+
+    __block CGImageRef capturedImage = nullptr;
+    __block NSError* captureError = nil;
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+
+    [SCShareableContent getShareableContentExcludingDesktopWindows:YES
+                                               onScreenWindowsOnly:YES
+                                                 completionHandler:^(SCShareableContent* _Nullable shareableContent,
+                                                                     NSError* _Nullable error) {
+      if (error || !shareableContent) {
+        captureError = [error retain];
+        dispatch_semaphore_signal(semaphore);
+        return;
+      }
+
+      SCWindow* targetWindow = CopyBestShareableWindowForPid(shareableContent.windows, requestedPid);
+      if (!targetWindow) {
+        NSLog(@"[selection_bridge] sck capture no target window pid=%d windows=%lu",
+              requestedPid,
+              (unsigned long)shareableContent.windows.count);
+        dispatch_semaphore_signal(semaphore);
+        return;
+      }
+
+      NSLog(@"[selection_bridge] sck capture target pid=%d windowID=%u title=%@ frame=(%.1f %.1f %.1f %.1f)",
+            requestedPid,
+            targetWindow.windowID,
+            targetWindow.title ?: @"",
+            targetWindow.frame.origin.x,
+            targetWindow.frame.origin.y,
+            targetWindow.frame.size.width,
+            targetWindow.frame.size.height);
+
+      SCContentFilter* filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:targetWindow];
+      [targetWindow release];
+
+      SCStreamConfiguration* config = [[SCStreamConfiguration alloc] init];
+      config.showsCursor = NO;
+      config.scalesToFit = YES;
+      if (@available(macOS 14.0, *)) {
+        config.ignoreShadowsSingleWindow = YES;
+      }
+
+      const CGRect contentRect = filter.contentRect;
+      const float pointPixelScale = filter.pointPixelScale > 0.0f ? filter.pointPixelScale : 2.0f;
+      config.width = static_cast<size_t>(std::max(1.0, std::ceil(contentRect.size.width * pointPixelScale)));
+      config.height = static_cast<size_t>(std::max(1.0, std::ceil(contentRect.size.height * pointPixelScale)));
+
+      [SCScreenshotManager captureImageWithFilter:filter
+                                    configuration:config
+                                completionHandler:^(CGImageRef _Nullable image, NSError* _Nullable imageError) {
+        if (image) {
+          capturedImage = CGImageRetain(image);
+        } else if (imageError) {
+          captureError = [imageError retain];
+        }
+
+        [filter release];
+        [config release];
+        dispatch_semaphore_signal(semaphore);
+      }];
+    }];
+
+    const int64_t timeoutNs = 3LL * NSEC_PER_SEC;
+    if (dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, timeoutNs)) != 0) {
+      NSLog(@"[selection_bridge] sck capture timed out pid=%d", requestedPid);
+      if (captureError) {
+        [captureError release];
+      }
+      return nullptr;
+    }
+
+    if (captureError) {
+      NSLog(@"[selection_bridge] sck capture failed pid=%d error=%@", requestedPid, captureError.localizedDescription);
+      [captureError release];
+    }
+
+    return capturedImage;
+  }
+
+  return nullptr;
+}
+#endif
+
+CGImageRef CopyFrontmostWindowImageByPid(pid_t requestedPid) {
+  pid_t appPid = requestedPid;
+  if (appPid <= 0) {
+    NSRunningApplication* frontApp = NSWorkspace.sharedWorkspace.frontmostApplication;
+    if (!frontApp) return nullptr;
+    appPid = frontApp.processIdentifier;
+  }
+
+#if __has_include(<ScreenCaptureKit/ScreenCaptureKit.h>)
+  if (@available(macOS 14.0, *)) {
+    CGImageRef screenCaptureKitImage = CopyWindowImageWithScreenCaptureKit(appPid);
+    if (screenCaptureKitImage) {
+      return screenCaptureKitImage;
+    }
+  }
+#endif
+
   NSRunningApplication* frontApp = NSWorkspace.sharedWorkspace.frontmostApplication;
   if (!frontApp) return nullptr;
 
-  const pid_t appPid = frontApp.processIdentifier;
   CFArrayRef windowInfoList =
       CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly |
                                      kCGWindowListExcludeDesktopElements,
@@ -1363,6 +1518,28 @@ void RemoveMonitorsLocked() {
   }
 }
 
+void InstallKeyMonitorLocked() {
+  if (gGlobalKeyMonitor) {
+    return;
+  }
+
+  gGlobalKeyMonitor = [NSEvent
+      addGlobalMonitorForEventsMatchingMask:
+          (NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged)
+                                 handler:^(NSEvent* event) {
+    HandleKeyEvent(event);
+  }];
+}
+
+void RemoveKeyMonitorLocked() {
+  if (!gGlobalKeyMonitor) {
+    return;
+  }
+
+  [NSEvent removeMonitor:gGlobalKeyMonitor];
+  gGlobalKeyMonitor = nil;
+}
+
 void RemoveMonitors() {
   if ([NSThread isMainThread]) {
     std::lock_guard<std::mutex> lock(gMonitorMutex);
@@ -1724,13 +1901,6 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
       }
     }];
 
-    gGlobalKeyMonitor = [NSEvent
-        addGlobalMonitorForEventsMatchingMask:
-            (NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged)
-                                   handler:^(NSEvent* event) {
-      HandleKeyEvent(event);
-    }];
-
     NSNotificationCenter* workspaceNC = [NSWorkspace.sharedWorkspace notificationCenter];
     gActiveSpaceObserver = [workspaceNC
         addObserverForName:NSWorkspaceActiveSpaceDidChangeNotification
@@ -1789,6 +1959,37 @@ Napi::Value StopActionMonitor(const Napi::CallbackInfo& info) {
   return Napi::Boolean::New(info.Env(), true);
 }
 
+Napi::Value SetKeyMonitorEnabled(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  const bool enabled =
+      info.Length() >= 1 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
+  bool ok = false;
+
+  auto task = [&]() {
+    std::lock_guard<std::mutex> lock(gMonitorMutex);
+    if (!gActionTsfn) {
+      ok = false;
+      return;
+    }
+
+    if (enabled) {
+      InstallKeyMonitorLocked();
+    } else {
+      RemoveKeyMonitorLocked();
+    }
+
+    ok = enabled ? gGlobalKeyMonitor != nil : gGlobalKeyMonitor == nil;
+  };
+
+  if ([NSThread isMainThread]) {
+    task();
+  } else {
+    dispatch_sync(dispatch_get_main_queue(), task);
+  }
+
+  return Napi::Boolean::New(env, ok);
+}
+
 Napi::Value GetCursorPosition(const Napi::CallbackInfo& info) {
   NSPoint loc = [NSEvent mouseLocation];
   Napi::Object result = Napi::Object::New(info.Env());
@@ -1809,25 +2010,30 @@ Napi::Value GetFrontmostAppInfo(const Napi::CallbackInfo& info) {
 
 Napi::Value CaptureFrontmostWindowImage(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  CGImageRef image = CopyFrontmostWindowImage();
+  pid_t requestedPid = -1;
+  if (info.Length() >= 1 && info[0].IsNumber()) {
+    requestedPid = info[0].As<Napi::Number>().Int32Value();
+  }
+
+  CGImageRef image = CopyFrontmostWindowImageByPid(requestedPid);
   if (!image) {
     return env.Null();
   }
 
-  NSData* pngData = nil;
+  Napi::Value result = env.Null();
   @autoreleasepool {
     NSBitmapImageRep* bitmap = [[NSBitmapImageRep alloc] initWithCGImage:image];
-    pngData = [bitmap representationUsingType:NSBitmapImageFileTypePNG
-                                   properties:@{}];
+    NSData* pngData = [bitmap representationUsingType:NSBitmapImageFileTypePNG
+                                           properties:@{}];
+    if (pngData && pngData.length > 0) {
+      result = Napi::Buffer<uint8_t>::Copy(
+          env, static_cast<const uint8_t*>(pngData.bytes), pngData.length);
+    }
+    [bitmap release];
   }
   CGImageRelease(image);
 
-  if (!pngData || pngData.length == 0) {
-    return env.Null();
-  }
-
-  return Napi::Buffer<uint8_t>::Copy(
-      env, static_cast<const uint8_t*>(pngData.bytes), pngData.length);
+  return result;
 }
 
 Napi::Value ConfigureBubbleWindow(const Napi::CallbackInfo& info) {
@@ -1910,6 +2116,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("recognizeTextInImageAsync", Napi::Function::New(env, RecognizeTextInImageAsync));
   exports.Set("startActionMonitor", Napi::Function::New(env, StartActionMonitor));
   exports.Set("stopActionMonitor", Napi::Function::New(env, StopActionMonitor));
+  exports.Set("setKeyMonitorEnabled", Napi::Function::New(env, SetKeyMonitorEnabled));
   exports.Set("getCursorPosition", Napi::Function::New(env, GetCursorPosition));
   exports.Set("getFrontmostAppInfo", Napi::Function::New(env, GetFrontmostAppInfo));
   exports.Set("configureBubbleWindow", Napi::Function::New(env, ConfigureBubbleWindow));

@@ -12,6 +12,7 @@ export interface SelectionChatMessage {
 
 export interface SelectionChatSession {
   id: string
+  mode: 'explain' | 'ask'
   selectionId?: string
   sourceAppId?: string
   selectionText: string

@@ -36,6 +36,8 @@ no need test
 
 工作模式，遇到任何 GUI 相关的测试逻辑都停下来告诉我开发者要做什么，然后你自己启动服务，打好需要的日志，然后等待开发者完成 GUI 操作，你进行log 分析，然后继续下一步
 
+- 在启动 `pnpm dev` 之前，必须先检测当前是否已经有运行中的开发实例；如果已经有，就复用现有实例，不要重复启动多个 `pnpm dev`
+
 When communicating your results back to me, explain what you did and what happened in plain, clear English. Avoid jargon, technical implementation details, and code-speak in your final responses. Write as if you're explaining to a smart person who isn't looking at the code. Your actual work (how you think, plan, write code, debug, and solve problems) should stay fully technical and rigorous. This only applies to how you talk to me about it.
 
 Before reporting back to me, if at all possible, verify your own work. Don't just write code and assume it's done. Actually test it using the tools available to you. If possible, run it, check the output, and confirm it does what was asked. If you're building something visual like a web app, view the pages, click through the flows, and check that things render and behave correctly. If you're writing a script, run it against real or representative input and inspect the results. If there are edge cases you can simulate, try them.

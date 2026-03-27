@@ -3,6 +3,7 @@ import googleLogo from '@/app/assets/icon/google-color.png'
 import grokLogo from '@/app/assets/icon/grok.png'
 import openaiLogo from '@/app/assets/icon/openai.png'
 import perplexityLogo from '@/app/assets/icon/perplexity-color.png'
+import type { AppLanguage } from '@/lib/capability/types'
 
 const withQuery = (url: string, key: string, query: string) => {
   const nextUrl = new URL(url)
@@ -10,14 +11,14 @@ const withQuery = (url: string, key: string, query: string) => {
   return nextUrl.toString()
 }
 
-export const officialAskPlugins = [
-  createAskPlugin({
+export const createOfficialAskPlugins = (language: AppLanguage) => [
+  createAskPlugin(language, {
     id: 'ask.google',
-    title: 'Google Search',
+    titleKey: 'plugin.ask.google.title',
     handle: '@google_search',
     slashAliases: ['/google'],
     order: 1,
-    description: '复制输入内容并打开 Google 搜索',
+    descriptionKey: 'plugin.ask.google.description',
     keywords: ['google', 'search', 'web', 'query'],
     homepageUrl: 'https://www.google.com/search',
     buildLaunchUrl: (query) => withQuery('https://www.google.com/search', 'q', query),
@@ -27,13 +28,13 @@ export const officialAskPlugins = [
       background: 'rgba(255, 255, 255, 0.96)',
     },
   }),
-  createAskPlugin({
+  createAskPlugin(language, {
     id: 'ask.chatgpt',
-    title: 'ChatGPT Ask',
+    titleKey: 'plugin.ask.chatgpt.title',
     handle: '@chatgpt_ask',
     slashAliases: ['/chatgpt'],
     order: 1,
-    description: '复制输入内容并打开 ChatGPT',
+    descriptionKey: 'plugin.ask.chatgpt.description',
     keywords: ['chatgpt', 'openai', 'ask', 'gpt'],
     homepageUrl: 'https://chatgpt.com',
     buildLaunchUrl: (query) => withQuery('https://chatgpt.com', 'q', query),
@@ -60,13 +61,13 @@ export const officialAskPlugins = [
   //     background: 'rgba(243, 244, 255, 0.98)',
   //   },
   // }),
-  createAskPlugin({
+  createAskPlugin(language, {
     id: 'ask.grok',
-    title: 'Grok Ask',
+    titleKey: 'plugin.ask.grok.title',
     handle: '@grok_ask',
     slashAliases: ['/grok'],
     order: 1,
-    description: '复制输入内容并打开 Grok',
+    descriptionKey: 'plugin.ask.grok.description',
     keywords: ['grok', 'xai', 'ask'],
     homepageUrl: 'https://grok.com',
     buildLaunchUrl: (query) => withQuery('https://grok.com', 'q', query),
@@ -93,13 +94,13 @@ export const officialAskPlugins = [
   //     background: 'rgba(239, 246, 255, 0.98)',
   //   },
   // }),
-  createAskPlugin({
+  createAskPlugin(language, {
     id: 'ask.perplexity',
-    title: 'Perplexity Ask',
+    titleKey: 'plugin.ask.perplexity.title',
     handle: '@perplexity_ask',
     slashAliases: ['/perplexity'],
     order: 1,
-    description: '复制输入内容并打开 Perplexity',
+    descriptionKey: 'plugin.ask.perplexity.description',
     keywords: ['perplexity', 'search', 'answer', 'ask'],
     homepageUrl: 'https://www.perplexity.ai/search/new',
     buildLaunchUrl: (query) => withQuery('https://www.perplexity.ai/search/new', 'q', query),

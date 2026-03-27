@@ -69,7 +69,7 @@ const createDefaultSkills = (language: AppLanguage): SelectionSkill[] => [
   { commandId: SystemCommand.Translate, label: translateMessage(language, 'bubble.translate'), enabled: true },
   { commandId: SystemCommand.Explain, label: translateMessage(language, 'bubble.explain'), enabled: true },
   { commandId: SystemCommand.Copy, label: translateMessage(language, 'bubble.copy'), enabled: true },
-  { commandId: SystemCommand.Search, label: translateMessage(language, 'bubble.search'), enabled: true },
+  { commandId: SystemCommand.AskAI, label: translateMessage(language, 'bubble.ask'), enabled: true },
 ]
 
 const createOpenLinkSkill = (language: AppLanguage): SelectionSkill => ({
@@ -160,6 +160,7 @@ export class TextPickerManager {
     this.isRunning = started
     if (started) {
       this.logger.info('[TextPickerManager] started')
+      this.syncDismissKeyMonitor()
     }
 
     return started
@@ -274,6 +275,15 @@ export class TextPickerManager {
     }
   }
 
+  syncDismissKeyMonitor() {
+    if (!this.bridge.isSupported || !this.isRunning) {
+      return false
+    }
+
+    const enabled = this.bubbleWindow.isVisible() || this.isSecondaryFloatingVisible?.() === true
+    return this.bridge.setKeyMonitorEnabled(enabled)
+  }
+
   getPickedInfo() {
     return this.pickedInfo
   }
@@ -302,6 +312,7 @@ export class TextPickerManager {
 
     this.currentAnchor = null
     this.leaveFullscreenOverlayMode()
+    this.syncDismissKeyMonitor()
   }
 
   memorizePosition(appId: string, offsetX: number, offsetY: number) {
@@ -742,6 +753,7 @@ export class TextPickerManager {
     }
 
     this.bubbleWindow.orderFront()
+    this.syncDismissKeyMonitor()
   }
 
   private enterFullscreenOverlayMode() {

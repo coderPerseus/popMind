@@ -21,6 +21,8 @@
           "-framework",
           "AppKit",
           "-framework",
+          "ScreenCaptureKit",
+          "-framework",
           "Vision"
         ]
       }

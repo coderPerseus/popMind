@@ -1,12 +1,14 @@
 import type { MainSearchPlugin } from '@/app/plugins/main-search/types'
+import type { AppLanguage } from '@/lib/capability/types'
+import { translateMessage, type I18nKey } from '@/lib/i18n/shared'
 
 type AskPluginConfig = {
   id: string
-  title: string
+  titleKey: I18nKey
   handle: string
   slashAliases: string[]
   order: number
-  description: string
+  descriptionKey: I18nKey
   keywords: string[]
   homepageUrl: string
   buildLaunchUrl?: (query: string) => string
@@ -19,18 +21,18 @@ type AskPluginConfig = {
 
 const normalizeQuery = (query: string) => query.trim()
 
-export const createAskPlugin = (config: AskPluginConfig): MainSearchPlugin => {
+export const createAskPlugin = (language: AppLanguage, config: AskPluginConfig): MainSearchPlugin => {
   const manifest = {
     id: config.id,
-    title: config.title,
+    title: translateMessage(language, config.titleKey),
     handle: config.handle,
     slashAliases: config.slashAliases,
     order: config.order,
-    typeLabel: 'AI Extension',
+    typeLabel: translateMessage(language, 'plugin.type.aiExtension'),
     mode: 'link' as const,
     keywords: config.keywords,
     logo: config.logo,
-    description: config.description,
+    description: translateMessage(language, config.descriptionKey),
   }
 
   return {

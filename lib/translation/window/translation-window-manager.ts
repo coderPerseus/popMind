@@ -82,6 +82,7 @@ export class TranslationWindowManager {
     private readonly floatingBridge?: {
       noteInteraction?: (durationMs?: number) => void
       setDragging?: (isDragging: boolean) => void
+      onVisibilityChange?: () => void
     }
   ) {
     this.setupIpc()
@@ -217,11 +218,13 @@ export class TranslationWindowManager {
   hideIfFloating() {
     if (!this.state?.pinned) {
       this.window?.hide()
+      this.floatingBridge?.onVisibilityChange?.()
     }
   }
 
   hide() {
     this.window?.hide()
+    this.floatingBridge?.onVisibilityChange?.()
   }
 
   isVisible() {
@@ -310,6 +313,7 @@ export class TranslationWindowManager {
     ipcMain.handle(TranslationWindowChannel.Close, async () => {
       this.noteInteraction()
       this.window?.hide()
+      this.floatingBridge?.onVisibilityChange?.()
       return { ok: true }
     })
     ipcMain.handle(TranslationWindowChannel.DismissTopmost, async () => {
@@ -667,5 +671,6 @@ export class TranslationWindowManager {
     }
 
     window.orderFront()
+    this.floatingBridge?.onVisibilityChange?.()
   }
 }

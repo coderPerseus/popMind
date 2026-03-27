@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { MainSearch } from '@/app/components/home/MainSearch'
 import { SettingsPage } from '@/app/components/settings/SettingsPage'
-import { AppI18nProvider } from '@/app/i18n'
 import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import './styles/app.css'
 
@@ -32,5 +31,5 @@ export default function App() {
     return syncDocumentThemeWithSystemPreference()
   }, [])
 
-  return <AppI18nProvider>{route === 'settings' ? <SettingsPage /> : <MainSearch />}</AppI18nProvider>
+  return route === 'settings' ? <SettingsPage /> : <MainSearch />
 }

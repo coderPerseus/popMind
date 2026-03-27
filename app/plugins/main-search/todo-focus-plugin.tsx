@@ -1,5 +1,7 @@
 import type { MainSearchPlugin } from '@/app/plugins/main-search/types'
 import { TodoFocusPanel } from '@/app/components/home/TodoFocusPanel'
+import type { AppLanguage } from '@/lib/capability/types'
+import { translateMessage } from '@/lib/i18n/shared'
 
 const todoFocusLogo = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
@@ -19,22 +21,22 @@ const todoFocusLogo = `data:image/svg+xml;utf8,${encodeURIComponent(`
 </svg>
 `)}`
 
-export const todoFocusPlugin: MainSearchPlugin = {
+export const createTodoFocusPlugin = (language: AppLanguage): MainSearchPlugin => ({
   manifest: {
     id: 'tool.todo-focus',
-    title: 'Todo Focus',
+    title: translateMessage(language, 'plugin.todoFocus.title'),
     handle: '@todo_focus',
     slashAliases: ['/todo'],
     order: 0,
-    typeLabel: 'Focus Plugin',
+    typeLabel: translateMessage(language, 'plugin.type.focus'),
     mode: 'panel',
     keywords: ['todo', 'task', 'pomodoro', 'focus', '番茄钟', '待办'],
     logo: {
       src: todoFocusLogo,
-      alt: 'Todo Focus',
+      alt: translateMessage(language, 'plugin.todoFocus.alt'),
       background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.94) 0%, rgba(13, 148, 136, 0.94) 100%)',
     },
-    description: '在主窗口里管理待办清单，并把专注番茄直接绑定到任务上',
+    description: translateMessage(language, 'plugin.todoFocus.description'),
   },
   shouldDisplay() {
     return true
@@ -46,4 +48,4 @@ export const todoFocusPlugin: MainSearchPlugin = {
   renderPanel(context) {
     return <TodoFocusPanel query={context.query} trigger={context.trigger} setQuery={context.setQuery} />
   },
-}
+})
