@@ -501,6 +501,29 @@ const en = createMessages({
   'prompt.explain.user.search': 'Web search context:\n{context}',
 })
 
+const mainPlaceholderOptions: Record<AppLanguage, string[]> = {
+  'zh-CN': [
+    '搜应用，直接输入',
+    '用 /ex 解释困惑',
+    '用 /tr 快速翻译',
+    '输入报错试试看',
+    '一键跳转 AI',
+    '搜 App 更快',
+    '术语不懂就 /ex',
+    '翻译解释都支持',
+  ],
+  en: [
+    'Type to find apps',
+    'Use /ex to explain',
+    'Use /tr to translate',
+    'Paste errors here',
+    'Jump to AI fast',
+    'Launch apps by name',
+    'Confused? Try /ex',
+    'Translate or explain',
+  ],
+}
+
 export const messages = {
   'zh-CN': zhCN,
   en,
@@ -530,4 +553,8 @@ export const translateMessage = (language: AppLanguage, key: I18nKey, params?: R
 
 export const formatLanguageLabel = (language: AppLanguage) => {
   return translateMessage(language, `app.language.${language}` as I18nKey)
+}
+
+export const getMainPlaceholderOptions = (language: AppLanguage) => {
+  return mainPlaceholderOptions[language] ?? mainPlaceholderOptions['zh-CN']
 }

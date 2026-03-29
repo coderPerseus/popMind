@@ -26,6 +26,7 @@ import {
 } from '@/app/plugins/main-search'
 import { getThemeLogoUrl } from '@/app/theme-assets'
 import { compareReleaseVersions } from '@/lib/app/release'
+import { getMainPlaceholderOptions } from '@/lib/i18n/shared'
 import './styles.css'
 
 type LauncherCommandItem = {
@@ -88,6 +89,26 @@ const getLauncherItemKey = (item: LauncherItem) => {
   return item.item.id
 }
 
+const pickRandomPlaceholder = (language: 'zh-CN' | 'en', previous?: string) => {
+  const options = getMainPlaceholderOptions(language)
+
+  if (!options.length) {
+    return ''
+  }
+
+  if (options.length === 1) {
+    return options[0]
+  }
+
+  let next = options[Math.floor(Math.random() * options.length)] ?? options[0]
+
+  while (next === previous) {
+    next = options[Math.floor(Math.random() * options.length)] ?? options[0]
+  }
+
+  return next
+}
+
 export function MainSearch() {
   const { language, t } = useI18n()
   const appApi = useConveyor('app')
@@ -101,6 +122,7 @@ export function MainSearch() {
   const [installedApps, setInstalledApps] = useState<InstalledAppItem[]>([])
   const [isSearchingApps, setIsSearchingApps] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null)
+  const [placeholder, setPlaceholder] = useState(() => pickRandomPlaceholder(language))
   const inputRef = useRef<HTMLInputElement>(null)
   const deferredQuery = useDeferredValue(query)
   const normalizedQuery = deferredQuery.trim()
@@ -240,10 +262,15 @@ export function MainSearch() {
   }, [])
 
   useEffect(() => {
+    setPlaceholder((current) => pickRandomPlaceholder(language, current))
+  }, [language])
+
+  useEffect(() => {
     const unsubscribe = onMainWindowReset(() => {
       setQuery('')
       setActiveIndex(0)
       setIsLaunching(false)
+      setPlaceholder((current) => pickRandomPlaceholder(language, current))
       resetTranslate()
       resetExplain()
     })
@@ -251,7 +278,7 @@ export function MainSearch() {
     return () => {
       unsubscribe()
     }
-  }, [onMainWindowReset, resetExplain, resetTranslate])
+  }, [language, onMainWindowReset, resetExplain, resetTranslate])
 
   useEffect(() => {
     const unsubscribe = onMainWindowSetSearchQuery((nextQuery) => {
@@ -505,7 +532,7 @@ export function MainSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(event) => void handleInputKeyDown(event)}
-          placeholder={t('main.placeholder')}
+          placeholder={placeholder || t('main.placeholder')}
           spellCheck={false}
           autoComplete="off"
         />
@@ -514,6 +541,7 @@ export function MainSearch() {
             className="ms-clear"
             onClick={() => {
               setQuery('')
+              setPlaceholder((current) => pickRandomPlaceholder(language, current))
               inputRef.current?.focus()
             }}
             aria-label={t('main.clear')}

@@ -1,20 +1,21 @@
 # popMind
 
-> A desktop AI workspace for selection-first translation, explanation, and fast handoff to web copilots.
+> A desktop AI workspace for selection-first translation, explanation, asking AI from context, and fast handoff to web copilots.
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
 popMind is an Electron desktop app built around two core flows:
 
-1. **Selection bubble**: select text anywhere, then translate, explain, copy, or send it to external AI/search tools.
-2. **Main window**: use slash commands and plugin shortcuts to translate text or jump into tools like ChatGPT, Perplexity, Grok, and Google Search.
+1. **Selection bubble**: select text anywhere, then translate, explain it, copy it, or open an in-app Ask AI window grounded on that selection.
+2. **Main window**: use slash commands and plugin shortcuts to translate text, explain text, calculate, manage todos, search installed apps, or jump into tools like ChatGPT, Perplexity, Grok, and Google Search.
 
 The current product is optimized for **macOS**, because the global text-selection capability depends on a native macOS bridge.
 
 ## Why popMind
 
 - **Selection-first UX**: trigger actions directly from the text you are reading, without switching context first.
-- **Two levels of AI help**: lightweight translation for fast reading, and a dedicated explanation chat window for follow-up questions.
+- **Two levels of AI help**: lightweight translation for fast reading, plus a dedicated explain / ask chat window for deeper follow-up.
+- **Context-aware explanation**: explanation and Ask AI can include the selected text, conversation history, the current app name, optional web-search results, and when available a screenshot of the source window.
 - **Configurable AI stack**: choose one active AI provider for explanation and AI translation, and configure optional web-search providers for grounded answers.
 - **Desktop-native flow**: tray menu, floating windows, keyboard shortcuts, window pinning, and local history.
 
@@ -27,7 +28,7 @@ When you select text on macOS, popMind can show a floating bubble with these act
 - **Translate**: open the built-in translation window above the selected text.
 - **Explain**: open a dedicated AI explanation panel with follow-up chat.
 - **Copy**: copy the selected text immediately.
-- **AI Search**: open an external search/answer tool with the selected text.
+- **Ask AI**: open the in-app chat window with the selected text preloaded as context, then let you add your own prompt before sending.
 
 Selection-related capabilities currently include:
 
@@ -64,22 +65,25 @@ Translation window UX includes:
 - Word mode with phonetics, definitions, phrases, and examples
 - Resizable floating window
 
-### 3. Explain Window
+### 3. Explain / Ask Window
 
-The explain window is a separate AI chat surface for understanding selected text.
+The explain window is a separate AI chat surface for understanding selected text and asking follow-up questions against that selection.
 
 It currently supports:
 
-- Initial explanation based on the selected text
+- **Explain mode**: generate an initial explanation directly from the selected text
+- **Ask AI mode**: open the same window first, show the selected text as context, and wait for your prompt
 - Follow-up questions in the same session
+- Current-app context injection
+- Optional source-window screenshot context when available
 - Streaming output with smooth chunked rendering
 - Markdown rendering with code blocks
 - Optional web-search augmentation
 - Copy and regenerate actions
 - Source list per answer
-- Local explanation history persistence
+- Local session history persistence
 
-If no AI provider is configured, the bubble’s **Explain** action falls back to opening an external search/answer page instead of the in-app explanation chat.
+If no AI provider is configured, the bubble’s **Explain** action falls back to opening an external search/answer page instead of the in-app chat. The **Ask AI** action stays in-app and requires a configured AI provider to answer.
 
 ### 4. Main Window
 
@@ -89,6 +93,13 @@ Current built-in slash command:
 
 - `/tr`
 - `/翻译`
+- `/ex`
+- `/解释`
+
+Current built-in panel tools:
+
+- `/cal` for calculator
+- `/todo` for todo + focus management
 
 Current built-in web plugins:
 
@@ -101,6 +112,11 @@ Main window behavior:
 
 - Slash command parsing
 - Inline translation card for `/tr`
+- Inline explanation card for `/ex`
+- Calculator panel for arithmetic expressions
+- Todo/focus panel with task management in the main window
+- Installed app search
+- Installed app search and launch when typing normal text
 - Plugin launcher list with keyboard navigation
 - Enter-to-open flow for supported external tools
 - Search/plugin execution history recording
@@ -118,6 +134,7 @@ Current settings capabilities:
 - App language
 - Theme mode
 - Accessibility permission status
+- Screen recording permission status
 - AI provider configuration and connection test
 - Web-search provider configuration and per-provider test
 - Translation engine enable/disable
