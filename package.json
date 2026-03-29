@@ -1,12 +1,13 @@
 {
   "name": "popmind",
-  "version": "12.1.0",
+  "version": "0.2.0",
   "description": "popMind desktop application built with Electron, React, Vite, TypeScript, Shadcn UI, and Tailwind CSS",
   "main": "./out/main/main.js",
   "license": "GPL-3.0",
   "scripts": {
     "build-native": "node scripts/build-selection-bridge.mjs",
     "generate:icons": "node scripts/generate-icons.mjs",
+    "release:tag": "node scripts/release-tag.mjs",
     "predev": "pnpm install && pnpm run build-native",
     "dev": "cross-env ELECTRON_DISABLE_SANDBOX=1 electron-vite dev -w",
     "format": "prettier --write --list-different .",

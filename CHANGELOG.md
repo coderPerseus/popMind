@@ -1,10 +1,16 @@
 # Change Log
 
-All notable changes to the electron-react-app (ERA) are listed here.
+All notable changes to popMind are listed here.
+
+> Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
+
+## v0.2.0
+
+- Current released version published on GitHub Releases.
 
 <br>
 
-## v12.1.0
+## ERA template baseline
 
 - 🎉 Electron version upgraded to `v40.1.0`
 - Update shadcn components in use
@@ -61,7 +67,7 @@ All notable changes to the electron-react-app (ERA) are listed here.
 
 <br>
 
-## v12.0.0
+## Earlier ERA template changes
 
 - 🎉 Electron version upgraded to `v37`
 - ⛓️ **Conveyor System** - Type-safe Inter-Process Communication

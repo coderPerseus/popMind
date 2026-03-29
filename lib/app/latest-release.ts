@@ -12,8 +12,26 @@ let latestReleaseCache: {
   value: LatestReleaseInfo | null
 } | null = null
 
+const getDebugLatestRelease = (): LatestReleaseInfo | null => {
+  const version = normalizeReleaseVersion(process.env.POPMIND_DEBUG_LATEST_RELEASE_VERSION ?? '')
+
+  if (!version) {
+    return null
+  }
+
+  return {
+    version,
+    url: process.env.POPMIND_DEBUG_LATEST_RELEASE_URL || POPMIND_RELEASES_URL,
+  }
+}
+
 export const fetchLatestRelease = async (): Promise<LatestReleaseInfo | null> => {
   const now = Date.now()
+  const debugLatestRelease = getDebugLatestRelease()
+
+  if (debugLatestRelease) {
+    return debugLatestRelease
+  }
 
   if (latestReleaseCache && latestReleaseCache.expiresAt > now) {
     return latestReleaseCache.value
