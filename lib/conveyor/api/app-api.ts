@@ -7,6 +7,7 @@ export class AppApi extends ConveyorApi {
   openAccessibilitySettings = () => this.invoke('openAccessibilitySettings')
   checkScreenRecording = () => this.invoke('checkScreenRecording')
   openScreenRecordingSettings = () => this.invoke('openScreenRecordingSettings')
+  getPermissionDiagnostics = () => this.invoke('getPermissionDiagnostics')
   getThemeMode = () => this.invoke('getThemeMode')
   setThemeMode = (mode: 'light' | 'dark' | 'system') => this.invoke('setThemeMode', mode)
   searchInstalledApps = (query: string, limit = 8) => this.invoke('searchInstalledApps', query, limit)

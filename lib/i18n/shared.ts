@@ -68,6 +68,9 @@ const zhCN = createMessages({
   'permissionGuide.screenRecording.desc': '用于截取当前应用画面，作为 AI 的上下文。',
   'permissionGuide.refresh': '重新检测',
   'permissionGuide.granted': '权限已全部开启',
+  'permissionGuide.identityChanged.title': '当前安装包的系统身份已经变了',
+  'permissionGuide.identityChanged.desc':
+    '这个 macOS 安装包使用的是临时签名。你卸载再重装后，系统不会沿用之前给 popMind 的辅助功能和屏幕录制授权，所以这里会一直显示未开启。需要改成使用带稳定签名的安装包；如果临时继续排查，请先删除系统设置里旧的 popMind 权限记录，再把当前这份 popMind 重新加入授权，并重启应用。',
   'settings.translation.engines': '翻译引擎',
   'settings.translation.languages': '语言偏好',
   'settings.translation.first': '第一语言',
@@ -311,6 +314,9 @@ const en = createMessages({
   'permissionGuide.screenRecording.desc': 'Used to capture the current app view as AI context.',
   'permissionGuide.refresh': 'Check again',
   'permissionGuide.granted': 'All permissions are enabled',
+  'permissionGuide.identityChanged.title': 'This installed app is no longer the same system identity',
+  'permissionGuide.identityChanged.desc':
+    'This macOS package is signed ad-hoc. After uninstalling and reinstalling, macOS does not reuse the old Accessibility and Screen Recording grants for popMind, so this screen keeps showing them as disabled. The real fix is to ship a package with a stable signing identity. For temporary troubleshooting, remove the old popMind entries in System Settings, add the current app again, then relaunch the app.',
   'settings.translation.engines': 'Translation engines',
   'settings.translation.languages': 'Language preferences',
   'settings.translation.first': 'Primary language',

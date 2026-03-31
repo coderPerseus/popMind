@@ -2,6 +2,7 @@ import { type App, shell, systemPreferences } from 'electron'
 import { installedAppService } from '@/lib/app/installed-app-service'
 import { fetchLatestRelease } from '@/lib/app/latest-release'
 import { compareReleaseVersions } from '@/lib/app/release'
+import { getMacCodeSigningInfo } from '@/lib/main/macos-code-signing'
 import { mainLogger } from '@/lib/main/logger'
 import { handle } from '@/lib/main/shared'
 import { themeStore } from '@/lib/main/theme-store'
@@ -76,6 +77,37 @@ export const registerAppHandlers = (app: App) => {
     mainLogger.info('[permissions] open screen recording settings')
     await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
     return true
+  })
+
+  handle('getPermissionDiagnostics', async () => {
+    if (process.platform !== 'darwin') {
+      return {
+        supported: false,
+        isPackaged: app.isPackaged,
+        issue: null,
+        isAdhocSigned: null,
+        appPath: null,
+        identifier: null,
+        signature: null,
+        teamIdentifier: null,
+      }
+    }
+
+    const signingInfo = app.isPackaged ? await getMacCodeSigningInfo() : null
+    const status = {
+      supported: true,
+      isPackaged: app.isPackaged,
+      issue: app.isPackaged && signingInfo?.isAdhoc ? 'adhoc_signature' : null,
+      isAdhocSigned: signingInfo?.isAdhoc ?? null,
+      appPath: signingInfo?.appPath ?? null,
+      identifier: signingInfo?.identifier ?? null,
+      signature: signingInfo?.signature ?? null,
+      teamIdentifier: signingInfo?.teamIdentifier ?? null,
+    } as const
+
+    mainLogger.info('[permissions] diagnostics', status)
+
+    return status
   })
 
   handle('getThemeMode', () => themeStore.getThemeMode())

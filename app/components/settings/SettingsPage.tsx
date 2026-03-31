@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/app/components/ui/badge'
+import { MacPermissionIdentityNotice, type PermissionDiagnostics } from '@/app/components/permission/MacPermissionIdentityNotice'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Select } from '@/app/components/ui/select'
@@ -56,6 +57,7 @@ export function SettingsPage() {
   const { language, t } = useI18n()
   const [accessibilityStatus, setAccessibilityStatus] = useState<PermissionStatus | null>(null)
   const [screenRecordingStatus, setScreenRecordingStatus] = useState<PermissionStatus | null>(null)
+  const [permissionDiagnostics, setPermissionDiagnostics] = useState<PermissionDiagnostics>(null)
   const [settings, setSettings] = useState<CapabilitySettings | null>(null)
   const [historySummary, setHistorySummary] = useState<Record<HistoryTab, SearchHistorySummary | null>>({
     search: null,
@@ -94,13 +96,15 @@ export function SettingsPage() {
   }
 
   const refreshPermissions = useCallback(async () => {
-    const [nextAccessibilityStatus, nextScreenRecordingStatus] = await Promise.all([
+    const [nextAccessibilityStatus, nextScreenRecordingStatus, nextPermissionDiagnostics] = await Promise.all([
       app.checkAccessibility(),
       app.checkScreenRecording(),
+      app.getPermissionDiagnostics(),
     ])
 
     setAccessibilityStatus(nextAccessibilityStatus)
     setScreenRecordingStatus(nextScreenRecordingStatus)
+    setPermissionDiagnostics(nextPermissionDiagnostics)
   }, [app])
 
   const refreshSettings = useCallback(async () => {
@@ -595,6 +599,8 @@ export function SettingsPage() {
                   </Button>
                 </div>
               </section>
+
+              <MacPermissionIdentityNotice diagnostics={permissionDiagnostics} />
 
               <section className="settings-surface">
                 <div className="settings-surface-heading">
