@@ -79,7 +79,26 @@ jobs:
           exit 1
 
       - name: Build installer package
-        run: pnpm run ${{ matrix.build_script }}
+        run: |
+          run_build() {
+            if [ "${{ steps.signing_mode.outputs.signed }}" = "true" ]; then
+              pnpm run ${{ matrix.build_script }}
+            else
+              env -u CSC_LINK -u CSC_KEY_PASSWORD -u APPLE_TEAM_ID CSC_IDENTITY_AUTO_DISCOVERY=false pnpm run ${{ matrix.build_script }}
+            fi
+          }
+
+          attempt=1
+          until run_build; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Build failed after ${attempt} attempts." >&2
+              exit 1
+            fi
+
+            attempt=$((attempt + 1))
+            echo "Build failed, retrying in 5 seconds (attempt ${attempt}/3)..."
+            sleep 5
+          done
 
       - name: Warn about unsigned macOS package
         if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.signed != 'true'
