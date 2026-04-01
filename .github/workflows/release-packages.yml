@@ -2,6 +2,12 @@ name: Build Release Packages
 
 on:
   workflow_dispatch:
+    inputs:
+      allow_unsigned_mac:
+        description: Build an unsigned macOS package when signing secrets are unavailable
+        required: false
+        default: true
+        type: boolean
   push:
     tags:
       - 'v*'
@@ -13,6 +19,8 @@ jobs:
   build:
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
+    outputs:
+      mac_signed: ${{ steps.signing_mode.outputs.signed || 'false' }}
     strategy:
       fail-fast: false
       matrix:
@@ -47,19 +55,40 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate macOS signing secrets
+      - name: Resolve macOS signing mode
+        id: signing_mode
         if: matrix.os == 'macos-latest'
+        env:
+          ALLOW_UNSIGNED_MAC: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_unsigned_mac || 'true' }}
         run: |
-          if [ -z "${CSC_LINK:-}" ] || [ -z "${CSC_KEY_PASSWORD:-}" ]; then
-            echo "Missing macOS signing secrets. Configure CSC_LINK and CSC_KEY_PASSWORD before publishing macOS packages." >&2
-            exit 1
+          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ]; then
+            echo "mode=signed" >> "$GITHUB_OUTPUT"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Using Developer ID signing secrets."
+            exit 0
           fi
+
+          if [ "${ALLOW_UNSIGNED_MAC}" = "true" ]; then
+            echo "mode=unsigned" >> "$GITHUB_OUTPUT"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets are missing. Building an unsigned macOS package for testing only."
+            exit 0
+          fi
+
+          echo "Missing macOS signing secrets. Configure CSC_LINK and CSC_KEY_PASSWORD, or run workflow_dispatch with allow_unsigned_mac=true." >&2
+          exit 1
 
       - name: Build installer package
         run: pnpm run ${{ matrix.build_script }}
 
+      - name: Warn about unsigned macOS package
+        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.signed != 'true'
+        run: |
+          echo "Unsigned macOS package built."
+          echo "This artifact is for local testing only and may lose Accessibility / Screen Recording permission trust after reinstall."
+
       - name: Verify macOS app signature
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.signed == 'true'
         run: |
           codesign --verify --deep --strict --verbose=4 dist/mac-arm64/popMind.app
           codesign -dvvv dist/mac-arm64/popMind.app 2>&1 | tee /tmp/popmind-app-signature.txt
@@ -75,7 +104,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.artifact_name }}
+          name: ${{ steps.signing_mode.outputs.signed == 'true' && matrix.artifact_name || format('{0}-unsigned', matrix.artifact_name) }}
           if-no-files-found: error
           path: |
             dist/*.pkg
@@ -86,7 +115,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && needs.build.outputs.mac_signed == 'true'
     needs: build
     runs-on: ubuntu-latest
 
