@@ -600,7 +600,7 @@ export function SettingsPage() {
                 </div>
               </section>
 
-              <MacPermissionIdentityNotice diagnostics={permissionDiagnostics} />
+              <MacPermissionIdentityNotice diagnostics={permissionDiagnostics} onResetDone={refreshPermissions} />
 
               <section className="settings-surface">
                 <div className="settings-surface-heading">

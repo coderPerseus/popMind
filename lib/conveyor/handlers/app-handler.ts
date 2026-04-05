@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { type App, shell, systemPreferences } from 'electron'
 import { installedAppService } from '@/lib/app/installed-app-service'
 import { fetchLatestRelease } from '@/lib/app/latest-release'
@@ -7,6 +9,8 @@ import { mainLogger } from '@/lib/main/logger'
 import { handle } from '@/lib/main/shared'
 import { themeStore } from '@/lib/main/theme-store'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
+
+const execFileAsync = promisify(execFile)
 
 export const registerAppHandlers = (app: App) => {
   const checkScreenRecording = () => {
@@ -76,6 +80,22 @@ export const registerAppHandlers = (app: App) => {
   handle('openScreenRecordingSettings', async () => {
     mainLogger.info('[permissions] open screen recording settings')
     await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+    return true
+  })
+
+  handle('resetMacPermissionHistory', async () => {
+    if (process.platform !== 'darwin') {
+      return false
+    }
+
+    const signingInfo = app.isPackaged ? await getMacCodeSigningInfo() : null
+    const bundleId = signingInfo?.identifier || 'com.popmind.app'
+
+    mainLogger.info('[permissions] reset mac permission history', { bundleId })
+
+    await execFileAsync('tccutil', ['reset', 'Accessibility', bundleId])
+    await execFileAsync('tccutil', ['reset', 'ScreenCapture', bundleId])
+
     return true
   })
 

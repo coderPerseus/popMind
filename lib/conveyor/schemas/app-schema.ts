@@ -55,6 +55,10 @@ export const appIpcSchema = {
     args: z.tuple([]),
     return: z.boolean(),
   },
+  resetMacPermissionHistory: {
+    args: z.tuple([]),
+    return: z.boolean(),
+  },
   getPermissionDiagnostics: {
     args: z.tuple([]),
     return: permissionDiagnosticsSchema,

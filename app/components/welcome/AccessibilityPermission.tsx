@@ -160,7 +160,7 @@ function NotGranted({
       </div>
 
       <div className="mt-4 space-y-3">
-        <MacPermissionIdentityNotice diagnostics={diagnostics} />
+        <MacPermissionIdentityNotice diagnostics={diagnostics} onResetDone={onRecheck} />
 
         {items.map((item) => (
           <div key={item.id} className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3">

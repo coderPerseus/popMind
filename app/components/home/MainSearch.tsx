@@ -554,12 +554,12 @@ export function MainSearch() {
       {/* Divider */}
       <div className="ms-divider" />
 
-      <div className="ms-permission-guide">
-        <AccessibilityPermission />
-      </div>
-
       {/* Results area */}
       <div className="ms-results">
+        <div className="ms-permission-guide">
+          <AccessibilityPermission />
+        </div>
+
         {translate.isActive && command.kind === 'translate' ? (
           <TranslateCard
             command={command}
