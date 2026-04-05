@@ -118,6 +118,7 @@ function NotGranted({
   title,
   description,
   items,
+  diagnostics,
   onRecheck,
 }: {
   title: string
