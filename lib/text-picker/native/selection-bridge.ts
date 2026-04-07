@@ -20,6 +20,10 @@ const createStub = (): SelectionBridge => ({
   setKeyMonitorEnabled: () => false,
   getCursorPosition: () => ({ x: 0, y: 0 }),
   getFrontmostAppInfo: () => ({ bundleId: '', name: '', pid: -1 }),
+  getClipboardChangeCount: () => -1,
+  getClipboardSnapshot: () => [],
+  restoreClipboardSnapshot: () => false,
+  activateAppAndPaste: () => false,
   configureBubbleWindow: () => false,
   orderBubbleFront: () => false,
   setActivationPolicy: () => false,
@@ -62,6 +66,18 @@ export const selectionBridge: SelectionBridge = nativeModule
       },
       getFrontmostAppInfo() {
         return nativeModule.getFrontmostAppInfo()
+      },
+      getClipboardChangeCount() {
+        return nativeModule.getClipboardChangeCount()
+      },
+      getClipboardSnapshot() {
+        return nativeModule.getClipboardSnapshot()
+      },
+      restoreClipboardSnapshot(items) {
+        return Boolean(nativeModule.restoreClipboardSnapshot(items))
+      },
+      activateAppAndPaste(pid) {
+        return Boolean(nativeModule.activateAppAndPaste(pid))
       },
       configureBubbleWindow(nativeHandle) {
         return Boolean(nativeModule.configureBubbleWindow(nativeHandle))

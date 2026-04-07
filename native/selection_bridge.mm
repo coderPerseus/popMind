@@ -1101,6 +1101,96 @@ void RestorePasteboardItems(NSArray* snapshot) {
   }
 }
 
+Napi::Array ClipboardSnapshotToNapi(Napi::Env env, NSArray* snapshot) {
+  Napi::Array result = Napi::Array::New(env, snapshot ? snapshot.count : 0);
+  if (![snapshot isKindOfClass:[NSArray class]]) {
+    return result;
+  }
+
+  NSUInteger itemIndex = 0;
+  for (id rawItemSnapshot in snapshot) {
+    Napi::Object itemObject = Napi::Object::New(env);
+    Napi::Array typeArray = Napi::Array::New(env);
+    uint32_t typeIndex = 0;
+
+    if ([rawItemSnapshot isKindOfClass:[NSDictionary class]]) {
+      NSDictionary* itemSnapshot = (NSDictionary*)rawItemSnapshot;
+      for (id rawType in itemSnapshot) {
+        if (![rawType isKindOfClass:[NSString class]]) {
+          continue;
+        }
+
+        id rawData = itemSnapshot[rawType];
+        if (![rawData isKindOfClass:[NSData class]]) {
+          continue;
+        }
+
+        NSString* type = (NSString*)rawType;
+        NSData* data = (NSData*)rawData;
+        Napi::Object typeRecord = Napi::Object::New(env);
+        typeRecord.Set("type", ToStdString(type));
+        typeRecord.Set("data", Napi::Buffer<uint8_t>::Copy(
+                                   env,
+                                   static_cast<const uint8_t*>(data.bytes),
+                                   data.length));
+        typeArray.Set(typeIndex++, typeRecord);
+      }
+    }
+
+    itemObject.Set("types", typeArray);
+    result.Set(itemIndex++, itemObject);
+  }
+
+  return result;
+}
+
+NSArray* ClipboardSnapshotFromNapi(const Napi::Array& items) {
+  NSMutableArray* snapshot = [NSMutableArray arrayWithCapacity:items.Length()];
+
+  for (uint32_t itemIndex = 0; itemIndex < items.Length(); ++itemIndex) {
+    Napi::Value itemValue = items.Get(itemIndex);
+    if (!itemValue.IsObject()) {
+      continue;
+    }
+
+    Napi::Object itemObject = itemValue.As<Napi::Object>();
+    Napi::Value typesValue = itemObject.Get("types");
+    if (!typesValue.IsArray()) {
+      continue;
+    }
+
+    Napi::Array typeArray = typesValue.As<Napi::Array>();
+    NSMutableDictionary* itemSnapshot = [NSMutableDictionary dictionary];
+
+    for (uint32_t typeIndex = 0; typeIndex < typeArray.Length(); ++typeIndex) {
+      Napi::Value typeValue = typeArray.Get(typeIndex);
+      if (!typeValue.IsObject()) {
+        continue;
+      }
+
+      Napi::Object typeRecord = typeValue.As<Napi::Object>();
+      Napi::Value rawType = typeRecord.Get("type");
+      Napi::Value rawData = typeRecord.Get("data");
+      if (!rawType.IsString() || !rawData.IsBuffer()) {
+        continue;
+      }
+
+      std::string type = rawType.As<Napi::String>().Utf8Value();
+      auto buffer = rawData.As<Napi::Buffer<uint8_t>>();
+      NSData* data = [NSData dataWithBytes:buffer.Data() length:buffer.Length()];
+      NSString* typeString = [NSString stringWithUTF8String:type.c_str()];
+      if (!typeString) {
+        continue;
+      }
+      itemSnapshot[typeString] = data;
+    }
+
+    [snapshot addObject:[itemSnapshot copy]];
+  }
+
+  return [snapshot copy];
+}
+
 void PostKeyboardEvent(CGEventSourceRef source, CGKeyCode keyCode, bool isKeyDown,
                        CGEventFlags flags) {
   CGEventRef event = CGEventCreateKeyboardEvent(source, keyCode, isKeyDown);
@@ -1119,6 +1209,19 @@ void PostCmdC() {
   PostKeyboardEvent(source, kVK_Command, true, commandFlags);
   PostKeyboardEvent(source, kVK_ANSI_C, true, commandFlags);
   PostKeyboardEvent(source, kVK_ANSI_C, false, commandFlags);
+  PostKeyboardEvent(source, kVK_Command, false, 0);
+
+  CFRelease(source);
+}
+
+void PostCmdV() {
+  CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateCombinedSessionState);
+  if (!source) return;
+
+  const CGEventFlags commandFlags = kCGEventFlagMaskCommand;
+  PostKeyboardEvent(source, kVK_Command, true, commandFlags);
+  PostKeyboardEvent(source, kVK_ANSI_V, true, commandFlags);
+  PostKeyboardEvent(source, kVK_ANSI_V, false, commandFlags);
   PostKeyboardEvent(source, kVK_Command, false, 0);
 
   CFRelease(source);
@@ -2008,6 +2111,65 @@ Napi::Value GetFrontmostAppInfo(const Napi::CallbackInfo& info) {
   return result;
 }
 
+Napi::Value GetClipboardChangeCount(const Napi::CallbackInfo& info) {
+  NSPasteboard* pb = [NSPasteboard generalPasteboard];
+  return Napi::Number::New(info.Env(), pb ? pb.changeCount : -1);
+}
+
+Napi::Value GetClipboardSnapshot(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  NSArray* snapshot = SavePasteboardItems();
+  return ClipboardSnapshotToNapi(env, snapshot);
+}
+
+Napi::Value RestoreClipboardSnapshotValue(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsArray()) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  NSArray* snapshot = ClipboardSnapshotFromNapi(info[0].As<Napi::Array>());
+  RestorePasteboardItems(snapshot);
+  return Napi::Boolean::New(env, true);
+}
+
+Napi::Value ActivateAppAndPaste(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsNumber()) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  pid_t pid = info[0].As<Napi::Number>().Int32Value();
+  if (pid <= 0) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  __block BOOL activated = NO;
+  auto task = ^{
+    NSRunningApplication* target = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+    if (!target) {
+      activated = NO;
+      return;
+    }
+
+    activated = [target activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+    if (!activated) {
+      return;
+    }
+
+    [NSThread sleepForTimeInterval:0.14];
+    PostCmdV();
+  };
+
+  if ([NSThread isMainThread]) {
+    task();
+  } else {
+    dispatch_sync(dispatch_get_main_queue(), task);
+  }
+
+  return Napi::Boolean::New(env, activated);
+}
+
 Napi::Value CaptureFrontmostWindowImage(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   pid_t requestedPid = -1;
@@ -2119,6 +2281,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setKeyMonitorEnabled", Napi::Function::New(env, SetKeyMonitorEnabled));
   exports.Set("getCursorPosition", Napi::Function::New(env, GetCursorPosition));
   exports.Set("getFrontmostAppInfo", Napi::Function::New(env, GetFrontmostAppInfo));
+  exports.Set("getClipboardChangeCount", Napi::Function::New(env, GetClipboardChangeCount));
+  exports.Set("getClipboardSnapshot", Napi::Function::New(env, GetClipboardSnapshot));
+  exports.Set("restoreClipboardSnapshot", Napi::Function::New(env, RestoreClipboardSnapshotValue));
+  exports.Set("activateAppAndPaste", Napi::Function::New(env, ActivateAppAndPaste));
   exports.Set("configureBubbleWindow", Napi::Function::New(env, ConfigureBubbleWindow));
   exports.Set("orderBubbleFront", Napi::Function::New(env, OrderBubbleFront));
   exports.Set("setActivationPolicy", Napi::Function::New(env, SetActivationPolicy));

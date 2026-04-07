@@ -2,9 +2,10 @@ import { clipboard, ipcMain, screen } from 'electron'
 import { translateMessage } from '@/lib/i18n/shared'
 import {
   DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT,
+  getEnabledTranslationEngineIds,
   getTranslationWindowMinHeight,
+  resolvePreferredTranslationEngine,
   resolveTranslationQueryMode,
-  translationEngineOrder,
   translationLanguages,
   TranslationWindowChannel,
 } from '@/lib/translation/shared'
@@ -49,17 +50,10 @@ const hasBottomEdge = (edge: TranslationWindowResizeEdge) => {
   return edge === 'bottom' || edge === 'bottom-left' || edge === 'bottom-right'
 }
 
-const resolveEnabledEngineIds = (settings: TranslationSettings) => {
-  return translationEngineOrder.filter((engineId) => settings.enabledEngines[engineId])
-}
+const resolveEnabledEngineIds = (settings: TranslationSettings) => getEnabledTranslationEngineIds(settings)
 
-const resolveEngineId = (settings: TranslationSettings, preferred?: TranslationEngineId) => {
-  if (preferred && settings.enabledEngines[preferred]) {
-    return preferred
-  }
-
-  return resolveEnabledEngineIds(settings)[0]
-}
+const resolveEngineId = (settings: TranslationSettings, preferred?: TranslationEngineId) =>
+  resolvePreferredTranslationEngine(settings, preferred)
 
 type TranslationWindowPresentation = 'anchored' | 'centered'
 
@@ -97,7 +91,7 @@ export class TranslationWindowManager {
   }) {
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
-    const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
+    const engineId = resolveEngineId(settings, this.state?.engineId) ?? 'google'
     const presentation = payload.presentation ?? 'anchored'
     const initialQueryMode = resolveTranslationQueryMode({
       text: payload.text,
@@ -150,7 +144,7 @@ export class TranslationWindowManager {
   }) {
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
-    const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
+    const engineId = resolveEngineId(settings, this.state?.engineId) ?? 'google'
     const presentation = payload.presentation ?? 'centered'
 
     this.pendingRequest = null
@@ -184,7 +178,7 @@ export class TranslationWindowManager {
   async showErrorState(payload: { presentation?: TranslationWindowPresentation; errorMessage: string }) {
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
-    const engineId = resolveEngineId(settings, this.state?.engineId ?? 'google') ?? 'google'
+    const engineId = resolveEngineId(settings, this.state?.engineId) ?? 'google'
     const presentation = payload.presentation ?? this.lastPresentation
 
     this.pendingRequest = null

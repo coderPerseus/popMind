@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { app, nativeImage } from 'electron'
 import { mainLogger } from '@/lib/main/logger'
@@ -9,7 +9,9 @@ import { mainLogger } from '@/lib/main/logger'
 const execFileAsync = promisify(execFile)
 const DEFAULT_RESULT_LIMIT = 8
 const MAX_QUERY_CANDIDATES = 24
+const FALLBACK_FIND_MAX_DEPTH = '3'
 const MDLS_FIELDS = ['kMDItemCFBundleIdentifier', 'kMDItemDisplayName', 'kMDItemFSName'] as const
+const FALLBACK_APP_DIRECTORIES = ['/Applications', '/System/Applications', join(homedir(), 'Applications')] as const
 
 type InstalledAppMetadata = {
   name: string
@@ -36,6 +38,20 @@ const buildSpotlightPattern = (query: string) => {
 }
 
 const isNestedApplication = (appPath: string) => /\.app\/Contents\/Applications\/.+\.app$/i.test(appPath)
+const matchesAppPathCandidate = (appPath: string, normalizedQuery: string) => {
+  const appName = basename(appPath).replace(/\.app$/i, '')
+  const normalizedName = normalizeSearchText(appName)
+
+  if (scoreField(normalizedName, normalizedQuery) > 0) {
+    return true
+  }
+
+  const compactName = normalizedName.replace(/\s+/g, '')
+  const compactQuery = normalizedQuery.replace(/\s+/g, '')
+
+  return compactQuery.length >= 2 && compactName.includes(compactQuery)
+}
+
 const getIconCandidates = (value: string) => {
   const trimmed = value.trim()
   if (!trimmed || trimmed === '(null)') {
@@ -167,7 +183,7 @@ class InstalledAppService {
         maxBuffer: 1024 * 1024 * 8,
       })
 
-      return [
+      const paths = [
         ...new Set(
           stdout
             .split('\n')
@@ -176,10 +192,56 @@ class InstalledAppService {
             .filter((appPath) => !isNestedApplication(appPath))
         ),
       ]
+
+      if (paths.length) {
+        return paths
+      }
+
+      mainLogger.info('[installed-app-service] spotlight search returned no results, falling back to filesystem scan', {
+        query,
+      })
+      return this.findCandidatePathsFromFilesystem(query)
     } catch (error) {
       mainLogger.error('[installed-app-service] mdfind failed', { query, error })
+      return this.findCandidatePathsFromFilesystem(query)
+    }
+  }
+
+  private async findCandidatePathsFromFilesystem(query: string) {
+    const searchDirectories = await Promise.all(
+      FALLBACK_APP_DIRECTORIES.map(async (directory) => ((await this.pathExists(directory)) ? directory : null))
+    ).then((directories) => directories.filter((directory): directory is string => Boolean(directory)))
+
+    if (!searchDirectories.length) {
       return []
     }
+
+    const pathSets = await Promise.all(
+      searchDirectories.map(async (directory) => {
+        try {
+          const { stdout } = await execFileAsync(
+            'find',
+            [directory, '-maxdepth', FALLBACK_FIND_MAX_DEPTH, '-type', 'd', '-name', '*.app'],
+            {
+              encoding: 'utf8',
+              maxBuffer: 1024 * 1024 * 16,
+            }
+          )
+
+          return stdout
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .filter((appPath) => !isNestedApplication(appPath))
+            .filter((appPath) => matchesAppPathCandidate(appPath, query))
+        } catch (error) {
+          mainLogger.warn('[installed-app-service] filesystem app search failed', { directory, error })
+          return []
+        }
+      })
+    )
+
+    return [...new Set(pathSets.flat())]
   }
 
   private async readMetadataBatch(paths: string[]) {

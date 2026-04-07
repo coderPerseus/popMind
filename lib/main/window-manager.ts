@@ -7,6 +7,7 @@ import {
   type MainWindowRoute,
 } from './app'
 import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
+import { clipboardHistoryService } from '@/lib/clipboard/service'
 import { mainLogger } from '@/lib/main/logger'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
@@ -290,6 +291,10 @@ export const showMainWindow = async (
     searchQuery?: string
   }
 ) => {
+  if (route === 'home') {
+    clipboardHistoryService.capturePasteTarget()
+  }
+
   const window = getOrCreateMainWindow()
   const shouldHideDuringRouteSwitch =
     window.isVisible() && currentRoute !== null && (currentRoute !== route || !isShowingRoute(window, route))

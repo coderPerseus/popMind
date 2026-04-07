@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
 import { copyTextToClipboard } from '@/app/plugins/main-search'
-import { translationEngineOrder, translationLanguages } from '@/lib/translation/shared'
+import {
+  getEnabledTranslationEngineIds,
+  resolvePreferredTranslationEngine,
+  translationLanguages,
+} from '@/lib/translation/shared'
 import type {
   TranslationEngineId,
   TranslationLanguageOption,
@@ -81,8 +85,8 @@ export function useTranslateCommand(command: MainSearchCommand) {
 
         const nextSourceLanguage = settings.defaultSourceLanguage || 'auto'
         const nextTargetLanguage = resolveDefaultTargetLanguage(settings)
-        const nextEnabledEngineIds = translationEngineOrder.filter((item) => settings.enabledEngines[item])
-        const nextEngineId = nextEnabledEngineIds[0] ?? 'google'
+        const nextEnabledEngineIds = getEnabledTranslationEngineIds(settings)
+        const nextEngineId = resolvePreferredTranslationEngine(settings) ?? 'google'
 
         defaultLanguagesRef.current = {
           sourceLanguage: nextSourceLanguage,

@@ -1,4 +1,10 @@
-import type { TranslateInput, TranslationEngineId, TranslationLanguageOption, TranslationQueryMode, TranslationSettings } from './types'
+import type {
+  TranslateInput,
+  TranslationEngineId,
+  TranslationLanguageOption,
+  TranslationQueryMode,
+  TranslationSettings,
+} from './types'
 
 export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai']
 
@@ -148,6 +154,42 @@ export const ensureSelectableLanguage = (code: string) => {
   }
 
   return 'en'
+}
+
+const hasConfiguredAiTranslation = (settings: TranslationSettings) => {
+  if (!settings.enabledEngines.ai) {
+    return false
+  }
+
+  const activeProvider = settings.aiService.activeProvider
+  if (!activeProvider) {
+    return false
+  }
+
+  return Boolean(settings.aiService.providers[activeProvider]?.apiKey.trim())
+}
+
+export const getEnabledTranslationEngineIds = (settings: TranslationSettings): TranslationEngineId[] => {
+  const enabledEngineIds = translationEngineOrder.filter((engineId) => settings.enabledEngines[engineId])
+
+  if (!hasConfiguredAiTranslation(settings) || !enabledEngineIds.includes('ai')) {
+    return enabledEngineIds
+  }
+
+  return ['ai', ...enabledEngineIds.filter((engineId) => engineId !== 'ai')]
+}
+
+export const resolvePreferredTranslationEngine = (
+  settings: TranslationSettings,
+  preferred?: TranslationEngineId
+): TranslationEngineId | undefined => {
+  const enabledEngineIds = getEnabledTranslationEngineIds(settings)
+
+  if (preferred && enabledEngineIds.includes(preferred)) {
+    return preferred
+  }
+
+  return enabledEngineIds[0]
 }
 
 export const mergeSettings = (

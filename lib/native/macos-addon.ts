@@ -5,6 +5,15 @@ import { app } from 'electron'
 import { mainLogger } from '@/lib/main/logger'
 import type { SelectionActionEvent, SelectionSceneValue, SelectionSnapshot } from '@/lib/text-picker/shared'
 
+type ClipboardSnapshotType = {
+  type: string
+  data: Buffer
+}
+
+type ClipboardSnapshotItem = {
+  types: ClipboardSnapshotType[]
+}
+
 export interface NativeMacOSAddon {
   checkPermission(prompt?: boolean): boolean
   getSelectionSnapshot(options?: { scene?: SelectionSceneValue | string }): SelectionSnapshot
@@ -16,6 +25,10 @@ export interface NativeMacOSAddon {
   setKeyMonitorEnabled(enabled: boolean): boolean
   getCursorPosition(): { x: number; y: number }
   getFrontmostAppInfo(): { bundleId: string; name: string; pid: number }
+  getClipboardChangeCount(): number
+  getClipboardSnapshot(): ClipboardSnapshotItem[]
+  restoreClipboardSnapshot(items: ClipboardSnapshotItem[]): boolean
+  activateAppAndPaste(pid: number): boolean
   configureBubbleWindow(nativeHandle: Buffer): boolean
   orderBubbleFront(nativeHandle: Buffer): boolean
   setActivationPolicy(policy: number): boolean

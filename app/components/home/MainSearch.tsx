@@ -10,6 +10,7 @@ import {
 import { ArrowUpRight, Search, Settings2 } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useI18n } from '@/app/i18n'
+import { ClipboardHistoryPanel } from '@/app/components/home/ClipboardHistoryPanel'
 import { parseMainSearchCommand } from '@/app/components/home/query-command'
 import { ExplainCard } from '@/app/components/home/ExplainCard'
 import { useExplainCommand } from '@/app/components/home/use-explain-command'
@@ -24,8 +25,10 @@ import {
   renderMainSearchPluginPanel,
   type MainSearchPluginResult,
 } from '@/app/plugins/main-search'
+import { clipboardHistoryPluginId } from '@/app/plugins/main-search/clipboard-history-plugin'
 import { getThemeLogoUrl } from '@/app/theme-assets'
 import { compareReleaseVersions } from '@/lib/app/release'
+import type { ClipboardHistoryEntry, ClipboardHistoryFilter, ClipboardHistoryListItem } from '@/lib/clipboard/types'
 import { getMainPlaceholderOptions } from '@/lib/i18n/shared'
 import './styles.css'
 
@@ -112,6 +115,7 @@ const pickRandomPlaceholder = (language: 'zh-CN' | 'en', previous?: string) => {
 export function MainSearch() {
   const { language, t } = useI18n()
   const appApi = useConveyor('app')
+  const clipboardApi = useConveyor('clipboard')
   const { onMainWindowReset, onMainWindowSetSearchQuery, webOpenUrl, windowDismissTopmost, windowShowRoute } =
     useConveyor('window')
   const search = useConveyor('search')
@@ -121,6 +125,12 @@ export function MainSearch() {
   const [isLaunching, setIsLaunching] = useState(false)
   const [installedApps, setInstalledApps] = useState<InstalledAppItem[]>([])
   const [isSearchingApps, setIsSearchingApps] = useState(false)
+  const [clipboardFilter, setClipboardFilter] = useState<ClipboardHistoryFilter>('all')
+  const [clipboardItems, setClipboardItems] = useState<ClipboardHistoryListItem[]>([])
+  const [clipboardSelectedId, setClipboardSelectedId] = useState<string | null>(null)
+  const [clipboardSelectedEntry, setClipboardSelectedEntry] = useState<ClipboardHistoryEntry | null>(null)
+  const [isClipboardLoading, setIsClipboardLoading] = useState(false)
+  const [clipboardActionHint, setClipboardActionHint] = useState('')
   const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null)
   const [placeholder, setPlaceholder] = useState(() => pickRandomPlaceholder(language))
   const inputRef = useRef<HTMLInputElement>(null)
@@ -176,8 +186,16 @@ export function MainSearch() {
     () => (command.kind === 'plugin' ? getMainSearchPluginResult(language, command.id, command.text) : null),
     [command, language]
   )
+  const isClipboardMode = command.kind === 'plugin' && activePlugin?.id === clipboardHistoryPluginId
+  const clipboardSearchQuery = isClipboardMode ? command.text : ''
+  const clipboardTrigger = isClipboardMode ? command.trigger : '/clip'
   const activePluginPanel = useMemo(() => {
-    if (!activePlugin || activePlugin.mode !== 'panel' || command.kind !== 'plugin') {
+    if (
+      !activePlugin ||
+      activePlugin.mode !== 'panel' ||
+      command.kind !== 'plugin' ||
+      activePlugin.id === clipboardHistoryPluginId
+    ) {
       return null
     }
 
@@ -192,6 +210,44 @@ export function MainSearch() {
   const explain = useExplainCommand(command)
   const resetTranslate = translate.reset
   const resetExplain = explain.reset
+  const clipboardPanelCopy = useMemo(
+    () => ({
+      countLabel: (count: number) => t('clipboard.count', { count }),
+      filters: {
+        all: t('clipboard.filter.all'),
+        text: t('clipboard.filter.text'),
+        image: t('clipboard.filter.image'),
+        file: t('clipboard.filter.file'),
+        link: t('clipboard.filter.link'),
+        color: t('clipboard.filter.color'),
+      },
+      loading: t('clipboard.loading'),
+      empty: t('clipboard.empty'),
+      previewPlaceholder: t('clipboard.previewPlaceholder'),
+      sourceUnknown: t('clipboard.sourceUnknown'),
+      justNow: t('clipboard.justNow'),
+      labels: {
+        image: t('clipboard.kind.image'),
+        files: t('clipboard.kind.files'),
+        link: t('clipboard.kind.link'),
+        color: t('clipboard.kind.color'),
+        text: t('clipboard.kind.text'),
+        source: t('clipboard.label.source'),
+        contentType: t('clipboard.label.contentType'),
+        characters: t('clipboard.label.characters'),
+        words: t('clipboard.label.words'),
+        payload: t('clipboard.label.payload'),
+        copied: t('clipboard.label.copied'),
+        paste: t('clipboard.action.paste'),
+        copy: t('clipboard.action.copy'),
+        pin: t('clipboard.action.pin'),
+        unpin: t('clipboard.action.unpin'),
+        clear: t('clipboard.action.clear'),
+        delete: t('clipboard.action.delete'),
+      },
+    }),
+    [t]
+  )
 
   const launcherSections = useMemo(() => {
     if (translate.isActive || explain.isActive || activePlugin) {
@@ -270,6 +326,11 @@ export function MainSearch() {
       setQuery('')
       setActiveIndex(0)
       setIsLaunching(false)
+      setClipboardFilter('all')
+      setClipboardItems([])
+      setClipboardSelectedId(null)
+      setClipboardSelectedEntry(null)
+      setClipboardActionHint('')
       setPlaceholder((current) => pickRandomPlaceholder(language, current))
       resetTranslate()
       resetExplain()
@@ -285,6 +346,7 @@ export function MainSearch() {
       setQuery(nextQuery)
       setActiveIndex(0)
       setIsLaunching(false)
+      setClipboardActionHint('')
       resetTranslate()
       resetExplain()
       requestAnimationFrame(() => {
@@ -370,6 +432,83 @@ export function MainSearch() {
     }
   }, [appApi, isAppSearchMode, normalizedQuery])
 
+  useEffect(() => {
+    let cancelled = false
+
+    if (!isClipboardMode) {
+      setClipboardItems([])
+      setClipboardSelectedId(null)
+      setClipboardSelectedEntry(null)
+      setClipboardActionHint('')
+      setIsClipboardLoading(false)
+      return
+    }
+
+    setIsClipboardLoading(true)
+
+    void clipboardApi
+      .listHistory({
+        query: clipboardSearchQuery,
+        filter: clipboardFilter,
+        limit: 120,
+      })
+      .then((result) => {
+        if (cancelled) {
+          return
+        }
+
+        setClipboardItems(result.items)
+        setClipboardSelectedId((current) => {
+          if (current && result.items.some((item) => item.id === current)) {
+            return current
+          }
+
+          return result.items[0]?.id ?? null
+        })
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClipboardItems([])
+          setClipboardSelectedId(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsClipboardLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [clipboardApi, clipboardFilter, clipboardSearchQuery, isClipboardMode])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!isClipboardMode || !clipboardSelectedId) {
+      setClipboardSelectedEntry(null)
+      return
+    }
+
+    void clipboardApi
+      .getHistoryEntry(clipboardSelectedId)
+      .then((entry) => {
+        if (!cancelled) {
+          setClipboardSelectedEntry(entry)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClipboardSelectedEntry(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [clipboardApi, clipboardSelectedId, isClipboardMode])
+
   // Escape key: go through the shared auto-dismiss controller.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -388,6 +527,88 @@ export function MainSearch() {
   useEffect(() => {
     setActiveIndex((current) => Math.min(current, Math.max(launcherItems.length - 1, 0)))
   }, [launcherItems.length])
+
+  const updateClipboardQuery = (value: string) => {
+    setQuery(value ? `${clipboardTrigger} ${value}` : `${clipboardTrigger} `)
+  }
+
+  const refreshClipboardSelection = async () => {
+    if (!isClipboardMode) {
+      return
+    }
+
+    const result = await clipboardApi.listHistory({
+      query: clipboardSearchQuery,
+      filter: clipboardFilter,
+      limit: 120,
+    })
+
+    setClipboardItems(result.items)
+    setClipboardSelectedId((current) => {
+      if (current && result.items.some((item) => item.id === current)) {
+        return current
+      }
+
+      return result.items[0]?.id ?? null
+    })
+  }
+
+  const setClipboardHint = (message: string) => {
+    setClipboardActionHint(message)
+  }
+
+  const handleClipboardCopy = async () => {
+    if (!clipboardSelectedId) {
+      return
+    }
+
+    const result = await clipboardApi.copyHistoryEntry(clipboardSelectedId)
+    setClipboardHint(result.ok ? 'Copied back to system clipboard.' : 'Failed to restore this clipboard item.')
+  }
+
+  const handleClipboardPaste = async () => {
+    if (!clipboardSelectedId) {
+      return
+    }
+
+    const result = await clipboardApi.pasteHistoryEntry(clipboardSelectedId)
+    if (result.ok) {
+      setClipboardHint('Pasted to the previous app.')
+      return
+    }
+
+    setClipboardHint(
+      result.reason === 'no_target'
+        ? 'No previous app was captured. Open clipboard history from another app and try again.'
+        : 'Paste failed. The previous app may no longer be available.'
+    )
+  }
+
+  const handleClipboardDelete = async () => {
+    if (!clipboardSelectedId) {
+      return
+    }
+
+    await clipboardApi.deleteHistoryEntry(clipboardSelectedId)
+    setClipboardHint('Clipboard item removed.')
+    await refreshClipboardSelection()
+  }
+
+  const handleClipboardTogglePin = async () => {
+    if (!clipboardSelectedId) {
+      return
+    }
+
+    const result = await clipboardApi.togglePinHistoryEntry(clipboardSelectedId)
+    setClipboardHint(result.isPinned ? 'Pinned to the top of history.' : 'Removed from pinned items.')
+    await refreshClipboardSelection()
+  }
+
+  const handleClipboardClear = async () => {
+    await clipboardApi.clearHistory()
+    setClipboardHint('Clipboard history cleared.')
+    await refreshClipboardSelection()
+  }
 
   const launchPlugin = async (result: MainSearchPluginResult, executionQuery = query.trim()) => {
     if (result.mode === 'panel') {
@@ -469,6 +690,52 @@ export function MainSearch() {
   }
 
   const handleInputKeyDown = async (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (isClipboardMode) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setClipboardSelectedId((current) => {
+          const currentIndex = clipboardItems.findIndex((item) => item.id === current)
+          const nextIndex = Math.min(currentIndex + 1, Math.max(clipboardItems.length - 1, 0))
+          return clipboardItems[nextIndex]?.id ?? current
+        })
+        return
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setClipboardSelectedId((current) => {
+          const currentIndex = clipboardItems.findIndex((item) => item.id === current)
+          const nextIndex = Math.max(currentIndex <= 0 ? 0 : currentIndex - 1, 0)
+          return clipboardItems[nextIndex]?.id ?? current
+        })
+        return
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        await handleClipboardPaste()
+        return
+      }
+
+      if (event.metaKey && event.key.toLowerCase() === 'c') {
+        event.preventDefault()
+        await handleClipboardCopy()
+        return
+      }
+
+      if (event.metaKey && event.key.toLowerCase() === 'p') {
+        event.preventDefault()
+        await handleClipboardTogglePin()
+        return
+      }
+
+      if (event.metaKey && (event.key === 'Backspace' || event.key === 'Delete')) {
+        event.preventDefault()
+        await handleClipboardDelete()
+        return
+      }
+    }
+
     if (translate.isActive) {
       if (event.key === 'Enter') {
         event.preventDefault()
@@ -529,17 +796,31 @@ export function MainSearch() {
         <input
           ref={inputRef}
           className="ms-input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={isClipboardMode ? clipboardSearchQuery : query}
+          onChange={(e) => {
+            if (isClipboardMode) {
+              updateClipboardQuery(e.target.value)
+              return
+            }
+
+            setQuery(e.target.value)
+          }}
           onKeyDown={(event) => void handleInputKeyDown(event)}
-          placeholder={placeholder || t('main.placeholder')}
+          placeholder={isClipboardMode ? t('clipboard.placeholder') : placeholder || t('main.placeholder')}
           spellCheck={false}
           autoComplete="off"
         />
-        {query && (
+        {(isClipboardMode ? clipboardSearchQuery : query) && (
           <button
             className="ms-clear"
             onClick={() => {
+              if (isClipboardMode) {
+                updateClipboardQuery('')
+                setClipboardActionHint('')
+                inputRef.current?.focus()
+                return
+              }
+
               setQuery('')
               setPlaceholder((current) => pickRandomPlaceholder(language, current))
               inputRef.current?.focus()
@@ -554,13 +835,43 @@ export function MainSearch() {
       {/* Divider */}
       <div className="ms-divider" />
 
-      {/* Results area */}
-      <div className="ms-results">
+      {!isClipboardMode ? (
         <div className="ms-permission-guide">
           <AccessibilityPermission />
         </div>
+      ) : null}
 
-        {translate.isActive && command.kind === 'translate' ? (
+      {/* Results area */}
+      <div className={`ms-results ${isClipboardMode ? 'is-clipboard-mode' : ''}`}>
+        {isClipboardMode ? (
+          <ClipboardHistoryPanel
+            items={clipboardItems}
+            selectedEntry={clipboardSelectedEntry}
+            selectedId={clipboardSelectedId}
+            isLoading={isClipboardLoading}
+            filter={clipboardFilter}
+            actionHint={clipboardActionHint}
+            copy={clipboardPanelCopy}
+            locale={language === 'zh-CN' ? 'zh-CN' : 'en-US'}
+            onFilterChange={setClipboardFilter}
+            onSelect={setClipboardSelectedId}
+            onPaste={() => {
+              void handleClipboardPaste()
+            }}
+            onCopy={() => {
+              void handleClipboardCopy()
+            }}
+            onDelete={() => {
+              void handleClipboardDelete()
+            }}
+            onTogglePin={() => {
+              void handleClipboardTogglePin()
+            }}
+            onClear={() => {
+              void handleClipboardClear()
+            }}
+          />
+        ) : translate.isActive && command.kind === 'translate' ? (
           <TranslateCard
             command={command}
             cardState={translate.cardState}
@@ -609,7 +920,9 @@ export function MainSearch() {
                 <div>
                   <div className="ms-translate-card-title">{activePlugin.title}</div>
                   <div className="ms-translate-card-subtitle">
-                    {command.text ? t('main.plugin.openReady') : t('main.plugin.openHint', { title: activePlugin.title })}
+                    {command.text
+                      ? t('main.plugin.openReady')
+                      : t('main.plugin.openHint', { title: activePlugin.title })}
                   </div>
                 </div>
               </div>
@@ -742,30 +1055,31 @@ export function MainSearch() {
       </div>
 
       {/* Footer bar */}
-      <div className="ms-footer">
-        <div className="ms-footer-brand">
-          <button className="ms-footer-logo" onClick={() => void windowShowRoute('settings')} aria-label={t('main.settingsAria')}>
-            <img src={logoUrl} alt="popMind" className="ms-logo-img" />
-            <Settings2 size={13} className="ms-footer-settings-icon" />
-          </button>
-          {updateInfo ? (
+      {!isClipboardMode ? (
+        <div className="ms-footer">
+          <div className="ms-footer-brand">
             <button
-              className="ms-update-badge"
-              type="button"
-              onClick={() => void webOpenUrl(updateInfo.url)}
-              aria-label={t('main.updateAria')}
-              title={updateInfo.url}
+              className="ms-footer-logo"
+              onClick={() => void windowShowRoute('settings')}
+              aria-label={t('main.settingsAria')}
             >
-              {t('main.updateAvailable', { version: updateInfo.version })}
+              <img src={logoUrl} alt="popMind" className="ms-logo-img" />
+              <Settings2 size={13} className="ms-footer-settings-icon" />
             </button>
-          ) : null}
+            {updateInfo ? (
+              <button
+                className="ms-update-badge"
+                type="button"
+                onClick={() => void webOpenUrl(updateInfo.url)}
+                aria-label={t('main.updateAria')}
+                title={updateInfo.url}
+              >
+                {t('main.updateAvailable', { version: updateInfo.version })}
+              </button>
+            ) : null}
+          </div>
         </div>
-
-        <div className="ms-footer-shortcut">
-          <kbd className="ms-kbd">⌥</kbd>
-          <kbd className="ms-kbd">Space</kbd>
-        </div>
-      </div>
+      ) : null}
     </div>
   )
 }

@@ -128,6 +128,10 @@ export interface SelectionBridge {
   setKeyMonitorEnabled(enabled: boolean): boolean
   getCursorPosition(): { x: number; y: number }
   getFrontmostAppInfo(): { bundleId: string; name: string; pid: number }
+  getClipboardChangeCount(): number
+  getClipboardSnapshot(): Array<{ types: Array<{ type: string; data: Buffer }> }>
+  restoreClipboardSnapshot(items: Array<{ types: Array<{ type: string; data: Buffer }> }>): boolean
+  activateAppAndPaste(pid: number): boolean
   configureBubbleWindow(nativeHandle: Buffer): boolean
   orderBubbleFront(nativeHandle: Buffer): boolean
   setActivationPolicy(policy: number): boolean

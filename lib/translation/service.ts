@@ -3,8 +3,8 @@ import {
   defaultTranslationSettings,
   getLanguageFamily,
   isSameLanguage,
+  resolvePreferredTranslationEngine,
   resolveTranslationQueryMode,
-  translationEngineOrder,
 } from '@/lib/translation/shared'
 import { capabilityService } from '@/lib/capability/service'
 import { normalizeTextForTranslation } from '@/lib/translation/text-normalizer'
@@ -20,11 +20,7 @@ const resolveEngineId = (
   settings: Awaited<ReturnType<typeof capabilityService.getSettings>>,
   preferred?: TranslationEngineId
 ) => {
-  if (preferred && settings.enabledEngines[preferred]) {
-    return preferred
-  }
-
-  return translationEngineOrder.find((engineId) => settings.enabledEngines[engineId])
+  return resolvePreferredTranslationEngine(settings, preferred)
 }
 
 const resolveExplicitTargetLanguage = ({ targetLanguage }: { targetLanguage?: string }) => {

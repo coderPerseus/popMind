@@ -1,4 +1,5 @@
 import { Check, Copy, LoaderCircle, RefreshCw } from 'lucide-react'
+import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
 import { Select } from '@/app/components/ui/select'
 import type { TranslateCardState } from '@/app/components/home/use-translate-command'
@@ -43,7 +44,7 @@ export function TranslateCard({
   const isLoading = cardState.status === 'loading'
   const translatedText = cardState.status === 'success' ? cardState.translatedText : ''
   const wordEntry = cardState.status === 'success' ? cardState.wordEntry : undefined
-  const translatedContent =
+  const translatedPreview =
     !command.text && cardState.status === 'idle'
       ? language === 'en'
         ? 'Translation output will appear here after you enter content.'
@@ -59,6 +60,7 @@ export function TranslateCard({
             : language === 'en'
               ? 'Keep typing text to translate'
               : '继续输入要翻译的内容'
+  const shouldRenderMarkdown = !isWordMode && cardState.status === 'success'
 
   return (
     <div className="ms-command-stack">
@@ -200,8 +202,12 @@ export function TranslateCard({
                     </div>
                   ) : null}
                 </div>
+              ) : shouldRenderMarkdown ? (
+                <Streamdown className="ms-translate-command-markdown" mode="static" isAnimating={false}>
+                  {translatedText}
+                </Streamdown>
               ) : (
-                translatedContent
+                translatedPreview
               )}
             </div>
           </section>

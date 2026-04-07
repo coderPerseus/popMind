@@ -5,6 +5,7 @@ import { registerResourcesProtocol } from './protocols'
 import { registerWindowHandlers } from '@/lib/conveyor/handlers/window-handler'
 import { registerAppHandlers } from '@/lib/conveyor/handlers/app-handler'
 import { registerCapabilityHandlers } from '@/lib/conveyor/handlers/capability-handler'
+import { registerClipboardHandlers } from '@/lib/conveyor/handlers/clipboard-handler'
 
 export type MainWindowRoute = 'home' | 'settings'
 
@@ -27,12 +28,12 @@ const ROUTE_HASH: Record<MainWindowRoute, string> = {
 
 export const MAIN_WINDOW_ROUTE_CONFIG: Record<MainWindowRoute, RouteWindowConfig> = {
   home: {
-    width: 680,
-    height: 480,
-    minWidth: 680,
-    minHeight: 480,
-    maxWidth: 680,
-    maxHeight: 480,
+    width: 820,
+    height: 540,
+    minWidth: 820,
+    minHeight: 540,
+    maxWidth: 820,
+    maxHeight: 540,
     resizable: false,
     maximizable: false,
     backgroundColor: '#00000000',
@@ -96,6 +97,7 @@ export function createAppWindow(): BrowserWindow {
   registerWindowHandlers(mainWindow)
   registerAppHandlers(app)
   registerCapabilityHandlers()
+  registerClipboardHandlers()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

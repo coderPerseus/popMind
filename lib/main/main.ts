@@ -4,6 +4,7 @@ import { registerExplainHandlers } from '@/lib/conveyor/handlers/explain-handler
 import { initializeAppLogging, mainLogger } from '@/lib/main/logger'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
+import { clipboardHistoryService } from '@/lib/clipboard/service'
 import { themeStore } from '@/lib/main/theme-store'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 import appIcon from '@/resources/build/icon.png?asset'
@@ -65,6 +66,7 @@ app.whenReady().then(async () => {
   registerExplainHandlers()
   registerTranslationHandlers()
   registerSearchHandlers()
+  clipboardHistoryService.initialize()
 
   // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()
@@ -83,6 +85,10 @@ app.whenReady().then(async () => {
   // Register global shortcut Option+Space to toggle the main search window
   registerGlobalShortcutWithLogging('Alt+Space', 'toggle-home', () => {
     void toggleMainWindow('home')
+  })
+
+  registerGlobalShortcutWithLogging('Alt+V', 'clipboard-history', () => {
+    void showMainWindow('home', { searchQuery: '/clip ' })
   })
 
   // Default open or close DevTools by F12 in development
@@ -118,6 +124,7 @@ app.on('will-quit', () => {
   disposeApplicationMenu?.()
   disposeApplicationMenu = null
   globalShortcut.unregisterAll()
+  clipboardHistoryService.dispose()
   textPickerFeature?.dispose()
   textPickerFeature = null
 })
