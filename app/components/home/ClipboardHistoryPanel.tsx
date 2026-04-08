@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { FileImage, Link2, Palette, Pin, PinOff, Trash2 } from 'lucide-react'
 import type { ClipboardHistoryEntry, ClipboardHistoryFilter, ClipboardHistoryListItem } from '@/lib/clipboard/types'
 
@@ -80,21 +81,6 @@ const formatBytes = (value: number) => {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const getKindLabel = (kind: ClipboardHistoryListItem['kind'], copy: ClipboardHistoryPanelCopy) => {
-  switch (kind) {
-    case 'image':
-      return copy.labels.image
-    case 'file':
-      return copy.labels.files
-    case 'link':
-      return copy.labels.link
-    case 'color':
-      return copy.labels.color
-    default:
-      return copy.labels.text
-  }
-}
-
 const KindIcon = ({ kind }: { kind: ClipboardHistoryListItem['kind'] }) => {
   if (kind === 'image') {
     return <FileImage size={16} />
@@ -128,6 +114,27 @@ export function ClipboardHistoryPanel({
   onTogglePin,
   onClear,
 }: ClipboardHistoryPanelProps) {
+  const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const infoItems = selectedEntry
+    ? [
+        { label: copy.labels.source, value: selectedEntry.sourceApp?.name ?? copy.sourceUnknown },
+        { label: copy.labels.characters, value: String(selectedEntry.characterCount) },
+        { label: copy.labels.payload, value: formatBytes(selectedEntry.bytes) },
+        { label: copy.labels.copied, value: formatTime(selectedEntry.copiedAt, locale, copy.justNow) },
+      ]
+    : []
+
+  useEffect(() => {
+    if (!selectedId) {
+      return
+    }
+
+    rowRefs.current[selectedId]?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+    })
+  }, [selectedId])
+
   return (
     <div className="ms-clipboard-shell">
       <div className="ms-clipboard-surface">
@@ -155,6 +162,14 @@ export function ClipboardHistoryPanel({
             {items.map((item) => (
               <button
                 key={item.id}
+                ref={(node) => {
+                  if (node) {
+                    rowRefs.current[item.id] = node
+                    return
+                  }
+
+                  delete rowRefs.current[item.id]
+                }}
                 type="button"
                 className={`ms-clipboard-row ${item.id === selectedId ? 'is-active' : ''}`}
                 onClick={() => onSelect(item.id)}
@@ -172,10 +187,7 @@ export function ClipboardHistoryPanel({
                     <span className="ms-clipboard-row-title-text">{item.title}</span>
                     {item.isPinned ? <Pin size={12} className="ms-clipboard-row-pin" /> : null}
                   </span>
-                  <span className="ms-clipboard-row-preview">{item.previewText || getKindLabel(item.kind, copy)}</span>
                 </span>
-
-                <span className="ms-clipboard-row-meta">{formatTime(item.copiedAt, locale, copy.justNow)}</span>
               </button>
             ))}
 
@@ -187,12 +199,8 @@ export function ClipboardHistoryPanel({
           {selectedEntry ? (
             <>
               <div className="ms-clipboard-detail-head">
-                <div>
+                <div className="ms-clipboard-detail-summary">
                   <div className="ms-clipboard-detail-title">{selectedEntry.title}</div>
-                  <div className="ms-clipboard-detail-subtitle">
-                    {getKindLabel(selectedEntry.kind, copy)}
-                    {selectedEntry.sourceApp?.name ? ` · ${selectedEntry.sourceApp.name}` : ''}
-                  </div>
                 </div>
 
                 <div className="ms-clipboard-detail-actions">
@@ -243,30 +251,14 @@ export function ClipboardHistoryPanel({
               </div>
 
               <div className="ms-clipboard-info-grid">
-                <div className="ms-clipboard-info-row">
-                  <span>{copy.labels.source}</span>
-                  <span>{selectedEntry.sourceApp?.name ?? copy.sourceUnknown}</span>
-                </div>
-                <div className="ms-clipboard-info-row">
-                  <span>{copy.labels.contentType}</span>
-                  <span>{getKindLabel(selectedEntry.kind, copy)}</span>
-                </div>
-                <div className="ms-clipboard-info-row">
-                  <span>{copy.labels.characters}</span>
-                  <span>{selectedEntry.characterCount}</span>
-                </div>
-                <div className="ms-clipboard-info-row">
-                  <span>{copy.labels.words}</span>
-                  <span>{selectedEntry.wordCount}</span>
-                </div>
-                <div className="ms-clipboard-info-row">
-                  <span>{copy.labels.payload}</span>
-                  <span>{formatBytes(selectedEntry.bytes)}</span>
-                </div>
-                <div className="ms-clipboard-info-row">
-                  <span>{copy.labels.copied}</span>
-                  <span>{formatTime(selectedEntry.copiedAt, locale, copy.justNow)}</span>
-                </div>
+                {infoItems.map((item) => (
+                  <div key={item.label} className="ms-clipboard-info-item">
+                    <span className="ms-clipboard-info-label">{item.label}</span>
+                    <span className="ms-clipboard-info-value" title={item.value}>
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
               </div>
             </>
           ) : (
@@ -283,9 +275,6 @@ export function ClipboardHistoryPanel({
           </button>
           <button type="button" className="ms-clipboard-footer-button" onClick={onCopy} disabled={!selectedEntry}>
             {copy.labels.copy}
-          </button>
-          <button type="button" className="ms-clipboard-footer-button" onClick={onTogglePin} disabled={!selectedEntry}>
-            {selectedEntry?.isPinned ? copy.labels.unpin : copy.labels.pin}
           </button>
           <button type="button" className="ms-clipboard-footer-button is-danger" onClick={onClear}>
             {copy.labels.clear}

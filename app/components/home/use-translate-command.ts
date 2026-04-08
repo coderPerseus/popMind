@@ -17,9 +17,31 @@ import type {
 
 const DEFAULT_TARGET_LANGUAGE = 'zh-CN'
 type TargetLanguageMode = 'auto' | 'manual'
+const TRANSLATE_ENGINE_STORAGE_KEY = 'popmind.translate.preferred-engine'
 
 const resolveDefaultTargetLanguage = (settings: TranslationSettings) =>
   settings.firstLanguage || DEFAULT_TARGET_LANGUAGE
+
+const readStoredEngineId = (): TranslationEngineId | undefined => {
+  try {
+    const rawValue = window.localStorage.getItem(TRANSLATE_ENGINE_STORAGE_KEY)
+    if (!rawValue) {
+      return undefined
+    }
+
+    return rawValue as TranslationEngineId
+  } catch {
+    return undefined
+  }
+}
+
+const writeStoredEngineId = (engineId: TranslationEngineId) => {
+  try {
+    window.localStorage.setItem(TRANSLATE_ENGINE_STORAGE_KEY, engineId)
+  } catch {
+    // Ignore persistence failures and keep runtime behavior intact.
+  }
+}
 
 export type TranslateCardState =
   | { status: 'idle' }
@@ -86,7 +108,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
         const nextSourceLanguage = settings.defaultSourceLanguage || 'auto'
         const nextTargetLanguage = resolveDefaultTargetLanguage(settings)
         const nextEnabledEngineIds = getEnabledTranslationEngineIds(settings)
-        const nextEngineId = resolvePreferredTranslationEngine(settings) ?? 'google'
+        const nextEngineId = resolvePreferredTranslationEngine(settings, readStoredEngineId()) ?? 'google'
 
         defaultLanguagesRef.current = {
           sourceLanguage: nextSourceLanguage,
@@ -272,6 +294,12 @@ export function useTranslateCommand(command: MainSearchCommand) {
     setTargetLanguage(value)
   }, [])
 
+  const handleEngineChange = (value: TranslationEngineId) => {
+    writeStoredEngineId(value)
+    defaultLanguagesRef.current.engineId = value
+    setEngineId(value)
+  }
+
   const copyResult = useCallback(async () => {
     if (cardState.status !== 'success' || !cardState.translatedText) {
       return false
@@ -309,7 +337,7 @@ export function useTranslateCommand(command: MainSearchCommand) {
     copied,
     setSourceLanguage: handleSourceLanguageChange,
     setTargetLanguage: handleTargetLanguageChange,
-    setEngineId,
+    setEngineId: handleEngineChange,
     copyResult,
     retranslate: runImmediately,
     languages: translationLanguages as TranslationLanguageOption[],

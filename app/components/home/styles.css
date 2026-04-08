@@ -1638,12 +1638,11 @@
   display: flex;
   min-width: 0;
   flex: 1;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .ms-clipboard-row-title {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -1654,28 +1653,16 @@
 
 .ms-clipboard-row-title-text {
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ms-clipboard-row-preview {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.46);
 }
 
 .ms-clipboard-row-pin {
-  opacity: 0.6;
-}
-
-.ms-clipboard-row-meta {
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.32);
   flex-shrink: 0;
+  opacity: 1;
+  color: rgba(217, 119, 6, 0.9);
 }
 
 .ms-clipboard-empty {
@@ -1695,34 +1682,35 @@
 
 .ms-clipboard-detail-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 18px 20px 14px;
+  padding: 14px 16px 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
+.ms-clipboard-detail-summary {
+  min-width: 0;
+  flex: 1;
+}
+
 .ms-clipboard-detail-title {
+  width: 100%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: rgba(0, 0, 0, 0.84);
-}
-
-.ms-clipboard-detail-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.44);
 }
 
 .ms-clipboard-detail-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .ms-clipboard-icon-button {
@@ -1740,11 +1728,13 @@
 
 .ms-clipboard-preview-card {
   display: flex;
+  align-items: flex-start;
+  justify-content: center;
   min-height: 0;
   flex: 1;
-  margin: 20px;
-  padding: 18px;
-  border-radius: 18px;
+  margin: 14px 14px 10px;
+  padding: 12px;
+  border-radius: 14px;
   background: radial-gradient(
     circle at top left,
     rgba(255, 255, 255, 0.9) 0%,
@@ -1760,6 +1750,7 @@
 
 .ms-clipboard-preview-text {
   margin: 0;
+  width: 100%;
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 15px;
@@ -1770,9 +1761,10 @@
 
 .ms-clipboard-preview-image {
   width: 100%;
+  max-height: 100%;
   height: auto;
   object-fit: contain;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .ms-clipboard-color-preview {
@@ -1810,27 +1802,36 @@
 }
 
 .ms-clipboard-info-grid {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 14px 14px;
 }
 
-.ms-clipboard-info-row {
+.ms-clipboard-info-item {
   display: flex;
+  min-width: 0;
+  min-height: 40px;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  min-height: 38px;
-  padding: 0 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.44);
   font-size: 13px;
 }
 
-.ms-clipboard-info-row span:first-child {
+.ms-clipboard-info-label {
+  flex-shrink: 0;
   color: rgba(0, 0, 0, 0.44);
 }
 
-.ms-clipboard-info-row span:last-child {
+.ms-clipboard-info-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: rgba(0, 0, 0, 0.76);
   text-align: right;
 }
@@ -1846,9 +1847,9 @@
 
 .ms-clipboard-footer {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   min-height: 46px;
   padding: 0 14px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
@@ -1865,13 +1866,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  overflow-x: auto;
 }
 
 .ms-clipboard-footer-button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   min-height: 28px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
@@ -1892,9 +1892,13 @@
 }
 
 .ms-clipboard-footer-note {
+  min-width: 0;
   font-size: 12px;
   color: rgba(0, 0, 0, 0.4);
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* =============================================
@@ -2171,16 +2175,12 @@
 
 .dark .ms-clipboard-sidebar-head,
 .dark .ms-clipboard-detail-head,
-.dark .ms-clipboard-info-grid,
-.dark .ms-clipboard-info-row,
 .dark .ms-clipboard-footer {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 .dark .ms-clipboard-eyebrow,
-.dark .ms-clipboard-row-meta,
-.dark .ms-clipboard-detail-subtitle,
-.dark .ms-clipboard-info-row span:first-child,
+.dark .ms-clipboard-info-label,
 .dark .ms-clipboard-footer-note {
   color: rgba(255, 255, 255, 0.34);
 }
@@ -2211,12 +2211,15 @@
 
 .dark .ms-clipboard-row-title,
 .dark .ms-clipboard-detail-title,
-.dark .ms-clipboard-info-row span:last-child,
+.dark .ms-clipboard-info-value,
 .dark .ms-clipboard-footer-label {
   color: rgba(255, 255, 255, 0.88);
 }
 
-.dark .ms-clipboard-row-preview,
+.dark .ms-clipboard-row-pin {
+  color: rgba(251, 191, 36, 0.92);
+}
+
 .dark .ms-clipboard-empty {
   color: rgba(255, 255, 255, 0.42);
 }
@@ -2246,6 +2249,11 @@
 .dark .ms-clipboard-file-item {
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.74);
+}
+
+.dark .ms-clipboard-info-item {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .dark .ms-clipboard-footer {

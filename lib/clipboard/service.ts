@@ -879,8 +879,25 @@ export class ClipboardHistoryService {
   listEntries(input: ClipboardHistoryQueryInput = {}): ClipboardHistoryListResult {
     const database = this.getDatabase()
     this.cleanup(database)
+    const normalizedQuery = input.query?.trim().toLowerCase() ?? ''
+    const normalizedFilter = input.filter ?? 'all'
     const { sql, params } = this.buildListQuery(input)
     const rows = database.prepare(sql).all(...params) as ClipboardSnapshotRow[]
+
+    mainLogger.info('[clipboard-history] listEntries', {
+      query: normalizedQuery,
+      filter: normalizedFilter,
+      limit: input.limit ?? 120,
+      resultCount: rows.length,
+    })
+
+    if (normalizedQuery && rows.length === 0) {
+      mainLogger.warn('[clipboard-history] search returned no results', {
+        query: normalizedQuery,
+        filter: normalizedFilter,
+        limit: input.limit ?? 120,
+      })
+    }
 
     return {
       items: rows.map(mapRowToListItem),

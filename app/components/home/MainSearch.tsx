@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -92,6 +93,8 @@ const getLauncherItemKey = (item: LauncherItem) => {
   return item.item.id
 }
 
+const getLauncherDomKey = (item: LauncherItem) => `${item.kind}:${getLauncherItemKey(item)}`
+
 const pickRandomPlaceholder = (language: 'zh-CN' | 'en', previous?: string) => {
   const options = getMainPlaceholderOptions(language)
 
@@ -134,6 +137,7 @@ export function MainSearch() {
   const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null)
   const [placeholder, setPlaceholder] = useState(() => pickRandomPlaceholder(language))
   const inputRef = useRef<HTMLInputElement>(null)
+  const launcherItemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const deferredQuery = useDeferredValue(query)
   const normalizedQuery = deferredQuery.trim()
   const isAppSearchMode = Boolean(normalizedQuery && !normalizedQuery.startsWith('/'))
@@ -187,8 +191,8 @@ export function MainSearch() {
     [command, language]
   )
   const isClipboardMode = command.kind === 'plugin' && activePlugin?.id === clipboardHistoryPluginId
-  const clipboardSearchQuery = isClipboardMode ? command.text : ''
   const clipboardTrigger = isClipboardMode ? command.trigger : '/clip'
+  const clipboardSearchQuery = isClipboardMode ? command.text : ''
   const activePluginPanel = useMemo(() => {
     if (
       !activePlugin ||
@@ -248,7 +252,6 @@ export function MainSearch() {
     }),
     [t]
   )
-
   const launcherSections = useMemo(() => {
     if (translate.isActive || explain.isActive || activePlugin) {
       return [] as LauncherSection[]
@@ -351,6 +354,11 @@ export function MainSearch() {
       resetExplain()
       requestAnimationFrame(() => {
         inputRef.current?.focus()
+        if (nextQuery.trim().startsWith('/')) {
+          inputRef.current?.setSelectionRange(nextQuery.length, nextQuery.length)
+          return
+        }
+
         inputRef.current?.select()
       })
     })
@@ -445,17 +453,31 @@ export function MainSearch() {
     }
 
     setIsClipboardLoading(true)
+    const request = {
+      query: clipboardSearchQuery,
+      filter: clipboardFilter,
+      limit: 120,
+    } as const
+
+    console.warn('[MainSearch][clipboard-search] request', {
+      reason: 'effect',
+      ...request,
+      isClipboardMode,
+    })
 
     void clipboardApi
-      .listHistory({
-        query: clipboardSearchQuery,
-        filter: clipboardFilter,
-        limit: 120,
-      })
+      .listHistory(request)
       .then((result) => {
         if (cancelled) {
           return
         }
+
+        console.warn('[MainSearch][clipboard-search] response', {
+          reason: 'effect',
+          query: request.query,
+          filter: request.filter,
+          resultCount: result.items.length,
+        })
 
         setClipboardItems(result.items)
         setClipboardSelectedId((current) => {
@@ -466,7 +488,14 @@ export function MainSearch() {
           return result.items[0]?.id ?? null
         })
       })
-      .catch(() => {
+      .catch((error) => {
+        console.warn('[MainSearch][clipboard-search] request_failed', {
+          reason: 'effect',
+          query: clipboardSearchQuery,
+          filter: clipboardFilter,
+          error,
+        })
+
         if (!cancelled) {
           setClipboardItems([])
           setClipboardSelectedId(null)
@@ -486,7 +515,12 @@ export function MainSearch() {
   useEffect(() => {
     let cancelled = false
 
-    if (!isClipboardMode || !clipboardSelectedId) {
+    if (!isClipboardMode) {
+      setClipboardSelectedEntry(null)
+      return
+    }
+
+    if (!clipboardSelectedId) {
       setClipboardSelectedEntry(null)
       return
     }
@@ -520,6 +554,62 @@ export function MainSearch() {
     return () => document.removeEventListener('keydown', handleKey)
   }, [windowDismissTopmost])
 
+  const moveClipboardSelection = useCallback((direction: 'next' | 'previous') => {
+    setClipboardSelectedId((current) => {
+      if (!clipboardItems.length) {
+        return current
+      }
+
+      const currentIndex = clipboardItems.findIndex((item) => item.id === current)
+
+      if (direction === 'next') {
+        const nextIndex =
+          currentIndex < 0 ? 0 : Math.min(currentIndex + 1, Math.max(clipboardItems.length - 1, 0))
+        return clipboardItems[nextIndex]?.id ?? current
+      }
+
+      const nextIndex = currentIndex < 0 ? Math.max(clipboardItems.length - 1, 0) : Math.max(currentIndex - 1, 0)
+      return clipboardItems[nextIndex]?.id ?? current
+    })
+  }, [clipboardItems])
+
+  useEffect(() => {
+    if (!isClipboardMode) {
+      return
+    }
+
+    const handleClipboardNavigation = (event: KeyboardEvent) => {
+      const target = event.target
+
+      if (!(target instanceof HTMLElement)) {
+        return
+      }
+
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement ||
+        target.isContentEditable
+      ) {
+        return
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        moveClipboardSelection('next')
+        return
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        moveClipboardSelection('previous')
+      }
+    }
+
+    document.addEventListener('keydown', handleClipboardNavigation)
+    return () => document.removeEventListener('keydown', handleClipboardNavigation)
+  }, [isClipboardMode, moveClipboardSelection])
+
   useEffect(() => {
     setActiveIndex(0)
   }, [normalizedQuery])
@@ -528,8 +618,39 @@ export function MainSearch() {
     setActiveIndex((current) => Math.min(current, Math.max(launcherItems.length - 1, 0)))
   }, [launcherItems.length])
 
+  useEffect(() => {
+    if (!activeItem || isClipboardMode) {
+      return
+    }
+
+    launcherItemRefs.current[getLauncherDomKey(activeItem)]?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+    })
+  }, [activeItem, isClipboardMode])
+
   const updateClipboardQuery = (value: string) => {
-    setQuery(value ? `${clipboardTrigger} ${value}` : `${clipboardTrigger} `)
+    const normalizedValue = value.trim()
+    const nextQuery = value.startsWith('/')
+      ? value
+      : normalizedValue
+        ? `${clipboardTrigger} ${normalizedValue}`
+        : `${clipboardTrigger} `
+
+    console.warn('[MainSearch][clipboard-search] input_change', {
+      displayValue: value,
+      nextQuery,
+      trigger: clipboardTrigger,
+    })
+
+    setQuery(nextQuery)
+  }
+
+  const focusInputAtEnd = (value: string) => {
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      inputRef.current?.setSelectionRange(value.length, value.length)
+    })
   }
 
   const refreshClipboardSelection = async () => {
@@ -537,10 +658,25 @@ export function MainSearch() {
       return
     }
 
-    const result = await clipboardApi.listHistory({
+    const request = {
       query: clipboardSearchQuery,
       filter: clipboardFilter,
       limit: 120,
+    } as const
+
+    console.warn('[MainSearch][clipboard-search] request', {
+      reason: 'refresh',
+      ...request,
+      isClipboardMode,
+    })
+
+    const result = await clipboardApi.listHistory(request)
+
+    console.warn('[MainSearch][clipboard-search] response', {
+      reason: 'refresh',
+      query: request.query,
+      filter: request.filter,
+      resultCount: result.items.length,
     })
 
     setClipboardItems(result.items)
@@ -594,6 +730,12 @@ export function MainSearch() {
     await refreshClipboardSelection()
   }
 
+  const handleClipboardClear = async () => {
+    await clipboardApi.clearHistory()
+    setClipboardHint('Clipboard history cleared.')
+    await refreshClipboardSelection()
+  }
+
   const handleClipboardTogglePin = async () => {
     if (!clipboardSelectedId) {
       return
@@ -604,16 +746,11 @@ export function MainSearch() {
     await refreshClipboardSelection()
   }
 
-  const handleClipboardClear = async () => {
-    await clipboardApi.clearHistory()
-    setClipboardHint('Clipboard history cleared.')
-    await refreshClipboardSelection()
-  }
-
   const launchPlugin = async (result: MainSearchPluginResult, executionQuery = query.trim()) => {
     if (result.mode === 'panel') {
-      setQuery(getPluginQueryWithAlias(result, executionQuery))
-      requestAnimationFrame(() => inputRef.current?.focus())
+      const nextQuery = getPluginQueryWithAlias(result, executionQuery)
+      setQuery(nextQuery)
+      focusInputAtEnd(nextQuery)
       return
     }
 
@@ -648,21 +785,24 @@ export function MainSearch() {
   }
 
   const activateCommand = (commandItem: LauncherCommandItem) => {
-    setQuery(`${getPrimaryAlias(commandItem.aliases)} `)
-    inputRef.current?.focus()
+    const nextQuery = `${getPrimaryAlias(commandItem.aliases)} `
+    setQuery(nextQuery)
+    focusInputAtEnd(nextQuery)
   }
 
   const activatePluginAlias = (pluginItem: MainSearchPluginResult) => {
-    setQuery(`${getPrimaryAlias(pluginItem.slashAliases)} `)
-    inputRef.current?.focus()
+    const nextQuery = `${getPrimaryAlias(pluginItem.slashAliases)} `
+    setQuery(nextQuery)
+    focusInputAtEnd(nextQuery)
   }
 
   const activatePlugin = async (pluginItem: MainSearchPluginResult) => {
     const currentQuery = query.trim()
 
     if (pluginItem.mode === 'panel') {
-      setQuery(getPluginQueryWithAlias(pluginItem, currentQuery))
-      requestAnimationFrame(() => inputRef.current?.focus())
+      const nextQuery = getPluginQueryWithAlias(pluginItem, currentQuery)
+      setQuery(nextQuery)
+      focusInputAtEnd(nextQuery)
       return
     }
 
@@ -690,6 +830,10 @@ export function MainSearch() {
   }
 
   const handleInputKeyDown = async (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) {
+      return
+    }
+
     if (isClipboardMode) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()
@@ -796,9 +940,9 @@ export function MainSearch() {
         <input
           ref={inputRef}
           className="ms-input"
-          value={isClipboardMode ? clipboardSearchQuery : query}
+          value={query}
           onChange={(e) => {
-            if (isClipboardMode) {
+            if (isClipboardMode && command.kind === 'plugin') {
               updateClipboardQuery(e.target.value)
               return
             }
@@ -810,12 +954,12 @@ export function MainSearch() {
           spellCheck={false}
           autoComplete="off"
         />
-        {(isClipboardMode ? clipboardSearchQuery : query) && (
+        {query && (
           <button
             className="ms-clear"
             onClick={() => {
               if (isClipboardMode) {
-                updateClipboardQuery('')
+                setQuery('')
                 setClipboardActionHint('')
                 inputRef.current?.focus()
                 return
@@ -956,6 +1100,15 @@ export function MainSearch() {
                       return (
                         <button
                           key={result.id}
+                          ref={(node) => {
+                            const domKey = `${entry.kind}:${entryKey}`
+                            if (node) {
+                              launcherItemRefs.current[domKey] = node
+                              return
+                            }
+
+                            delete launcherItemRefs.current[domKey]
+                          }}
                           className={`ms-result-item ${flatIndex === activeIndex ? 'is-active' : ''}`}
                           type="button"
                           onMouseEnter={() => setActiveIndex(flatIndex)}
@@ -984,6 +1137,15 @@ export function MainSearch() {
                       return (
                         <button
                           key={appItem.path}
+                          ref={(node) => {
+                            const domKey = `${entry.kind}:${entryKey}`
+                            if (node) {
+                              launcherItemRefs.current[domKey] = node
+                              return
+                            }
+
+                            delete launcherItemRefs.current[domKey]
+                          }}
                           className={`ms-result-item is-app-result ${flatIndex === activeIndex ? 'is-active' : ''}`}
                           type="button"
                           onMouseEnter={() => setActiveIndex(flatIndex)}
@@ -1012,6 +1174,15 @@ export function MainSearch() {
                     return (
                       <button
                         key={entry.item.id}
+                        ref={(node) => {
+                          const domKey = `${entry.kind}:${entryKey}`
+                          if (node) {
+                            launcherItemRefs.current[domKey] = node
+                            return
+                          }
+
+                          delete launcherItemRefs.current[domKey]
+                        }}
                         className={`ms-result-item ${flatIndex === activeIndex ? 'is-active' : ''}`}
                         type="button"
                         onMouseEnter={() => setActiveIndex(flatIndex)}
