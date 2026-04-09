@@ -1095,7 +1095,6 @@ export function MainSearch() {
                       const logoStyle = {
                         '--ms-logo-bg': result.logo.background ?? 'rgba(255, 255, 255, 0.92)',
                       } as CSSProperties
-                      const secondaryHandle = `${result.handle} · ${getPrimaryAlias(result.slashAliases)}`
 
                       return (
                         <button
@@ -1122,11 +1121,8 @@ export function MainSearch() {
                           <span className="ms-result-copy">
                             <span className="ms-result-title-row">
                               <span className="ms-result-title">{result.title}</span>
-                              <span className="ms-result-handle">{secondaryHandle}</span>
                             </span>
                           </span>
-
-                          <span className="ms-result-type">{result.typeLabel}</span>
                         </button>
                       )
                     }
