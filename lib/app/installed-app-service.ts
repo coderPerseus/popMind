@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { homedir, tmpdir } from 'node:os'
 import { promisify } from 'node:util'
@@ -8,10 +8,14 @@ import { mainLogger } from '@/lib/main/logger'
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_RESULT_LIMIT = 8
-const MAX_QUERY_CANDIDATES = 24
+const APPLICATION_INDEX_TTL_MS = 1000 * 60 * 5
 const FALLBACK_FIND_MAX_DEPTH = '3'
-const MDLS_FIELDS = ['kMDItemCFBundleIdentifier', 'kMDItemDisplayName', 'kMDItemFSName'] as const
+const FIND_MAX_BUFFER = 1024 * 1024 * 16
+const LSREGISTER_MAX_BUFFER = 1024 * 1024 * 64
+const LSREGISTER_PATH =
+  '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
 const FALLBACK_APP_DIRECTORIES = ['/Applications', '/System/Applications', join(homedir(), 'Applications')] as const
+const COMMON_BUNDLE_ID_SEGMENTS = new Set(['app', 'com', 'helper', 'macos', 'system'])
 
 type InstalledAppMetadata = {
   name: string
@@ -20,37 +24,29 @@ type InstalledAppMetadata = {
   path: string
 }
 
+type LocalizedNameMap = Record<string, string>
+
+type LaunchServicesBundleRecord = {
+  bundleId: string
+  displayName: string
+  itemName: string
+  localizedNames: LocalizedNameMap
+  localizedShortNames: LocalizedNameMap
+  name: string
+  path: string
+}
+
+type InstalledAppIndexEntry = InstalledAppMetadata & {
+  aliases: string[]
+}
+
 export type InstalledAppSearchResult = InstalledAppMetadata & {
   iconDataUrl: string | null
 }
 
 const normalizeSearchText = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ')
 
-const escapeSpotlightLiteral = (value: string) => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')
-
-const buildSpotlightPattern = (query: string) => {
-  const normalized = normalizeSearchText(query)
-  if (!normalized) {
-    return ''
-  }
-
-  return `*${escapeSpotlightLiteral(normalized).replace(/\s+/g, '*')}*`
-}
-
-const isNestedApplication = (appPath: string) => /\.app\/Contents\/Applications\/.+\.app$/i.test(appPath)
-const matchesAppPathCandidate = (appPath: string, normalizedQuery: string) => {
-  const appName = basename(appPath).replace(/\.app$/i, '')
-  const normalizedName = normalizeSearchText(appName)
-
-  if (scoreField(normalizedName, normalizedQuery) > 0) {
-    return true
-  }
-
-  const compactName = normalizedName.replace(/\s+/g, '')
-  const compactQuery = normalizedQuery.replace(/\s+/g, '')
-
-  return compactQuery.length >= 2 && compactName.includes(compactQuery)
-}
+const isNestedApplication = (appPath: string) => /\.app\/Contents\/.+\.app$/i.test(appPath)
 
 const getIconCandidates = (value: string) => {
   const trimmed = value.trim()
@@ -64,30 +60,6 @@ const getIconCandidates = (value: string) => {
   }
 
   return [`${trimmed}.icns`, `${trimmed}.png`]
-}
-
-const parseMdlsBatchOutput = (stdout: string, paths: string[]) => {
-  const parts = stdout.split('\0')
-  const results: InstalledAppMetadata[] = []
-  const fieldsPerPath = MDLS_FIELDS.length
-
-  for (let index = 0; index < paths.length; index += 1) {
-    const offset = index * fieldsPerPath
-    const bundleId = parts[offset]?.trim()
-    const displayName = parts[offset + 1]?.trim()
-    const fsName = parts[offset + 2]?.trim()
-    const fileName = fsName && fsName !== '(null)' ? fsName : basename(paths[index])
-    const appName = displayName && displayName !== '(null)' ? displayName : fileName.replace(/\.app$/i, '')
-
-    results.push({
-      path: paths[index],
-      name: appName,
-      fileName,
-      bundleId: bundleId && bundleId !== '(null)' ? bundleId : '',
-    })
-  }
-
-  return results
 }
 
 const scoreField = (field: string, query: string) => {
@@ -125,8 +97,213 @@ const scoreField = (field: string, query: string) => {
   return 0
 }
 
+const stripLaunchServicesSuffix = (value: string) => value.replace(/\s+\(0x[0-9a-f]+\)$/i, '').trim()
+
+const parseLocalizedNameMap = (value: string) => {
+  const localizedNames: LocalizedNameMap = {}
+  const regex = /"([^"]+)" = (?:"([^"]*)"|\?)/g
+
+  for (const match of value.matchAll(regex)) {
+    const locale = match[1]?.trim()
+    const localizedValue = match[2]?.trim()
+
+    if (!locale || !localizedValue) {
+      continue
+    }
+
+    localizedNames[locale] = localizedValue
+  }
+
+  return localizedNames
+}
+
+const getPreferredLocaleKeys = () => {
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en'
+  const normalizedLocale = locale.replace('_', '-')
+  const lowerLocale = normalizedLocale.toLowerCase()
+  const keys = new Set<string>([
+    normalizedLocale,
+    normalizedLocale.replace(/-/g, '_'),
+    normalizedLocale.split('-')[0] ?? normalizedLocale,
+  ])
+
+  if (lowerLocale.startsWith('zh-cn') || lowerLocale.startsWith('zh-sg') || lowerLocale === 'zh') {
+    keys.add('zh-Hans')
+    keys.add('zh_CN')
+  }
+
+  if (lowerLocale.startsWith('zh-tw') || lowerLocale.startsWith('zh-hk') || lowerLocale.startsWith('zh-mo')) {
+    keys.add('zh-Hant')
+    keys.add('zh_TW')
+    keys.add('zh_HK')
+  }
+
+  keys.add('en')
+  keys.add('LSDefaultLocalizedValue')
+
+  return [...keys]
+}
+
+const pickPreferredLocalizedName = (shortNames: LocalizedNameMap, names: LocalizedNameMap) => {
+  const localeKeys = getPreferredLocaleKeys()
+
+  for (const localeKey of localeKeys) {
+    const shortName = shortNames[localeKey]?.trim()
+    if (shortName) {
+      return shortName
+    }
+
+    const name = names[localeKey]?.trim()
+    if (name) {
+      return name
+    }
+  }
+
+  return Object.values(shortNames).find(Boolean) || Object.values(names).find(Boolean) || ''
+}
+
+const buildAliasSet = (values: string[]) => {
+  const aliases = new Set<string>()
+
+  for (const value of values) {
+    const normalized = normalizeSearchText(value)
+    if (!normalized) {
+      continue
+    }
+
+    aliases.add(normalized)
+  }
+
+  return aliases
+}
+
+const addBundleIdentifierAliases = (aliases: Set<string>, bundleId: string) => {
+  const normalizedBundleId = normalizeSearchText(bundleId)
+  if (!normalizedBundleId) {
+    return
+  }
+
+  aliases.add(normalizedBundleId)
+
+  for (const segment of normalizedBundleId.split(/[./_-]+/)) {
+    if (segment.length < 2 || COMMON_BUNDLE_ID_SEGMENTS.has(segment)) {
+      continue
+    }
+
+    aliases.add(segment)
+  }
+}
+
+const buildIndexEntry = (
+  appPath: string,
+  metadata: {
+    bundleId?: string
+    displayName?: string
+    fileName?: string
+    itemName?: string
+    localizedNames?: LocalizedNameMap
+    localizedShortNames?: LocalizedNameMap
+    name?: string
+  }
+): InstalledAppIndexEntry => {
+  const fileName = metadata.fileName || basename(appPath)
+  const fileBaseName = fileName.replace(/\.app$/i, '')
+  const displayName = metadata.displayName?.trim() || ''
+  const itemName = metadata.itemName?.trim() || ''
+  const bundleId = metadata.bundleId?.trim() || ''
+  const name = metadata.name?.trim() || ''
+  const localizedNames = metadata.localizedNames ?? {}
+  const localizedShortNames = metadata.localizedShortNames ?? {}
+  const preferredName =
+    pickPreferredLocalizedName(localizedShortNames, localizedNames) || displayName || name || itemName || fileBaseName
+  const aliases = buildAliasSet([
+    preferredName,
+    displayName,
+    name,
+    itemName,
+    fileBaseName,
+    ...Object.values(localizedShortNames),
+    ...Object.values(localizedNames),
+  ])
+
+  addBundleIdentifierAliases(aliases, bundleId)
+
+  return {
+    path: appPath,
+    name: preferredName,
+    fileName,
+    bundleId,
+    aliases: [...aliases],
+  }
+}
+
+const parseLaunchServicesBundleRecord = (block: string): LaunchServicesBundleRecord | null => {
+  let bundleClass = ''
+  let bundleId = ''
+  let displayName = ''
+  let itemName = ''
+  let name = ''
+  let path = ''
+  let localizedNames: LocalizedNameMap = {}
+  let localizedShortNames: LocalizedNameMap = {}
+
+  for (const line of block.split('\n')) {
+    const separatorIndex = line.indexOf(':')
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const key = line.slice(0, separatorIndex).trim()
+    const value = line.slice(separatorIndex + 1).trim()
+
+    switch (key) {
+      case 'class':
+        bundleClass = value
+        break
+      case 'identifier':
+        bundleId = value
+        break
+      case 'displayName':
+        displayName = value
+        break
+      case 'itemName':
+        itemName = value
+        break
+      case 'localizedNames':
+        localizedNames = parseLocalizedNameMap(value)
+        break
+      case 'localizedShortNames':
+        localizedShortNames = parseLocalizedNameMap(value)
+        break
+      case 'name':
+        name = value
+        break
+      case 'path':
+        path = stripLaunchServicesSuffix(value)
+        break
+      default:
+        break
+    }
+  }
+
+  if (!bundleClass.startsWith('kLSBundleClassApplication') || !path.endsWith('.app') || isNestedApplication(path)) {
+    return null
+  }
+
+  return {
+    path,
+    bundleId,
+    name,
+    displayName,
+    itemName,
+    localizedNames,
+    localizedShortNames,
+  }
+}
+
 class InstalledAppService {
   private iconCache = new Map<string, Promise<string | null>>()
+  private applicationIndexCache: { expiresAt: number; promise: Promise<InstalledAppIndexEntry[]> } | null = null
 
   async search(query: string, limit = DEFAULT_RESULT_LIMIT): Promise<InstalledAppSearchResult[]> {
     if (process.platform !== 'darwin') {
@@ -138,13 +315,8 @@ class InstalledAppService {
       return []
     }
 
-    const candidatePaths = await this.findCandidatePaths(normalizedQuery)
-    if (!candidatePaths.length) {
-      return []
-    }
-
-    const metadata = await this.readMetadataBatch(candidatePaths.slice(0, MAX_QUERY_CANDIDATES))
-    const ranked = metadata
+    const indexedApplications = await this.getIndexedApplications()
+    const ranked = indexedApplications
       .map((item) => ({
         item,
         score: this.scoreResult(item, normalizedQuery),
@@ -155,63 +327,80 @@ class InstalledAppService {
 
     return Promise.all(
       ranked.map(async ({ item }) => ({
-        ...item,
+        path: item.path,
+        name: item.name,
+        fileName: item.fileName,
+        bundleId: item.bundleId,
         iconDataUrl: await this.getIconDataUrl(item.path),
       }))
     )
   }
 
-  private async findCandidatePaths(query: string) {
-    const pattern = buildSpotlightPattern(query)
-    if (!pattern) {
-      return []
-    }
-
-    const expression = [
-      `kMDItemContentType == 'com.apple.application-bundle'`,
-      `&&`,
-      `(`,
-      `kMDItemDisplayName == "${pattern}"cd`,
-      `|| kMDItemFSName == "${pattern}"cd`,
-      `|| kMDItemCFBundleIdentifier == "${pattern}"cd`,
-      `)`,
-    ].join(' ')
-
-    try {
-      const { stdout } = await execFileAsync('mdfind', [expression], {
-        encoding: 'utf8',
-        maxBuffer: 1024 * 1024 * 8,
-      })
-
-      const paths = [
-        ...new Set(
-          stdout
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .filter((appPath) => !isNestedApplication(appPath))
-        ),
-      ]
-
-      if (paths.length) {
-        return paths
-      }
-
-      mainLogger.info('[installed-app-service] spotlight search returned no results, falling back to filesystem scan', {
-        query,
-      })
-      return this.findCandidatePathsFromFilesystem(query)
-    } catch (error) {
-      mainLogger.error('[installed-app-service] mdfind failed', { query, error })
-      return this.findCandidatePathsFromFilesystem(query)
-    }
+  private scoreResult(item: InstalledAppIndexEntry, normalizedQuery: string) {
+    return item.aliases.reduce((best, alias) => Math.max(best, scoreField(alias, normalizedQuery)), 0)
   }
 
-  private async findCandidatePathsFromFilesystem(query: string) {
-    const searchDirectories = await Promise.all(
-      FALLBACK_APP_DIRECTORIES.map(async (directory) => ((await this.pathExists(directory)) ? directory : null))
-    ).then((directories) => directories.filter((directory): directory is string => Boolean(directory)))
+  private async getIndexedApplications() {
+    const now = Date.now()
+    if (this.applicationIndexCache && this.applicationIndexCache.expiresAt > now) {
+      return this.applicationIndexCache.promise
+    }
 
+    const promise = this.loadIndexedApplications().catch((error) => {
+      mainLogger.warn('[installed-app-service] application index build failed', { error })
+      if (this.applicationIndexCache?.promise === promise) {
+        this.applicationIndexCache = null
+      }
+      return []
+    })
+
+    this.applicationIndexCache = {
+      expiresAt: now + APPLICATION_INDEX_TTL_MS,
+      promise,
+    }
+
+    return promise
+  }
+
+  private async loadIndexedApplications() {
+    const [filesystemPaths, launchServicesRecords] = await Promise.all([
+      this.listFilesystemApplicationPaths(),
+      this.readLaunchServicesRecords(),
+    ])
+
+    const launchServicesMap = new Map(launchServicesRecords.map((record) => [record.path, record]))
+    const entries = await Promise.all(
+      filesystemPaths.map(async (appPath) => {
+        const launchServicesRecord = launchServicesMap.get(appPath)
+        if (launchServicesRecord) {
+          return buildIndexEntry(appPath, {
+            bundleId: launchServicesRecord.bundleId,
+            displayName: launchServicesRecord.displayName,
+            fileName: basename(appPath),
+            itemName: launchServicesRecord.itemName,
+            localizedNames: launchServicesRecord.localizedNames,
+            localizedShortNames: launchServicesRecord.localizedShortNames,
+            name: launchServicesRecord.name,
+          })
+        }
+
+        return this.readBundleMetadataFallback(appPath)
+      })
+    )
+
+    return entries
+  }
+
+  private async getSearchDirectories() {
+    const directories = await Promise.all(
+      FALLBACK_APP_DIRECTORIES.map(async (directory) => ((await this.pathExists(directory)) ? directory : null))
+    )
+
+    return directories.filter((directory): directory is string => Boolean(directory))
+  }
+
+  private async listFilesystemApplicationPaths() {
+    const searchDirectories = await this.getSearchDirectories()
     if (!searchDirectories.length) {
       return []
     }
@@ -224,7 +413,7 @@ class InstalledAppService {
             [directory, '-maxdepth', FALLBACK_FIND_MAX_DEPTH, '-type', 'd', '-name', '*.app'],
             {
               encoding: 'utf8',
-              maxBuffer: 1024 * 1024 * 16,
+              maxBuffer: FIND_MAX_BUFFER,
             }
           )
 
@@ -233,9 +422,8 @@ class InstalledAppService {
             .map((line) => line.trim())
             .filter(Boolean)
             .filter((appPath) => !isNestedApplication(appPath))
-            .filter((appPath) => matchesAppPathCandidate(appPath, query))
         } catch (error) {
-          mainLogger.warn('[installed-app-service] filesystem app search failed', { directory, error })
+          mainLogger.warn('[installed-app-service] filesystem app enumeration failed', { directory, error })
           return []
         }
       })
@@ -244,33 +432,84 @@ class InstalledAppService {
     return [...new Set(pathSets.flat())]
   }
 
-  private async readMetadataBatch(paths: string[]) {
-    if (!paths.length) {
-      return []
-    }
-
-    const args = MDLS_FIELDS.flatMap((field) => ['-raw', '-name', field]).concat(paths)
-
+  private async readLaunchServicesRecords() {
     try {
-      const { stdout } = await execFileAsync('mdls', args, {
+      const { stdout } = await execFileAsync(LSREGISTER_PATH, ['-dump', 'Bundle'], {
         encoding: 'utf8',
-        maxBuffer: 1024 * 1024 * 8,
+        maxBuffer: LSREGISTER_MAX_BUFFER,
       })
 
-      return parseMdlsBatchOutput(stdout, paths)
+      return stdout
+        .split(/\n-{20,}\n/g)
+        .map((block) => parseLaunchServicesBundleRecord(block))
+        .filter((record): record is LaunchServicesBundleRecord => Boolean(record))
     } catch (error) {
-      mainLogger.error('[installed-app-service] mdls failed', { paths, error })
+      mainLogger.warn('[installed-app-service] launch services dump failed', { error })
       return []
     }
   }
 
-  private scoreResult(item: InstalledAppMetadata, normalizedQuery: string) {
-    const fileBaseName = item.fileName.replace(/\.app$/i, '')
-    return (
-      scoreField(normalizeSearchText(item.name), normalizedQuery) +
-      scoreField(normalizeSearchText(fileBaseName), normalizedQuery) +
-      scoreField(normalizeSearchText(item.bundleId), normalizedQuery)
-    )
+  private async readBundleMetadataFallback(appPath: string) {
+    const infoPlistPath = join(appPath, 'Contents', 'Info.plist')
+    const [info, localizedNames] = await Promise.all([
+      this.readPlistObject(infoPlistPath),
+      this.readLocalizedBundleNames(appPath),
+    ])
+
+    return buildIndexEntry(appPath, {
+      bundleId: typeof info?.CFBundleIdentifier === 'string' ? info.CFBundleIdentifier : '',
+      displayName: typeof info?.CFBundleDisplayName === 'string' ? info.CFBundleDisplayName : '',
+      fileName: basename(appPath),
+      localizedNames,
+      name: typeof info?.CFBundleName === 'string' ? info.CFBundleName : '',
+      itemName: typeof info?.CFBundleExecutable === 'string' ? info.CFBundleExecutable : '',
+    })
+  }
+
+  private async readLocalizedBundleNames(appPath: string) {
+    const resourcesDirectory = join(appPath, 'Contents', 'Resources')
+    if (!(await this.pathExists(resourcesDirectory))) {
+      return {}
+    }
+
+    try {
+      const entries = await readdir(resourcesDirectory, { withFileTypes: true })
+      const localizedValues = await Promise.all(
+        entries
+          .filter((entry) => entry.isDirectory() && entry.name.endsWith('.lproj'))
+          .map(async (entry) => {
+            const locale = entry.name.replace(/\.lproj$/i, '')
+            const stringsPath = join(resourcesDirectory, entry.name, 'InfoPlist.strings')
+            const info = await this.readPlistObject(stringsPath)
+            const value =
+              (typeof info?.CFBundleDisplayName === 'string' && info.CFBundleDisplayName) ||
+              (typeof info?.CFBundleName === 'string' && info.CFBundleName) ||
+              ''
+
+            return value ? [locale, value] : null
+          })
+      )
+
+      return Object.fromEntries(
+        localizedValues.filter((entry): entry is [string, string] => Array.isArray(entry) && entry.length === 2)
+      )
+    } catch (error) {
+      mainLogger.warn('[installed-app-service] localized bundle name read failed', { appPath, error })
+      return {}
+    }
+  }
+
+  private async readPlistObject(filePath: string) {
+    try {
+      const { stdout } = await execFileAsync('plutil', ['-convert', 'json', '-o', '-', filePath], {
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024 * 4,
+      })
+
+      return JSON.parse(stdout) as Record<string, unknown>
+    } catch {
+      return null
+    }
   }
 
   private getIconDataUrl(appPath: string) {
