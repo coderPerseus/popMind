@@ -4,7 +4,12 @@ import { capabilityService } from '@/lib/capability/service'
 import { translateMessage } from '@/lib/i18n/shared'
 import { mainLogger } from '@/lib/main/logger'
 import { webSearchService } from '@/lib/web-search/service'
-import { buildExplainPrompt, buildExplainSystemPrompt } from '@/lib/selection-chat/prompt'
+import {
+  buildChatPrompt,
+  buildChatSystemPrompt,
+  buildExplainPrompt,
+  buildExplainSystemPrompt,
+} from '@/lib/selection-chat/prompt'
 import type { ExplainResult, RunExplainInput } from './types'
 
 const createSmoothTransform = (language: ExplainResult['language']) => {
@@ -26,6 +31,8 @@ const shouldRetryWithoutImage = (error: unknown, hasPartialText: boolean) => {
 }
 
 export const runExplain = async ({
+  mode = 'explain',
+  providerId,
   selectionText,
   messages,
   sourceAppName,
@@ -34,7 +41,7 @@ export const runExplain = async ({
   onChunk,
 }: RunExplainInput): Promise<ExplainResult> => {
   const settings = await capabilityService.getSettings()
-  const model = createLanguageModel(settings)
+  const model = createLanguageModel(settings, providerId)
   if (!model) {
     throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
   }
@@ -59,6 +66,7 @@ export const runExplain = async ({
   }
 
   let text = ''
+  const systemPrompt = mode === 'chat' ? buildChatSystemPrompt(settings.appLanguage) : buildExplainSystemPrompt(settings.appLanguage)
   const executeExplainRequest = async (includeImage: boolean) => {
     mainLogger.info('[ExplainRunner] request', {
       providerId: model.providerId,
@@ -72,21 +80,29 @@ export const runExplain = async ({
       model: model.model,
       abortSignal: signal,
       experimental_transform: createSmoothTransform(settings.appLanguage),
-      system: buildExplainSystemPrompt(settings.appLanguage),
+      system: systemPrompt,
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: buildExplainPrompt({
-                language: settings.appLanguage,
-                selectionText,
-                messages,
-                searchResults,
-                sourceAppName,
-                hasImageContext: includeImage,
-              }),
+              text:
+                mode === 'chat'
+                  ? buildChatPrompt({
+                      language: settings.appLanguage,
+                      selectionText,
+                      messages,
+                      searchResults,
+                    })
+                  : buildExplainPrompt({
+                      language: settings.appLanguage,
+                      selectionText,
+                      messages,
+                      searchResults,
+                      sourceAppName,
+                      hasImageContext: includeImage,
+                    }),
             },
             ...(includeImage && contextImage
               ? [

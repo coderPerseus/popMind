@@ -1,6 +1,12 @@
 import { app } from 'electron'
 import { join } from 'node:path'
-import type { AppLanguage, CapabilitySettings, CapabilitySettingsPatch, LegacyTranslationSettings } from './types'
+import type {
+  AppLanguage,
+  CapabilitySettings,
+  CapabilitySettingsPatch,
+  LegacyTranslationSettings,
+  LocalGemmaConfig,
+} from './types'
 
 export const capabilitySettingsFileName = 'capability-settings.json'
 export const legacyTranslationSettingsFileName = 'translation-settings.json'
@@ -15,6 +21,36 @@ const defaultWebSearchProviderConfig = {
   apiKey: '',
 }
 
+const defaultLocalGemmaConfig: LocalGemmaConfig = {
+  enabled: false,
+  apiKey: 'local',
+  baseURL: 'http://127.0.0.1:1234/v1',
+  model: '',
+}
+
+const mergeLocalGemmaConfig = (
+  previous: LocalGemmaConfig,
+  patch?: Partial<LocalGemmaConfig>,
+  fallbackProviderPatch?: Partial<{ apiKey?: string; baseURL?: string; model?: string }>
+) => {
+  const next = {
+    ...previous,
+    ...patch,
+  }
+
+  if (!patch && fallbackProviderPatch) {
+    next.apiKey = fallbackProviderPatch.apiKey ?? next.apiKey
+    next.baseURL = fallbackProviderPatch.baseURL ?? next.baseURL
+    next.model = fallbackProviderPatch.model ?? next.model
+
+    if (fallbackProviderPatch.apiKey || fallbackProviderPatch.baseURL || fallbackProviderPatch.model) {
+      next.enabled = Boolean(next.apiKey.trim() && next.baseURL.trim() && next.model.trim())
+    }
+  }
+
+  return next
+}
+
 export const defaultCapabilitySettings: CapabilitySettings = {
   appLanguage: 'zh-CN',
   enabledEngines: {
@@ -23,6 +59,7 @@ export const defaultCapabilitySettings: CapabilitySettings = {
     bing: false,
     youdao: false,
     ai: false,
+    gemma: false,
   },
   firstLanguage: 'en',
   secondLanguage: 'zh-CN',
@@ -35,7 +72,11 @@ export const defaultCapabilitySettings: CapabilitySettings = {
       google: { ...defaultAiProviderConfig },
       kimi: { ...defaultAiProviderConfig, baseURL: 'https://api.moonshot.cn/v1' },
       deepseek: { ...defaultAiProviderConfig, baseURL: 'https://api.deepseek.com', model: 'deepseek-chat' },
+      gemma: { ...defaultAiProviderConfig, apiKey: 'local', baseURL: 'http://127.0.0.1:1234/v1', model: 'gemma-4-e4b-it' },
     },
+  },
+  localModels: {
+    gemma: { ...defaultLocalGemmaConfig },
   },
   webSearch: {
     enabled: false,
@@ -68,6 +109,7 @@ const normalizeEnabledEngines = (options: {
     bing: patch?.bing ?? previous?.bing ?? false,
     youdao: patch?.youdao ?? previous?.youdao ?? false,
     ai: aiEnabled,
+    gemma: patch?.gemma ?? previous?.gemma ?? false,
   }
 }
 
@@ -89,6 +131,12 @@ export const mergeCapabilitySettings = (
   previous: CapabilitySettings,
   patch: Partial<CapabilitySettings> | CapabilitySettingsPatch
 ): CapabilitySettings => {
+  const nextLocalGemma = mergeLocalGemmaConfig(
+    previous.localModels.gemma,
+    patch.localModels?.gemma,
+    patch.aiService?.providers?.gemma
+  )
+
   return {
     ...previous,
     ...patch,
@@ -124,7 +172,19 @@ export const mergeCapabilitySettings = (
           ...previous.aiService.providers.deepseek,
           ...patch.aiService?.providers?.deepseek,
         },
+        gemma: {
+          ...previous.aiService.providers.gemma,
+          ...patch.aiService?.providers?.gemma,
+          apiKey: nextLocalGemma.apiKey,
+          baseURL: nextLocalGemma.baseURL,
+          model: nextLocalGemma.model,
+        },
       },
+    },
+    localModels: {
+      ...previous.localModels,
+      ...patch.localModels,
+      gemma: nextLocalGemma,
     },
     webSearch: {
       ...previous.webSearch,

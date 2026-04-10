@@ -5,7 +5,8 @@ import { translateMessage } from '@/lib/i18n/shared'
 import { searchHistoryService } from '@/lib/search-history/service'
 import type { ExplainHistoryMessage } from '@/lib/search-history/types'
 import { runExplain } from './runner'
-import type { ExplainConversationMessage, ExplainSession, ExplainSessionMessage } from './types'
+import type { ExplainConversationMessage, ExplainSession, ExplainSessionMessage, ExplainSessionMode } from './types'
+import type { AiProviderId } from '@/lib/capability/types'
 
 const createMessage = (role: 'user' | 'assistant', text = ''): ExplainSessionMessage => ({
   id: randomUUID(),
@@ -35,7 +36,12 @@ export class MainExplainSessionService {
     }
   }
 
-  private setMissingAiConfigState(selectionText: string, language: 'zh-CN' | 'en') {
+  private setMissingAiConfigState(
+    selectionText: string,
+    language: 'zh-CN' | 'en',
+    mode: ExplainSessionMode,
+    providerId?: AiProviderId
+  ) {
     const firstUserMessage = createMessage('user', selectionText.trim())
     if (!firstUserMessage.text) {
       this.session = null
@@ -45,6 +51,8 @@ export class MainExplainSessionService {
 
     this.session = {
       id: randomUUID(),
+      mode,
+      providerId,
       selectionText: firstUserMessage.text,
       messages: [firstUserMessage],
       status: 'error',
@@ -55,11 +63,11 @@ export class MainExplainSessionService {
     return this.session
   }
 
-  async startSession(selectionText: string) {
+  async startSession(selectionText: string, mode: ExplainSessionMode = 'explain', providerId?: AiProviderId) {
     const settings = await capabilityService.getSettings()
-    const model = createLanguageModel(settings)
+    const model = createLanguageModel(settings, providerId)
     if (!model) {
-      return this.setMissingAiConfigState(selectionText, settings.appLanguage)
+      return this.setMissingAiConfigState(selectionText, settings.appLanguage, mode, providerId)
     }
 
     const firstUserMessage = createMessage('user', selectionText.trim())
@@ -71,6 +79,8 @@ export class MainExplainSessionService {
 
     this.session = {
       id: randomUUID(),
+      mode,
+      providerId,
       selectionText: firstUserMessage.text,
       messages: [firstUserMessage],
       status: 'ready',
@@ -159,7 +169,7 @@ export class MainExplainSessionService {
       return
     }
 
-    const model = createLanguageModel(settings)
+    const model = createLanguageModel(settings, this.session.providerId)
     if (!model) {
       throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
     }
@@ -186,6 +196,8 @@ export class MainExplainSessionService {
 
     try {
       const result = await runExplain({
+        mode: this.session.mode,
+        providerId: this.session.providerId,
         selectionText: this.session.selectionText,
         messages: conversationMessages.map((message) => ({
           role: message.role,

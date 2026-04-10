@@ -8,7 +8,7 @@ import { useI18n } from '@/app/i18n'
 import type { ExplainSession, ExplainSessionMessage } from '@/lib/explain/types'
 
 type ExplainCardProps = {
-  command: MainSearchCommand & { kind: 'explain' }
+  command: MainSearchCommand & { kind: 'explain' | 'gemma' }
   session: ExplainSession | null
   onReexplain: () => void
   onSubmitFollowup: (text: string) => Promise<boolean> | boolean
@@ -33,6 +33,30 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
   const topbarMeta = [session?.aiProvider, session?.modelId, session?.webSearchProvider].filter(Boolean).join(' · ')
   const visibleMessages = session?.messages.filter((message, index) => !(index === 0 && message.role === 'user')) ?? []
   const latestAssistantMessageId = [...visibleMessages].reverse().find((message) => message.role === 'assistant')?.id
+  const isChatMode = command.kind === 'gemma' || session?.mode === 'chat'
+  const eyebrowTitle = isChatMode ? 'Gemma' : language === 'en' ? 'Explanation' : '解释卡片'
+  const queryPlaceholder = isChatMode
+    ? language === 'en'
+      ? 'Enter your message'
+      : '输入想聊的内容'
+    : language === 'en'
+      ? 'Enter text to explain'
+      : '输入要解释的文本'
+  const streamingLabel = isChatMode ? (language === 'en' ? 'Thinking' : '思考中') : language === 'en' ? 'Explaining' : '解释中'
+  const idleHint = isChatMode
+    ? language === 'en'
+      ? 'Press Enter to start chatting'
+      : '按回车开始对话'
+    : language === 'en'
+      ? 'Press Enter to start asking'
+      : '按回车开始提问'
+  const composerPlaceholder = isChatMode
+    ? language === 'en'
+      ? 'Continue chatting…'
+      : '继续聊…'
+    : language === 'en'
+      ? 'Ask a follow-up…'
+      : '继续提问…'
 
   const resizeComposer = () => {
     const composer = composerRef.current
@@ -121,7 +145,7 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
     if (!session) {
       setDraft('')
     }
-  }, [session?.id])
+  }, [session, session?.id])
 
   const submit = async () => {
     const message = draft.trim()
@@ -159,17 +183,15 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
       <section className={`ms-explain-command-card ${session?.status === 'error' ? 'is-error' : ''}`}>
         <div className="ms-explain-command-head">
           <div className="ms-explain-command-head-copy">
-            <div className="ms-explain-command-eyebrow">{language === 'en' ? 'Explanation' : '解释卡片'}</div>
-            <div className="ms-explain-command-query">
-              {command.text || (language === 'en' ? 'Enter text to explain' : '输入要解释的文本')}
-            </div>
+            <div className="ms-explain-command-eyebrow">{eyebrowTitle}</div>
+            <div className="ms-explain-command-query">{command.text || queryPlaceholder}</div>
           </div>
 
           <div className="ms-explain-command-meta-wrap">
             {isStreaming ? (
               <div className="ms-explain-command-status">
                 <LoaderCircle size={13} className="ms-translate-command-spin" />
-                <span>{language === 'en' ? 'Explaining' : '解释中'}</span>
+                <span>{streamingLabel}</span>
               </div>
             ) : topbarMeta ? (
               <div className="ms-explain-command-meta">
@@ -183,9 +205,7 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
 
         {!session ? (
           <div className="ms-explain-command-body is-placeholder">
-            <div className="ms-explain-command-plain">
-              {language === 'en' ? 'Press Enter to start asking' : '按回车开始提问'}
-            </div>
+            <div className="ms-explain-command-plain">{idleHint}</div>
           </div>
         ) : (
           <>
@@ -247,7 +267,7 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
               rows={1}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder={language === 'en' ? 'Ask a follow-up…' : '继续提问…'}
+              placeholder={composerPlaceholder}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault()

@@ -1,5 +1,6 @@
 import { MainExplainChannel } from '@/lib/explain/shared'
-import type { MainExplainState } from '@/lib/explain/types'
+import type { MainExplainState, ExplainSessionMode } from '@/lib/explain/types'
+import type { AiProviderId } from '@/lib/capability/types'
 import { ConveyorApi } from '@/lib/preload/shared'
 
 export class ExplainApi extends ConveyorApi {
@@ -13,7 +14,8 @@ export class ExplainApi extends ConveyorApi {
   }
 
   getState = () => this.invoke('explain-get-state')
-  startSession = (selectionText: string) => this.invoke('explain-start', selectionText)
+  startSession = (selectionText: string, mode: ExplainSessionMode = 'explain', providerId?: AiProviderId) =>
+    this.invoke('explain-start', selectionText, mode, providerId)
   submitMessage = (message: string) => this.invoke('explain-submit', message)
   regenerate = () => this.invoke('explain-regenerate')
   stop = () => this.invoke('explain-stop')

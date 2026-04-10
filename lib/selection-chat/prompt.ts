@@ -9,6 +9,31 @@ export const buildExplainSystemPrompt = (language: AppLanguage) => {
   })
 }
 
+export const buildChatSystemPrompt = (language: AppLanguage) => {
+  return translateMessage(language, 'prompt.chat.system', {
+    languageLabel: formatLanguageLabel(language),
+  })
+}
+
+const splitConversation = (selectionText: string, messages: ExplainConversationMessage[]) => {
+  const normalizedSelectionText = selectionText.trim()
+  const normalizedMessages = messages.filter(
+    (message, index) => !(index === 0 && message.role === 'user' && message.text.trim() === normalizedSelectionText)
+  )
+  const latestUserMessageIndex = [...normalizedMessages].map((message) => message.role).lastIndexOf('user')
+  const latestUserQuestion =
+    latestUserMessageIndex >= 0 ? normalizedMessages[latestUserMessageIndex]?.text.trim() ?? '' : ''
+  const historyMessages =
+    latestUserMessageIndex >= 0
+      ? normalizedMessages.filter((_message, index) => index !== latestUserMessageIndex)
+      : normalizedMessages
+
+  return {
+    historyMessages,
+    latestUserQuestion,
+  }
+}
+
 export const buildExplainPrompt = ({
   language,
   selectionText,
@@ -25,17 +50,7 @@ export const buildExplainPrompt = ({
   hasImageContext?: boolean
 }) => {
   const sections = []
-  const normalizedSelectionText = selectionText.trim()
-  const normalizedMessages = messages.filter(
-    (message, index) => !(index === 0 && message.role === 'user' && message.text.trim() === normalizedSelectionText)
-  )
-  const latestUserMessageIndex = [...normalizedMessages].map((message) => message.role).lastIndexOf('user')
-  const latestUserQuestion =
-    latestUserMessageIndex >= 0 ? normalizedMessages[latestUserMessageIndex]?.text.trim() ?? '' : ''
-  const historyMessages =
-    latestUserMessageIndex >= 0
-      ? normalizedMessages.filter((_message, index) => index !== latestUserMessageIndex)
-      : normalizedMessages
+  const { historyMessages, latestUserQuestion } = splitConversation(selectionText, messages)
 
   if (sourceAppName?.trim()) {
     sections.push(`Current application:\n${sourceAppName.trim()}`)
@@ -65,6 +80,46 @@ export const buildExplainPrompt = ({
   if (searchResults.length > 0) {
     sections.push(
       translateMessage(language, 'prompt.explain.user.search', {
+        context: searchResults
+          .map((item, index) => `${index + 1}. ${item.title}\n${item.url}\n${item.snippet}`)
+          .join('\n\n'),
+      })
+    )
+  }
+
+  return sections.join('\n\n')
+}
+
+export const buildChatPrompt = ({
+  language,
+  selectionText,
+  messages,
+  searchResults,
+}: {
+  language: AppLanguage
+  selectionText: string
+  messages: ExplainConversationMessage[]
+  searchResults: WebSearchResult[]
+}) => {
+  const sections = [translateMessage(language, 'prompt.chat.user.query', { query: selectionText })]
+  const { historyMessages, latestUserQuestion } = splitConversation(selectionText, messages)
+
+  if (historyMessages.length > 0) {
+    sections.push(
+      [
+        'Conversation history:',
+        ...historyMessages.map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.text}`),
+      ].join('\n')
+    )
+  }
+
+  if (latestUserQuestion) {
+    sections.push(translateMessage(language, 'prompt.chat.user.followup', { question: latestUserQuestion }))
+  }
+
+  if (searchResults.length > 0) {
+    sections.push(
+      translateMessage(language, 'prompt.chat.user.search', {
         context: searchResults
           .map((item, index) => `${index + 1}. ${item.title}\n${item.url}\n${item.snippet}`)
           .join('\n\n'),

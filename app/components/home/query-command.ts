@@ -2,10 +2,11 @@ export type MainSearchCommand =
   | { kind: 'none' }
   | { kind: 'translate'; id: string; trigger: string; text: string }
   | { kind: 'explain'; id: string; trigger: string; text: string }
+  | { kind: 'gemma'; id: string; trigger: string; text: string }
   | { kind: 'plugin'; id: string; trigger: string; text: string }
 
 export type MainSearchSlashEntry = {
-  kind: 'translate' | 'explain' | 'plugin'
+  kind: 'translate' | 'explain' | 'gemma' | 'plugin'
   id: string
   aliases: string[]
 }

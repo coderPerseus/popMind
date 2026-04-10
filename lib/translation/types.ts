@@ -1,6 +1,6 @@
 import type { CapabilitySettings, CapabilitySettingsPatch } from '@/lib/capability/types'
 
-export type TranslationEngineId = 'google' | 'deepl' | 'bing' | 'youdao' | 'ai'
+export type TranslationEngineId = 'google' | 'deepl' | 'bing' | 'youdao' | 'ai' | 'gemma'
 export type TranslationQueryMode = 'text' | 'word'
 
 export type TranslationSettings = CapabilitySettings

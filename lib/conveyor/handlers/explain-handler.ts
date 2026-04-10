@@ -1,6 +1,8 @@
 import { BrowserWindow } from 'electron'
 import { mainExplainSessionService } from '@/lib/explain/main-session-service'
 import { MainExplainChannel } from '@/lib/explain/shared'
+import type { ExplainSessionMode } from '@/lib/explain/types'
+import type { AiProviderId } from '@/lib/capability/types'
 import { handle } from '@/lib/main/shared'
 
 const emitState = () => {
@@ -18,8 +20,8 @@ export const registerExplainHandlers = () => {
   })
 
   handle('explain-get-state', () => ({ session: mainExplainSessionService.getState() }))
-  handle('explain-start', async (selectionText: string) => {
-    await mainExplainSessionService.startSession(selectionText)
+  handle('explain-start', async (selectionText: string, mode: ExplainSessionMode = 'explain', providerId?: AiProviderId) => {
+    await mainExplainSessionService.startSession(selectionText, mode, providerId)
     return { ok: true }
   })
   handle('explain-submit', async (message: string) => {

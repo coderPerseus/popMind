@@ -4,6 +4,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, openai } from '@ai-sdk/openai'
 import type { LanguageModel } from 'ai'
 import type { AiProviderId, CapabilitySettings } from '@/lib/capability/types'
+import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
 
 const DEFAULT_MODELS: Record<AiProviderId, string> = {
   openai: 'gpt-5-mini',
@@ -11,6 +12,7 @@ const DEFAULT_MODELS: Record<AiProviderId, string> = {
   google: 'gemini-2.5-flash',
   kimi: 'moonshot-v1-8k',
   deepseek: 'deepseek-chat',
+  gemma: 'gemma-4-e4b-it',
 }
 
 const DEFAULT_CONTEXT_LIMITS: Record<AiProviderId, number> = {
@@ -19,6 +21,7 @@ const DEFAULT_CONTEXT_LIMITS: Record<AiProviderId, number> = {
   google: 128_000,
   kimi: 128_000,
   deepseek: 64_000,
+  gemma: 32_000,
 }
 
 const trimOptional = (value?: string) => value?.trim() || undefined
@@ -59,13 +62,17 @@ const shouldUseOpenAIChatApi = (baseURL?: string) => {
   }
 }
 
-export const resolveAiProviderConfig = (settings: CapabilitySettings) => {
-  const providerId = settings.aiService.activeProvider
+export const resolveAiProviderConfig = (settings: CapabilitySettings, preferredProviderId?: AiProviderId) => {
+  const providerId = preferredProviderId ?? settings.aiService.activeProvider
   if (!providerId) {
     return null
   }
 
-  const config = settings.aiService.providers[providerId]
+  const config = providerId === 'gemma' ? settings.localModels.gemma : settings.aiService.providers[providerId]
+  if (providerId === 'gemma' && !isLocalGemmaConfigured(settings)) {
+    return null
+  }
+
   if (!config?.apiKey.trim()) {
     return null
   }
@@ -111,17 +118,21 @@ export const supportsImageInput = (providerId: AiProviderId, modelId: string) =>
     return /(vision|vl|image)/.test(normalized)
   }
 
+  if (providerId === 'gemma') {
+    return /(vision|vl|image|multimodal|gemma-3n|gemma-4)/.test(normalized)
+  }
+
   return /(vision|vl)/.test(normalized)
 }
 
-export const createLanguageModel = (settings: CapabilitySettings): {
+export const createLanguageModel = (settings: CapabilitySettings, preferredProviderId?: AiProviderId): {
   providerId: AiProviderId
   modelId: string
   contextLimit: number
   supportsImageInput: boolean
   model: LanguageModel
 } | null => {
-  const resolved = resolveAiProviderConfig(settings)
+  const resolved = resolveAiProviderConfig(settings, preferredProviderId)
   if (!resolved) {
     return null
   }
@@ -198,6 +209,23 @@ export const createLanguageModel = (settings: CapabilitySettings): {
       contextLimit,
       supportsImageInput: supportsImageInput(providerId, modelId),
       model: provider(modelId),
+    }
+  }
+
+  if (providerId === 'gemma') {
+    const normalizedBaseURL = normalizeOpenAIBaseURL(trimOptional(config.baseURL) || 'http://127.0.0.1:1234/v1')
+    const provider = createOpenAI({
+      apiKey: trimOptional(config.apiKey) || 'local',
+      baseURL: normalizedBaseURL,
+      name: 'gemma-openai-compatible',
+    })
+
+    return {
+      providerId,
+      modelId,
+      contextLimit,
+      supportsImageInput: supportsImageInput(providerId, modelId),
+      model: provider.chat(modelId),
     }
   }
 

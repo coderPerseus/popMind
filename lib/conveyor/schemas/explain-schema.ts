@@ -18,11 +18,13 @@ const explainSessionMessageSchema = z.object({
 
 const explainSessionSchema = z.object({
   id: z.string(),
+  mode: z.enum(['explain', 'chat']),
+  providerId: z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma']).optional(),
   selectionText: z.string(),
   messages: z.array(explainSessionMessageSchema),
   status: z.enum(['idle', 'searching', 'streaming', 'ready', 'error']),
   language: z.enum(['zh-CN', 'en']),
-  aiProvider: z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek']).optional(),
+  aiProvider: z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma']).optional(),
   modelId: z.string().optional(),
   webSearchProvider: z.enum(['tavily', 'serper', 'brave', 'jina']).optional(),
   errorMessage: z.string().optional(),
@@ -39,7 +41,7 @@ export const explainIpcSchema = {
     return: explainStateSchema,
   },
   'explain-start': {
-    args: z.tuple([z.string()]),
+    args: z.tuple([z.string(), z.enum(['explain', 'chat']).optional(), z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma']).optional()]),
     return: z.object({ ok: z.boolean() }),
   },
   'explain-submit': {

@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
-import type { MainExplainState } from '@/lib/explain/types'
+import type { MainExplainState, ExplainSessionMode } from '@/lib/explain/types'
+import type { AiProviderId } from '@/lib/capability/types'
 
 const emptyState: MainExplainState = {
   session: null,
 }
 
-export function useExplainCommand(command: MainSearchCommand) {
+const useMainAiCommand = (
+  command: MainSearchCommand,
+  commandKind: Extract<MainSearchCommand, { kind: 'explain' | 'gemma' }>['kind'],
+  sessionMode: ExplainSessionMode,
+  providerId?: AiProviderId
+) => {
   const explain = useConveyor('explain')
   const [state, setState] = useState<MainExplainState>(emptyState)
 
-  const isActive = command.kind === 'explain'
+  const isActive = command.kind === commandKind
 
   useEffect(() => {
     let mounted = true
@@ -31,31 +37,33 @@ export function useExplainCommand(command: MainSearchCommand) {
   }, [explain])
 
   useEffect(() => {
-    if (!isActive || command.kind !== 'explain') {
-      void explain.reset()
-      return
-    }
-
-    const nextQuery = command.text.trim()
-    if (!nextQuery) {
-      if (state.session) {
+    if (!isActive || command.kind !== commandKind) {
+      if (state.session?.mode === sessionMode) {
         void explain.reset()
       }
       return
     }
 
-    if (state.session && state.session.selectionText !== nextQuery) {
-      void explain.reset()
-    }
-  }, [command, explain, isActive, state.session])
-
-  const runImmediately = useCallback(() => {
-    if (command.kind !== 'explain' || !command.text.trim()) {
+    const nextQuery = command.text.trim()
+    if (!nextQuery) {
+      if (state.session?.mode === sessionMode) {
+        void explain.reset()
+      }
       return
     }
 
-    void explain.startSession(command.text.trim())
-  }, [command, explain])
+    if (state.session && (state.session.mode !== sessionMode || state.session.selectionText !== nextQuery)) {
+      void explain.reset()
+    }
+  }, [command, commandKind, explain, isActive, sessionMode, state.session])
+
+  const runImmediately = useCallback(() => {
+    if (command.kind !== commandKind || !command.text.trim()) {
+      return
+    }
+
+    void explain.startSession(command.text.trim(), sessionMode, providerId)
+  }, [command, commandKind, explain, providerId, sessionMode])
 
   const submitFollowup = useCallback(
     async (text: string) => {
@@ -76,10 +84,10 @@ export function useExplainCommand(command: MainSearchCommand) {
       return
     }
 
-    if (command.kind === 'explain' && command.text.trim()) {
-      void explain.startSession(command.text.trim())
+    if (command.kind === commandKind && command.text.trim()) {
+      void explain.startSession(command.text.trim(), sessionMode, providerId)
     }
-  }, [command, explain, state.session])
+  }, [command, commandKind, explain, providerId, sessionMode, state.session])
 
   const stop = useCallback(() => {
     void explain.stop()
@@ -99,4 +107,12 @@ export function useExplainCommand(command: MainSearchCommand) {
     stop,
     reset,
   }
+}
+
+export function useExplainCommand(command: MainSearchCommand) {
+  return useMainAiCommand(command, 'explain', 'explain')
+}
+
+export function useGemmaCommand(command: MainSearchCommand) {
+  return useMainAiCommand(command, 'gemma', 'chat', 'gemma')
 }

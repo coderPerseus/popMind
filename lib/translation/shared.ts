@@ -1,3 +1,4 @@
+import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
 import type {
   TranslateInput,
   TranslationEngineId,
@@ -6,7 +7,7 @@ import type {
   TranslationSettings,
 } from './types'
 
-export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai']
+export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma']
 
 export const translationEngineLabels: Record<TranslationEngineId, string> = {
   google: 'Google',
@@ -14,6 +15,7 @@ export const translationEngineLabels: Record<TranslationEngineId, string> = {
   bing: 'Bing',
   youdao: '有道',
   ai: 'AI',
+  gemma: 'Gemma',
 }
 
 export const translationLanguages: TranslationLanguageOption[] = [
@@ -39,6 +41,7 @@ export const defaultTranslationSettings: TranslationSettings = {
     bing: false,
     youdao: false,
     ai: false,
+    gemma: false,
   },
   firstLanguage: 'en',
   secondLanguage: 'zh-CN',
@@ -71,6 +74,19 @@ export const defaultTranslationSettings: TranslationSettings = {
         baseURL: 'https://api.deepseek.com',
         model: 'deepseek-chat',
       },
+      gemma: {
+        apiKey: 'local',
+        baseURL: 'http://127.0.0.1:1234/v1',
+        model: 'gemma-4-e4b-it',
+      },
+    },
+  },
+  localModels: {
+    gemma: {
+      enabled: false,
+      apiKey: 'local',
+      baseURL: 'http://127.0.0.1:1234/v1',
+      model: '',
     },
   },
   webSearch: {
@@ -82,6 +98,10 @@ export const defaultTranslationSettings: TranslationSettings = {
       jina: { apiKey: '' },
     },
   },
+}
+
+export const getVisibleTranslationEngineIds = (settings: TranslationSettings): TranslationEngineId[] => {
+  return translationEngineOrder.filter((engineId) => engineId !== 'gemma' || isLocalGemmaConfigured(settings))
 }
 
 export const DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT = 300
@@ -169,10 +189,18 @@ const hasConfiguredAiTranslation = (settings: TranslationSettings) => {
   return Boolean(settings.aiService.providers[activeProvider]?.apiKey.trim())
 }
 
+const hasConfiguredGemmaTranslation = (settings: TranslationSettings) => {
+  return Boolean(settings.enabledEngines.gemma && isLocalGemmaConfigured(settings))
+}
+
 export const getEnabledTranslationEngineIds = (settings: TranslationSettings): TranslationEngineId[] => {
-  const enabledEngineIds = translationEngineOrder.filter((engineId) => settings.enabledEngines[engineId])
+  const enabledEngineIds = getVisibleTranslationEngineIds(settings).filter((engineId) => settings.enabledEngines[engineId])
 
   if (!hasConfiguredAiTranslation(settings) || !enabledEngineIds.includes('ai')) {
+    if (hasConfiguredGemmaTranslation(settings) && enabledEngineIds.includes('gemma')) {
+      return ['gemma', ...enabledEngineIds.filter((engineId) => engineId !== 'gemma')]
+    }
+
     return enabledEngineIds
   }
 
@@ -207,6 +235,7 @@ export const mergeSettings = (
       ...previous.enabledEngines,
       ...patch.enabledEngines,
       ai: patchEnabledEngines?.ai ?? patchEnabledEngines?.deepseek ?? previous.enabledEngines.ai,
+      gemma: patchEnabledEngines?.gemma ?? previous.enabledEngines.gemma,
     },
     aiService: {
       ...previous.aiService,
@@ -234,6 +263,18 @@ export const mergeSettings = (
           ...previous.aiService.providers.deepseek,
           ...patch.aiService?.providers?.deepseek,
         },
+        gemma: {
+          ...previous.aiService.providers.gemma,
+          ...patch.aiService?.providers?.gemma,
+        },
+      },
+    },
+    localModels: {
+      ...previous.localModels,
+      ...patch.localModels,
+      gemma: {
+        ...previous.localModels.gemma,
+        ...patch.localModels?.gemma,
       },
     },
     webSearch: {

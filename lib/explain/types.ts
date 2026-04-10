@@ -6,6 +6,8 @@ export type ExplainConversationMessage = {
   text: string
 }
 
+export type ExplainSessionMode = 'explain' | 'chat'
+
 export type ExplainImageContext = {
   data: Buffer
   mediaType: string
@@ -28,6 +30,8 @@ export type ExplainResult = {
 }
 
 export type RunExplainInput = {
+  mode?: ExplainSessionMode
+  providerId?: AiProviderId
   selectionText: string
   messages: ExplainConversationMessage[]
   sourceAppName?: string
@@ -47,6 +51,8 @@ export interface ExplainSessionMessage {
 
 export interface ExplainSession {
   id: string
+  mode: ExplainSessionMode
+  providerId?: AiProviderId
   selectionText: string
   messages: ExplainSessionMessage[]
   status: 'idle' | 'searching' | 'streaming' | 'ready' | 'error'

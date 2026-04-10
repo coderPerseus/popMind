@@ -14,7 +14,7 @@ import { useI18n } from '@/app/i18n'
 import { ClipboardHistoryPanel } from '@/app/components/home/ClipboardHistoryPanel'
 import { parseMainSearchCommand } from '@/app/components/home/query-command'
 import { ExplainCard } from '@/app/components/home/ExplainCard'
-import { useExplainCommand } from '@/app/components/home/use-explain-command'
+import { useExplainCommand, useGemmaCommand } from '@/app/components/home/use-explain-command'
 import { useTranslateCommand } from '@/app/components/home/use-translate-command'
 import { TranslateCard } from '@/app/components/home/TranslateCard'
 import { AccessibilityPermission } from '@/app/components/welcome/AccessibilityPermission'
@@ -35,7 +35,7 @@ import './styles.css'
 
 type LauncherCommandItem = {
   id: string
-  kind: 'translate' | 'explain'
+  kind: 'translate' | 'explain' | 'gemma'
   title: string
   subtitle: string
   typeLabel: string
@@ -163,6 +163,16 @@ export function MainSearch() {
         aliases: ['/ex', '/explain', '/解释'],
         order: 2,
       },
+      {
+        id: 'command.gemma',
+        kind: 'gemma',
+        title: t('launcher.command.gemma.title'),
+        subtitle: t('launcher.command.gemma.subtitle'),
+        typeLabel: t('main.resultType.command'),
+        keywords: ['gemma', 'chat', 'ai', 'assistant', '本地模型', '对话'],
+        aliases: ['/gemma'],
+        order: 3,
+      },
     ],
     [t]
   )
@@ -182,10 +192,7 @@ export function MainSearch() {
     ],
     [launcherCommands, pluginCatalog]
   )
-  const command: any = useMemo(
-    () => parseMainSearchCommand(normalizedQuery, slashEntries),
-    [normalizedQuery, slashEntries]
-  )
+  const command = useMemo(() => parseMainSearchCommand(normalizedQuery, slashEntries), [normalizedQuery, slashEntries])
   const activePlugin = useMemo(
     () => (command.kind === 'plugin' ? getMainSearchPluginResult(language, command.id, command.text) : null),
     [command, language]
@@ -212,8 +219,10 @@ export function MainSearch() {
 
   const translate = useTranslateCommand(command)
   const explain = useExplainCommand(command)
+  const gemma = useGemmaCommand(command)
   const resetTranslate = translate.reset
   const resetExplain = explain.reset
+  const resetGemma = gemma.reset
   const clipboardPanelCopy = useMemo(
     () => ({
       countLabel: (count: number) => t('clipboard.count', { count }),
@@ -253,7 +262,7 @@ export function MainSearch() {
     [t]
   )
   const launcherSections = useMemo(() => {
-    if (translate.isActive || explain.isActive || activePlugin) {
+    if (translate.isActive || explain.isActive || gemma.isActive || activePlugin) {
       return [] as LauncherSection[]
     }
 
@@ -305,6 +314,7 @@ export function MainSearch() {
   }, [
     activePlugin,
     explain.isActive,
+    gemma.isActive,
     installedApps,
     isAppSearchMode,
     launcherCommands,
@@ -337,12 +347,13 @@ export function MainSearch() {
       setPlaceholder((current) => pickRandomPlaceholder(language, current))
       resetTranslate()
       resetExplain()
+      resetGemma()
     })
 
     return () => {
       unsubscribe()
     }
-  }, [language, onMainWindowReset, resetExplain, resetTranslate])
+  }, [language, onMainWindowReset, resetExplain, resetGemma, resetTranslate])
 
   useEffect(() => {
     const unsubscribe = onMainWindowSetSearchQuery((nextQuery) => {
@@ -352,6 +363,7 @@ export function MainSearch() {
       setClipboardActionHint('')
       resetTranslate()
       resetExplain()
+      resetGemma()
       requestAnimationFrame(() => {
         inputRef.current?.focus()
         if (nextQuery.trim().startsWith('/')) {
@@ -366,7 +378,7 @@ export function MainSearch() {
     return () => {
       unsubscribe()
     }
-  }, [onMainWindowSetSearchQuery, resetExplain, resetTranslate])
+  }, [onMainWindowSetSearchQuery, resetExplain, resetGemma, resetTranslate])
 
   useEffect(() => {
     const root = document.documentElement
@@ -896,6 +908,14 @@ export function MainSearch() {
       return
     }
 
+    if (gemma.isActive) {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        gemma.runImmediately()
+      }
+      return
+    }
+
     if (activePlugin?.mode === 'link' && command.kind === 'plugin') {
       if (event.key === 'Enter') {
         event.preventDefault()
@@ -1040,6 +1060,14 @@ export function MainSearch() {
             onReexplain={explain.regenerate}
             onSubmitFollowup={explain.submitFollowup}
             onStop={explain.stop}
+          />
+        ) : gemma.isActive && command.kind === 'gemma' ? (
+          <ExplainCard
+            command={command}
+            session={gemma.session}
+            onReexplain={gemma.regenerate}
+            onSubmitFollowup={gemma.submitFollowup}
+            onStop={gemma.stop}
           />
         ) : activePluginPanel ? (
           activePluginPanel

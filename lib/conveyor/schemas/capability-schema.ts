@@ -1,14 +1,21 @@
 import { z } from 'zod'
 
 const appLanguageSchema = z.enum(['zh-CN', 'en'])
-const translationEngineIdSchema = z.enum(['google', 'deepl', 'bing', 'youdao', 'ai'])
-const aiProviderSchema = z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek'])
+const translationEngineIdSchema = z.enum(['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma'])
+const aiProviderSchema = z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma'])
 const webSearchProviderSchema = z.enum(['tavily', 'serper', 'brave', 'jina'])
 
 const aiProviderConfigSchema = z.object({
   apiKey: z.string(),
   baseURL: z.string().optional(),
   model: z.string().optional(),
+})
+
+const localGemmaConfigSchema = z.object({
+  enabled: z.boolean(),
+  apiKey: z.string(),
+  baseURL: z.string(),
+  model: z.string(),
 })
 
 const webSearchProviderConfigSchema = z.object({
@@ -23,6 +30,7 @@ const capabilitySettingsSchema = z.object({
     bing: z.boolean(),
     youdao: z.boolean(),
     ai: z.boolean(),
+    gemma: z.boolean(),
   }),
   firstLanguage: z.string(),
   secondLanguage: z.string(),
@@ -35,7 +43,11 @@ const capabilitySettingsSchema = z.object({
       google: aiProviderConfigSchema,
       kimi: aiProviderConfigSchema,
       deepseek: aiProviderConfigSchema,
+      gemma: aiProviderConfigSchema,
     }),
+  }),
+  localModels: z.object({
+    gemma: localGemmaConfigSchema,
   }),
   webSearch: z.object({
     enabled: z.boolean(),
@@ -58,6 +70,7 @@ const capabilitySettingsPatchSchema = z.object({
         bing: z.boolean(),
         youdao: z.boolean(),
         ai: z.boolean(),
+        gemma: z.boolean(),
       })
       .partial()
       .optional(),
@@ -74,9 +87,15 @@ const capabilitySettingsPatchSchema = z.object({
           google: aiProviderConfigSchema.partial().optional(),
           kimi: aiProviderConfigSchema.partial().optional(),
           deepseek: aiProviderConfigSchema.partial().optional(),
+          gemma: aiProviderConfigSchema.partial().optional(),
         })
         .partial()
         .optional(),
+    })
+    .optional(),
+  localModels: z
+    .object({
+      gemma: localGemmaConfigSchema.partial().optional(),
     })
     .optional(),
   webSearch: z

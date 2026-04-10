@@ -1,7 +1,7 @@
 import type { TranslationEngineId } from '@/lib/translation/types'
 
 export type AppLanguage = 'zh-CN' | 'en'
-export type AiProviderId = 'openai' | 'anthropic' | 'google' | 'kimi' | 'deepseek'
+export type AiProviderId = 'openai' | 'anthropic' | 'google' | 'kimi' | 'deepseek' | 'gemma'
 export type WebSearchProviderId = 'tavily' | 'serper' | 'brave' | 'jina'
 export type AiServiceTestErrorCode = 'missing-config' | 'request-failed'
 export type WebSearchServiceTestErrorCode = 'missing-config' | 'request-failed'
@@ -10,6 +10,13 @@ export interface AiProviderConfig {
   apiKey: string
   baseURL?: string
   model?: string
+}
+
+export interface LocalGemmaConfig {
+  enabled: boolean
+  apiKey: string
+  baseURL: string
+  model: string
 }
 
 export interface WebSearchProviderConfig {
@@ -26,6 +33,9 @@ export interface CapabilitySettings {
     activeProvider: AiProviderId | null
     providers: Record<AiProviderId, AiProviderConfig>
   }
+  localModels: {
+    gemma: LocalGemmaConfig
+  }
   webSearch: {
     enabled: boolean
     providers: Record<WebSearchProviderId, WebSearchProviderConfig>
@@ -41,6 +51,9 @@ export interface CapabilitySettingsPatch {
   aiService?: {
     activeProvider?: AiProviderId | null
     providers?: Partial<Record<AiProviderId, Partial<AiProviderConfig>>>
+  }
+  localModels?: {
+    gemma?: Partial<LocalGemmaConfig>
   }
   webSearch?: {
     enabled?: boolean

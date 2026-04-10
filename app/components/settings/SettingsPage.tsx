@@ -7,12 +7,13 @@ import { Select } from '@/app/components/ui/select'
 import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useI18n } from '@/app/i18n'
-import type { AiProviderId, AppLanguage, CapabilitySettings, WebSearchProviderId } from '@/lib/capability/types'
+import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
+import type { AiProviderId, AppLanguage, CapabilitySettings, LocalGemmaConfig, WebSearchProviderId } from '@/lib/capability/types'
 import type { I18nKey } from '@/lib/i18n/shared'
 import type { ExplainHistoryListItem, HistoryDataType, SearchHistoryListItem, SearchHistorySummary } from '@/lib/search-history/types'
 import type { ThemeMode } from '@/lib/theme/shared'
-import { translationEngineLabels, translationEngineOrder, translationLanguages } from '@/lib/translation/shared'
-import { Database, Download, Globe, History, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Sun, Trash2 } from 'lucide-react'
+import { getVisibleTranslationEngineIds, translationEngineLabels, translationLanguages } from '@/lib/translation/shared'
+import { Database, Download, Globe, History, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Shield, Sun, Trash2 } from 'lucide-react'
 import './styles.css'
 
 type PermissionStatus = {
@@ -20,9 +21,17 @@ type PermissionStatus = {
   supported: boolean
 }
 
-type SettingsSection = 'general' | 'translation' | 'history'
+type SettingsSection = 'general' | 'privacy' | 'translation' | 'history'
 type HistoryTab = 'search' | 'explain'
 type StatusTone = 'success' | 'error'
+type GemmaCheckState = {
+  status: 'idle' | 'checking' | 'checked'
+  installed: boolean
+  appPath: string | null
+  serviceReachable: boolean
+  modelIds: string[]
+  detectedModelId: string | null
+}
 
 type NavItem = {
   id: SettingsSection
@@ -36,6 +45,7 @@ const aiProviderOptions: Array<{ id: AiProviderId; label: string }> = [
   { id: 'google', label: 'Gemini' },
   { id: 'kimi', label: 'Kimi' },
   { id: 'deepseek', label: 'DeepSeek' },
+  { id: 'gemma', label: 'Gemma' },
 ]
 
 const webSearchProviders: Array<{ id: WebSearchProviderId; label: string; keyUrl: string }> = [
@@ -49,11 +59,62 @@ const getProviderLabel = (provider: AiProviderId | null | undefined, fallbackLab
   return aiProviderOptions.find((item) => item.id === provider)?.label ?? fallbackLabel
 }
 
+const getAiFieldPlaceholders = (_providerId: AiProviderId | null) => {
+  return {
+    apiKey: 'sk-...',
+    baseURL: 'https://api.example.com/v1',
+    model: 'gpt-5-mini',
+  }
+}
+
+const getLmStudioServerBaseUrl = (value?: string) => {
+  const trimmed = value?.trim() || 'http://127.0.0.1:1234/v1'
+
+  try {
+    const url = new URL(trimmed)
+    const pathname = url.pathname.replace(/\/+$/, '')
+
+    if (!pathname || pathname === '/' || pathname === '/v1' || pathname.startsWith('/v1/')) {
+      return url.origin
+    }
+
+    if (pathname === '/api/v1' || pathname.startsWith('/api/v1/')) {
+      return url.origin
+    }
+
+    return `${url.origin}${pathname}`
+  } catch {
+    return 'http://127.0.0.1:1234'
+  }
+}
+
+const getLmStudioNativeApiUrl = (value: string | undefined, endpoint: string) => {
+  const baseUrl = getLmStudioServerBaseUrl(value).replace(/\/$/, '')
+  return `${baseUrl}/api/v1/${endpoint.replace(/^\/+/, '')}`
+}
+
+const extractGemmaModelIds = (payload: unknown) => {
+  const models = Array.isArray((payload as { models?: unknown[] })?.models) ? (payload as { models: Array<Record<string, unknown>> }).models : []
+
+  return models
+    .flatMap((model) => {
+      const key = typeof model.key === 'string' ? model.key.trim() : ''
+      const loadedInstances = Array.isArray(model.loaded_instances)
+        ? model.loaded_instances
+            .map((instance) => (typeof instance?.id === 'string' ? instance.id.trim() : ''))
+            .filter(Boolean)
+        : []
+
+      return [...loadedInstances, key].filter(Boolean)
+    })
+    .filter((modelId, index, list) => list.indexOf(modelId) === index)
+}
+
 export function SettingsPage() {
   const app = useConveyor('app')
   const capability = useConveyor('capability')
   const search = useConveyor('search')
-  const { windowShowRoute } = useConveyor('window')
+  const { webOpenUrl, windowShowRoute } = useConveyor('window')
   const { language, t } = useI18n()
   const [accessibilityStatus, setAccessibilityStatus] = useState<PermissionStatus | null>(null)
   const [screenRecordingStatus, setScreenRecordingStatus] = useState<PermissionStatus | null>(null)
@@ -75,6 +136,14 @@ export function SettingsPage() {
   const [busyHistoryAction, setBusyHistoryAction] = useState<'' | 'export' | 'clear'>('')
   const [isTestingAiService, setIsTestingAiService] = useState(false)
   const [aiTestMessage, setAiTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
+  const [gemmaCheckState, setGemmaCheckState] = useState<GemmaCheckState>({
+    status: 'idle',
+    installed: false,
+    appPath: null,
+    serviceReachable: false,
+    modelIds: [],
+    detectedModelId: null,
+  })
   const [testingWebSearchProviderId, setTestingWebSearchProviderId] = useState<WebSearchProviderId | null>(null)
   const [webSearchTestMessages, setWebSearchTestMessages] = useState<Partial<Record<WebSearchProviderId, { tone: StatusTone; message: string }>>>({})
   const saveTimerRef = useRef<number | null>(null)
@@ -82,6 +151,7 @@ export function SettingsPage() {
   const navItems: NavItem[] = useMemo(
     () => [
       { id: 'general', label: t('settings.nav.general'), icon: SearchCheck },
+      { id: 'privacy', label: t('settings.nav.privacy'), icon: Shield },
       { id: 'translation', label: t('settings.nav.translation'), icon: Languages },
       { id: 'history', label: t('settings.nav.history'), icon: History },
     ],
@@ -89,6 +159,16 @@ export function SettingsPage() {
   )
 
   const activeAiProvider = settings?.aiService.activeProvider ?? null
+  const gemmaConfigured = settings ? isLocalGemmaConfigured(settings) : false
+  const visibleAiProviderOptions = useMemo(
+    () => aiProviderOptions.filter((item) => item.id !== 'gemma' || gemmaConfigured || activeAiProvider === 'gemma'),
+    [activeAiProvider, gemmaConfigured]
+  )
+  const visibleTranslationEngineIds = useMemo(
+    () => (settings ? getVisibleTranslationEngineIds(settings) : []),
+    [settings]
+  )
+  const aiFieldPlaceholders = getAiFieldPlaceholders(activeAiProvider)
 
   const handleThemeChange = async (mode: ThemeMode) => {
     setThemeMode(mode)
@@ -231,6 +311,82 @@ export function SettingsPage() {
       },
       true
     )
+  }
+
+  const updateLocalGemma = <K extends keyof LocalGemmaConfig>(key: K, value: LocalGemmaConfig[K], debounce = false) => {
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            localModels: {
+              ...current.localModels,
+              gemma: {
+                ...current.localModels.gemma,
+                [key]: value,
+              },
+            },
+          }
+        : current
+    )
+
+    void persistPatch(
+      {
+        localModels: {
+          gemma: {
+            [key]: value,
+          },
+        },
+      },
+      debounce
+    )
+  }
+
+  const runGemmaEnvironmentCheck = async () => {
+    const nativeModelsUrl = getLmStudioNativeApiUrl(settings?.localModels.gemma.baseURL, 'models')
+    setGemmaCheckState({
+      status: 'checking',
+      installed: false,
+      appPath: null,
+      serviceReachable: false,
+      modelIds: [],
+      detectedModelId: null,
+    })
+
+    const apps = await app.searchInstalledApps('LM Studio', 5)
+    const lmStudioApp = apps.find((item) => /lm studio/i.test(item.name) || /lm studio/i.test(item.fileName)) ?? null
+
+    let serviceReachable = false
+    let modelIds: string[] = []
+    let detectedModelId: string | null = null
+
+    try {
+      const response = await fetch(nativeModelsUrl)
+      if (response.ok) {
+        const payload = (await response.json()) as unknown
+        modelIds = extractGemmaModelIds(payload)
+        detectedModelId = modelIds.find((item) => /gemma/i.test(item)) ?? null
+        serviceReachable = true
+      }
+    } catch {
+      serviceReachable = false
+    }
+
+    if (
+      detectedModelId &&
+      settings &&
+      (!settings.localModels.gemma.model.trim() || !modelIds.includes(settings.localModels.gemma.model.trim()))
+    ) {
+      updateLocalGemma('model', detectedModelId, true)
+    }
+
+    setGemmaCheckState({
+      status: 'checked',
+      installed: Boolean(lmStudioApp),
+      appPath: lmStudioApp?.path ?? null,
+      serviceReachable,
+      modelIds,
+      detectedModelId,
+    })
   }
 
   const updateActiveAiProvider = (providerId: AiProviderId | null) => {
@@ -621,7 +777,7 @@ export function SettingsPage() {
                       onChange={(event) => updateActiveAiProvider((event.target.value || null) as AiProviderId | null)}
                     >
                       <option value="">None</option>
-                      {aiProviderOptions.map((provider) => (
+                      {visibleAiProviderOptions.map((provider) => (
                         <option key={provider.id} value={provider.id}>
                           {provider.label}
                         </option>
@@ -629,7 +785,7 @@ export function SettingsPage() {
                     </Select>
                   </label>
 
-                  {activeAiProvider ? (
+                  {activeAiProvider && activeAiProvider !== 'gemma' ? (
                     <>
                       <label className="settings-field settings-field-span">
                         <span className="settings-field-label">{t('settings.capability.ai.apiKey')}</span>
@@ -637,7 +793,7 @@ export function SettingsPage() {
                           type="password"
                           value={settings?.aiService.providers[activeAiProvider].apiKey ?? ''}
                           onChange={(event) => updateAiService(activeAiProvider, 'apiKey', event.target.value)}
-                          placeholder="sk-..."
+                          placeholder={aiFieldPlaceholders.apiKey}
                         />
                       </label>
                       <label className="settings-field">
@@ -646,7 +802,7 @@ export function SettingsPage() {
                           type="text"
                           value={settings?.aiService.providers[activeAiProvider].baseURL ?? ''}
                           onChange={(event) => updateAiService(activeAiProvider, 'baseURL', event.target.value)}
-                          placeholder="https://api.example.com/v1"
+                          placeholder={aiFieldPlaceholders.baseURL}
                         />
                       </label>
                       <label className="settings-field">
@@ -655,12 +811,23 @@ export function SettingsPage() {
                           type="text"
                           value={settings?.aiService.providers[activeAiProvider].model ?? ''}
                           onChange={(event) => updateAiService(activeAiProvider, 'model', event.target.value)}
-                          placeholder="gpt-5-mini"
+                          placeholder={aiFieldPlaceholders.model}
                         />
                       </label>
                     </>
                   ) : null}
                 </div>
+
+                {activeAiProvider === 'gemma' ? (
+                  <div className="settings-status-message is-success">
+                    {t('settings.privacy.gemma.generalHint')}
+                    <div className="settings-action-row">
+                      <Button size="sm" variant="outline" onClick={() => setActiveSection('privacy')}>
+                        {t('settings.nav.privacy')}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
 
                 {aiTestMessage ? (
                   <div className={`settings-status-message ${aiTestMessage.tone === 'success' ? 'is-success' : 'is-error'}`}>
@@ -669,7 +836,7 @@ export function SettingsPage() {
                 ) : null}
 
                 <div className="settings-action-row">
-                  {aiProviderOptions.map((provider) => (
+                  {visibleAiProviderOptions.map((provider) => (
                     <Badge key={provider.id} variant={provider.id === activeAiProvider ? 'default' : 'outline'}>
                       {provider.label}
                     </Badge>
@@ -748,6 +915,114 @@ export function SettingsPage() {
             </div>
           )}
 
+          {activeSection === 'privacy' && settings && (
+            <div className="settings-content-stack">
+              <section className="settings-surface">
+                <div className="settings-surface-heading">
+                  <div>
+                    <div className="settings-item-title">{t('settings.privacy.gemma.title')}</div>
+                    <div className="settings-item-desc">{t('settings.privacy.gemma.desc')}</div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => void runGemmaEnvironmentCheck()} disabled={gemmaCheckState.status === 'checking'}>
+                    {gemmaCheckState.status === 'checking' ? t('settings.privacy.gemma.detecting') : t('settings.privacy.gemma.detect')}
+                  </Button>
+                </div>
+
+                <div className="settings-action-row">
+                  <Button size="sm" variant="outline" onClick={() => void webOpenUrl('https://lmstudio.ai')}>
+                    <Download size={14} />
+                    {t('settings.privacy.gemma.download')}
+                  </Button>
+                  {gemmaCheckState.appPath ? (
+                    <Button size="sm" variant="outline" onClick={() => void app.openInstalledApp(gemmaCheckState.appPath!)}>
+                      {t('settings.privacy.gemma.openApp')}
+                    </Button>
+                  ) : null}
+                </div>
+
+                <div className="settings-stat-grid">
+                  <div className="settings-stat-card">
+                    <div className="settings-stat-label">{t('settings.privacy.gemma.detectApp')}</div>
+                    <div className="settings-stat-value">
+                      {gemmaCheckState.status === 'idle'
+                        ? t('common.none')
+                        : gemmaCheckState.installed
+                          ? t('common.enabled')
+                          : t('common.disabled')}
+                    </div>
+                    <div className="settings-stat-meta">{t('settings.privacy.gemma.detectAppMeta')}</div>
+                  </div>
+                  <div className="settings-stat-card">
+                    <div className="settings-stat-label">{t('settings.privacy.gemma.detectService')}</div>
+                    <div className="settings-stat-value">
+                      {gemmaCheckState.status === 'idle'
+                        ? t('common.none')
+                        : gemmaCheckState.serviceReachable
+                          ? t('common.enabled')
+                          : t('common.disabled')}
+                    </div>
+                    <div className="settings-stat-meta">{settings.localModels.gemma.baseURL}</div>
+                  </div>
+                  <div className="settings-stat-card">
+                    <div className="settings-stat-label">{t('settings.privacy.gemma.detectModel')}</div>
+                    <div className="settings-stat-value">{gemmaCheckState.detectedModelId ?? t('common.none')}</div>
+                    <div className="settings-stat-meta">
+                      {gemmaCheckState.modelIds.length
+                        ? t('settings.privacy.gemma.modelCount', { count: gemmaCheckState.modelIds.length })
+                        : t('settings.privacy.gemma.detectModelMeta')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="settings-form-grid">
+                  <label className="settings-field settings-field-span">
+                    <span className="settings-field-label">{t('settings.privacy.gemma.enabled')}</span>
+                    <div className="settings-row-aside">
+                      <Switch
+                        checked={settings.localModels.gemma.enabled}
+                        onCheckedChange={(checked) => updateLocalGemma('enabled', checked)}
+                      />
+                    </div>
+                  </label>
+                  <label className="settings-field settings-field-span">
+                    <span className="settings-field-label">{t('settings.capability.ai.apiKey')}</span>
+                    <Input
+                      type="text"
+                      value={settings.localModels.gemma.apiKey}
+                      onChange={(event) => updateLocalGemma('apiKey', event.target.value, true)}
+                      placeholder="local"
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span className="settings-field-label">{t('settings.capability.ai.baseUrl')}</span>
+                    <Input
+                      type="text"
+                      value={settings.localModels.gemma.baseURL}
+                      onChange={(event) => updateLocalGemma('baseURL', event.target.value, true)}
+                      placeholder="http://127.0.0.1:1234/v1"
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span className="settings-field-label">{t('settings.capability.ai.model')}</span>
+                    <Input
+                      type="text"
+                      value={settings.localModels.gemma.model}
+                      onChange={(event) => updateLocalGemma('model', event.target.value, true)}
+                      placeholder={gemmaCheckState.detectedModelId ?? 'gemma-4-31b-it'}
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-content-stack">
+                  <div className="settings-item-desc">{t('settings.privacy.gemma.guide')}</div>
+                  <div className="settings-item-desc">{t('settings.privacy.gemma.mainWindowOnly')}</div>
+                  <div className="settings-item-desc">{t('settings.privacy.gemma.translationHint')}</div>
+                  <div className="settings-item-desc">{t('settings.privacy.gemma.generalProviderHint')}</div>
+                </div>
+              </section>
+            </div>
+          )}
+
           {activeSection === 'translation' && settings && (
             <div className="settings-content-stack">
               <section className="settings-surface">
@@ -758,9 +1033,10 @@ export function SettingsPage() {
                 </div>
 
                 <div className="settings-engine-grid">
-                  {translationEngineOrder.map((engine) => {
+                  {visibleTranslationEngineIds.map((engine) => {
                     const enabled = settings.enabledEngines[engine]
                     const isAiEngine = engine === 'ai'
+                    const isGemmaEngine = engine === 'gemma'
 
                     return (
                       <div className="settings-engine-item" key={engine}>
@@ -773,6 +1049,11 @@ export function SettingsPage() {
                           {isAiEngine ? (
                             <div className="settings-item-desc">
                               {t('settings.capability.ai.provider')}：{getProviderLabel(activeAiProvider, t('common.none'))}
+                            </div>
+                          ) : null}
+                          {isGemmaEngine ? (
+                            <div className="settings-item-desc">
+                              {settings.localModels.gemma.model || t('settings.privacy.gemma.detectModelMeta')}
                             </div>
                           ) : null}
                         </div>
@@ -1023,6 +1304,10 @@ function ExplainHistoryCard({
 }
 
 const getSectionTitle = (section: SettingsSection, t: (key: I18nKey, params?: Record<string, string | number>) => string) => {
+  if (section === 'privacy') {
+    return t('settings.title.privacy')
+  }
+
   if (section === 'translation') {
     return t('settings.title.translation')
   }
