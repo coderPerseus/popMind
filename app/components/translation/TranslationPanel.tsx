@@ -1,4 +1,4 @@
-import { Check, Copy, GripHorizontal, LoaderCircle, Pin, RefreshCw, Square, Volume2, X } from 'lucide-react'
+import { Check, ChevronDown, Copy, GripHorizontal, LoaderCircle, Pin, RefreshCw, Square, Volume2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
@@ -6,8 +6,8 @@ import { Select } from '@/app/components/ui/select'
 import '@/app/components/translation/styles.css'
 import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import {
-  getLanguageFamily,
   getTranslationWindowMinHeight,
+  resolveEnglishSpeechPayload,
   translationEngineLabels,
   translationEngineOrder,
 } from '@/lib/translation/shared'
@@ -16,6 +16,7 @@ import type { TranslationWindowResizeEdge, TranslationWindowState } from '@/lib/
 const emptyState: TranslationWindowState = {
   status: 'idle',
   pinned: false,
+  isSpeaking: false,
   queryMode: 'text',
   engineId: 'google',
   enabledEngineIds: ['google'],
@@ -37,66 +38,15 @@ const resizeHandleConfigs: Array<{ edge: TranslationWindowResizeEdge; label: str
   { edge: 'bottom-right', label: '从右下角调整翻译窗口大小' },
 ]
 
-const getSpeechLocale = (languageCode: string, phoneticLabel?: string) => {
-  const normalizedCode = languageCode.toLowerCase()
-
-  if (phoneticLabel === 'US') {
-    return 'en-US'
-  }
-
-  if (phoneticLabel === 'UK') {
-    return 'en-GB'
-  }
-
-  switch (getLanguageFamily(normalizedCode)) {
-    case 'zh':
-      return normalizedCode === 'zh-tw' ? 'zh-TW' : 'zh-CN'
-    case 'en':
-      return 'en-US'
-    case 'ja':
-      return 'ja-JP'
-    case 'ko':
-      return 'ko-KR'
-    case 'fr':
-      return 'fr-FR'
-    case 'de':
-      return 'de-DE'
-    case 'es':
-      return 'es-ES'
-    case 'ru':
-      return 'ru-RU'
-    case 'it':
-      return 'it-IT'
-    case 'pt':
-      return 'pt-PT'
-    default:
-      return languageCode
-  }
-}
-
-const resolveSpeechVoice = (lang: string) => {
-  const voices = window.speechSynthesis.getVoices()
-  const normalizedLang = lang.toLowerCase()
-  const family = getLanguageFamily(normalizedLang)
-
-  return (
-    voices.find((voice) => voice.lang.toLowerCase() === normalizedLang) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith(`${family}-`)) ??
-    voices.find((voice) => getLanguageFamily(voice.lang) === family)
-  )
-}
-
 export function TranslationPanel() {
   const [state, setState] = useState<TranslationWindowState>(emptyState)
   const [sourceLanguage, setSourceLanguage] = useState('auto')
   const [targetLanguage, setTargetLanguage] = useState('en')
   const [engineId, setEngineId] = useState<TranslationWindowState['engineId']>('google')
   const [copied, setCopied] = useState(false)
-  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isSourceExpanded, setIsSourceExpanded] = useState(false)
   const [activeResizeEdge, setActiveResizeEdge] = useState<TranslationWindowResizeEdge | null>(null)
   const panelRef = useRef<HTMLElement | null>(null)
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const speakingRef = useRef(false)
   const hasManualResizeRef = useRef(false)
   const dragState = useRef<{
     pointerId: number | null
@@ -167,25 +117,14 @@ export function TranslationPanel() {
   }, [copied])
 
   useEffect(() => {
-    speakingRef.current = isSpeaking
-  }, [isSpeaking])
-
-  useEffect(() => {
-    if (!('speechSynthesis' in window)) {
-      return
-    }
-
-    return () => {
-      window.speechSynthesis.cancel()
-      utteranceRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
     if (state.status === 'loading') {
       hasManualResizeRef.current = false
     }
   }, [state.status, state.sourceText])
+
+  useEffect(() => {
+    setIsSourceExpanded(false)
+  }, [state.sourceText, state.translatedText, state.queryMode])
 
   useEffect(() => {
     const resizeTracker = resizeState.current
@@ -210,16 +149,6 @@ export function TranslationPanel() {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
-
-  useEffect(() => {
-    if (!speakingRef.current || !('speechSynthesis' in window)) {
-      return
-    }
-
-    window.speechSynthesis.cancel()
-    utteranceRef.current = null
-    setIsSpeaking(false)
-  }, [state.wordEntry?.headword, state.status])
 
   const isIdle = state.status === 'idle' && !state.translatedText
   const availableEngineIds = state.enabledEngineIds.length
@@ -253,6 +182,7 @@ export function TranslationPanel() {
     targetLanguage,
     engineId,
     isWordMode,
+    isSourceExpanded,
   ])
 
   const translatedPreview =
@@ -262,56 +192,15 @@ export function TranslationPanel() {
         ? state.errorMessage || '翻译失败'
         : state.translatedText || (isIdle ? '译文会展示在这里' : '')
   const shouldRenderMarkdown = !isWordMode && state.status !== 'loading' && state.status !== 'error' && !isIdle
-
-  const stopSpeaking = () => {
-    if (!('speechSynthesis' in window)) {
-      return
-    }
-
-    window.speechSynthesis.cancel()
-    utteranceRef.current = null
-    setIsSpeaking(false)
-  }
-
-  const handlePronounce = (phoneticLabel?: string) => {
-    const headword = state.wordEntry?.headword?.trim()
-    if (!headword || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
-      return
-    }
-
-    window.translationWindow.notifyInteraction(1500)
-
-    if (isSpeaking) {
-      stopSpeaking()
-      return
-    }
-
-    const speechLanguage = getSpeechLocale(state.detectedSourceLanguage || state.sourceLanguage || 'en', phoneticLabel)
-    const utterance = new SpeechSynthesisUtterance(headword)
-    const voice = resolveSpeechVoice(speechLanguage)
-
-    utterance.lang = speechLanguage
-    utterance.rate = 0.92
-    utterance.pitch = 1
-
-    if (voice) {
-      utterance.voice = voice
-    }
-
-    utterance.onend = () => {
-      utteranceRef.current = null
-      setIsSpeaking(false)
-    }
-    utterance.onerror = () => {
-      utteranceRef.current = null
-      setIsSpeaking(false)
-    }
-
-    utteranceRef.current = utterance
-    setIsSpeaking(true)
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utterance)
-  }
+  const speechPayload = resolveEnglishSpeechPayload({
+    queryMode: state.queryMode,
+    sourceText: state.sourceText,
+    translatedText: state.translatedText,
+    sourceLanguage: state.sourceLanguage,
+    targetLanguage: state.targetLanguage,
+    detectedSourceLanguage: state.detectedSourceLanguage,
+    headword: state.wordEntry?.headword,
+  })
 
   const handleRetranslate = async () => {
     window.translationWindow.notifyInteraction()
@@ -326,6 +215,21 @@ export function TranslationPanel() {
     window.translationWindow.notifyInteraction()
     await window.translationWindow.copyTranslatedText()
     setCopied(true)
+  }
+
+  const handleSpeak = async () => {
+    window.translationWindow.notifyInteraction(1500)
+
+    if (state.isSpeaking) {
+      await window.translationWindow.stopSpeaking()
+      return
+    }
+
+    if (!speechPayload) {
+      return
+    }
+
+    await window.translationWindow.speak(speechPayload)
   }
 
   const handleEngineChange = async (nextEngineId: TranslationWindowState['engineId']) => {
@@ -638,16 +542,6 @@ export function TranslationPanel() {
                     <div className="translation-word-head">
                       <div className="translation-word-head-main">
                         <div className="translation-word-title">{state.wordEntry.headword}</div>
-                        <Button
-                          className={`translation-word-speak-btn ${isSpeaking ? 'is-speaking' : ''}`}
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handlePronounce(state.wordEntry?.phonetics[0]?.label)}
-                          aria-label={isSpeaking ? '停止朗读' : '朗读单词'}
-                          disabled={!('speechSynthesis' in window)}
-                        >
-                          {isSpeaking ? <Square size={12} /> : <Volume2 size={14} />}
-                        </Button>
                       </div>
                       {state.wordEntry.phonetics.length > 0 && (
                         <div className="translation-word-phonetics">
@@ -714,11 +608,47 @@ export function TranslationPanel() {
                     )}
                   </div>
                 ) : shouldRenderMarkdown ? (
-                  <Streamdown className="translation-markdown" mode="static" isAnimating={false}>
-                    {state.translatedText}
-                  </Streamdown>
+                  <>
+                    <Streamdown className="translation-markdown" mode="static" isAnimating={false}>
+                      {state.translatedText}
+                    </Streamdown>
+                    {state.sourceText ? (
+                      <div className={`translation-source-block ${isSourceExpanded ? 'is-expanded' : ''}`}>
+                        <button
+                          type="button"
+                          className="translation-source-toggle"
+                          onClick={() => setIsSourceExpanded((value) => !value)}
+                          aria-expanded={isSourceExpanded}
+                        >
+                          <span>原文</span>
+                          <ChevronDown size={14} />
+                        </button>
+                        {isSourceExpanded ? (
+                          <div className="translation-source-content">{state.sourceText}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
-                  <div className="translation-result-plain">{translatedPreview}</div>
+                  <div className="translation-result-plain">
+                    {translatedPreview}
+                    {!isWordMode && state.sourceText ? (
+                      <div className={`translation-source-block ${isSourceExpanded ? 'is-expanded' : ''}`}>
+                        <button
+                          type="button"
+                          className="translation-source-toggle"
+                          onClick={() => setIsSourceExpanded((value) => !value)}
+                          aria-expanded={isSourceExpanded}
+                        >
+                          <span>原文</span>
+                          <ChevronDown size={14} />
+                        </button>
+                        {isSourceExpanded ? (
+                          <div className="translation-source-content">{state.sourceText}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                 )}
               </div>
             </div>
@@ -742,6 +672,19 @@ export function TranslationPanel() {
           </div>
 
           <div className="translation-footer-actions">
+            {!isWordMode ? (
+              <Button
+                className="translation-action-btn"
+                variant="ghost"
+                size="sm"
+                onClick={handleSpeak}
+                disabled={!speechPayload || state.status === 'loading'}
+              >
+                {state.isSpeaking ? <Square size={13} /> : <Volume2 size={13} />}
+                <span>{state.isSpeaking ? '停止' : '朗读'}</span>
+              </Button>
+            ) : null}
+
             <Button
               className="translation-action-btn"
               variant="ghost"

@@ -42,6 +42,12 @@ const translationWindowApi: TranslationWindowPreloadApi = {
   copyTranslatedText() {
     return ipcRenderer.invoke(TranslationWindowChannel.Copy)
   },
+  speak(payload) {
+    return ipcRenderer.invoke(TranslationWindowChannel.Speak, payload)
+  },
+  stopSpeaking() {
+    return ipcRenderer.invoke(TranslationWindowChannel.StopSpeaking)
+  },
   closeWindow() {
     return ipcRenderer.invoke(TranslationWindowChannel.Close)
   },

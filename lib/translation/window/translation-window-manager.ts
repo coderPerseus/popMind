@@ -15,12 +15,14 @@ import type {
   TranslationAnchorPoint,
   TranslationEngineId,
   TranslationQueryMode,
+  TranslationWindowSpeakPayload,
   TranslationWindowResizeEdge,
   TranslationSettings,
   TranslationWindowResizePayload,
   TranslationWindowState,
 } from '@/lib/translation/types'
 import type { SelectionBridge } from '@/lib/text-picker/shared'
+import { MacOsSpeechController } from './macos-speech'
 import { TranslationWindow } from './translation-window'
 
 const WINDOW_GAP = 14
@@ -60,6 +62,7 @@ type TranslationWindowPresentation = 'anchored' | 'centered'
 export class TranslationWindowManager {
   private window: TranslationWindow | null = null
   private detachMoveListener: (() => void) | null = null
+  private readonly speechController = new MacOsSpeechController()
   private state: TranslationWindowState | null = null
   private pendingRequest: {
     text: string
@@ -89,6 +92,7 @@ export class TranslationWindowManager {
     anchor: TranslationAnchorPoint | null
     presentation?: TranslationWindowPresentation
   }) {
+    this.stopSpeaking()
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, this.state?.engineId) ?? 'google'
@@ -113,6 +117,7 @@ export class TranslationWindowManager {
     this.state = {
       status: 'loading',
       pinned: this.state?.pinned ?? false,
+      isSpeaking: false,
       queryMode: initialQueryMode,
       engineId,
       enabledEngineIds,
@@ -142,6 +147,7 @@ export class TranslationWindowManager {
     loadingTitle: string
     loadingDescription?: string
   }) {
+    this.stopSpeaking()
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, this.state?.engineId) ?? 'google'
@@ -156,6 +162,7 @@ export class TranslationWindowManager {
     this.state = {
       status: 'loading',
       pinned: this.state?.pinned ?? false,
+      isSpeaking: false,
       queryMode: 'text',
       engineId,
       enabledEngineIds,
@@ -176,6 +183,7 @@ export class TranslationWindowManager {
   }
 
   async showErrorState(payload: { presentation?: TranslationWindowPresentation; errorMessage: string }) {
+    this.stopSpeaking()
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, this.state?.engineId) ?? 'google'
@@ -190,6 +198,7 @@ export class TranslationWindowManager {
     this.state = {
       status: 'error',
       pinned: this.state?.pinned ?? false,
+      isSpeaking: false,
       queryMode: 'text',
       engineId,
       enabledEngineIds,
@@ -211,12 +220,14 @@ export class TranslationWindowManager {
 
   hideIfFloating() {
     if (!this.state?.pinned) {
+      this.stopSpeaking()
       this.window?.hide()
       this.floatingBridge?.onVisibilityChange?.()
     }
   }
 
   hide() {
+    this.stopSpeaking()
     this.window?.hide()
     this.floatingBridge?.onVisibilityChange?.()
   }
@@ -245,6 +256,8 @@ export class TranslationWindowManager {
     ipcMain.removeHandler(TranslationWindowChannel.Retranslate)
     ipcMain.removeHandler(TranslationWindowChannel.SetPinned)
     ipcMain.removeHandler(TranslationWindowChannel.Copy)
+    ipcMain.removeHandler(TranslationWindowChannel.Speak)
+    ipcMain.removeHandler(TranslationWindowChannel.StopSpeaking)
     ipcMain.removeHandler(TranslationWindowChannel.Close)
     ipcMain.removeHandler(TranslationWindowChannel.DismissTopmost)
     ipcMain.removeAllListeners(TranslationWindowChannel.SetDragging)
@@ -255,6 +268,7 @@ export class TranslationWindowManager {
     this.detachMoveListener?.()
     this.detachMoveListener = null
 
+    this.stopSpeaking()
     this.window?.destroy()
     this.window = null
   }
@@ -279,7 +293,7 @@ export class TranslationWindowManager {
         payload: {
           sourceLanguage: string
           targetLanguage?: string
-          engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'ai'
+          engineId: TranslationEngineId
         }
       ) => {
         this.noteInteraction()
@@ -304,8 +318,19 @@ export class TranslationWindowManager {
 
       return { ok: true }
     })
+    ipcMain.handle(TranslationWindowChannel.Speak, async (_event, payload: TranslationWindowSpeakPayload) => {
+      this.noteInteraction(1500)
+      const active = await this.startSpeaking(payload)
+      return { ok: active, active }
+    })
+    ipcMain.handle(TranslationWindowChannel.StopSpeaking, async () => {
+      this.noteInteraction(1000)
+      this.stopSpeaking()
+      return { ok: true, active: false }
+    })
     ipcMain.handle(TranslationWindowChannel.Close, async () => {
       this.noteInteraction()
+      this.stopSpeaking()
       this.window?.hide()
       this.floatingBridge?.onVisibilityChange?.()
       return { ok: true }
@@ -338,12 +363,13 @@ export class TranslationWindowManager {
   private async runTranslation(payload: {
     sourceLanguage: string
     targetLanguage?: string
-    engineId: 'google' | 'deepl' | 'bing' | 'youdao' | 'ai'
+    engineId: TranslationEngineId
   }) {
     if (!this.pendingRequest || !this.state) {
       return
     }
 
+    this.stopSpeaking()
     const settings = await translationService.getSettings()
     const enabledEngineIds = resolveEnabledEngineIds(settings)
     const engineId = resolveEngineId(settings, payload.engineId) ?? payload.engineId
@@ -357,6 +383,8 @@ export class TranslationWindowManager {
     this.state = {
       ...currentState,
       status: 'loading',
+      isSpeaking: false,
+      speakingRole: undefined,
       sourceLanguage: payload.sourceLanguage,
       targetLanguage: payload.targetLanguage ?? currentState.targetLanguage,
       engineId,
@@ -388,6 +416,8 @@ export class TranslationWindowManager {
       this.state = {
         ...currentState,
         status: 'success',
+        isSpeaking: false,
+        speakingRole: undefined,
         engineId: result.engineId,
         enabledEngineIds,
         queryMode: result.queryMode,
@@ -412,6 +442,8 @@ export class TranslationWindowManager {
       this.state = {
         ...currentState,
         status: 'error',
+        isSpeaking: false,
+        speakingRole: undefined,
         enabledEngineIds,
         queryMode: 'text',
         wordEntry: undefined,
@@ -594,6 +626,65 @@ export class TranslationWindowManager {
       ...bounds,
       height: nextHeight,
     })
+  }
+
+  private async startSpeaking(payload: TranslationWindowSpeakPayload) {
+    if (!this.state) {
+      return false
+    }
+
+    this.logger.info('[TranslationWindowManager] speech start requested', {
+      role: payload.role,
+      lang: payload.lang,
+      length: payload.text.length,
+    })
+
+    const started = await this.speechController.speak(payload.text, () => {
+      if (!this.state?.isSpeaking) {
+        return
+      }
+
+      this.state = {
+        ...this.state,
+        isSpeaking: false,
+        speakingRole: undefined,
+      }
+      this.sendState()
+    })
+
+    if (!started || !this.state) {
+      this.logger.warn('[TranslationWindowManager] speech start skipped')
+      return false
+    }
+
+    this.state = {
+      ...this.state,
+      isSpeaking: true,
+      speakingRole: payload.role,
+    }
+    this.sendState()
+    return true
+  }
+
+  private stopSpeaking() {
+    if (this.state?.isSpeaking) {
+      this.logger.info('[TranslationWindowManager] speech stop requested', {
+        role: this.state.speakingRole,
+      })
+    }
+
+    this.speechController.stop()
+
+    if (!this.state?.isSpeaking) {
+      return
+    }
+
+    this.state = {
+      ...this.state,
+      isSpeaking: false,
+      speakingRole: undefined,
+    }
+    this.sendState()
   }
 
   private resolveManualResizeBounds(

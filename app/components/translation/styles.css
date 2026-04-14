@@ -258,6 +258,49 @@ body,
   word-break: break-word;
 }
 
+.translation-source-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(232 235 241 / 0.92);
+}
+
+.translation-source-toggle {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: rgb(121 127 139);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.translation-source-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.translation-source-block.is-expanded .translation-source-toggle svg {
+  transform: rotate(180deg);
+}
+
+.translation-source-content {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(246 248 252 / 0.92);
+  border: 1px solid rgb(230 233 240 / 0.9);
+  color: rgb(63 68 78);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .translation-result-content.is-word-mode {
   display: flex;
   flex-direction: column;
@@ -924,6 +967,20 @@ body,
 
 .dark .translation-markdown :where(a) {
   color: rgb(147 197 253);
+}
+
+.dark .translation-source-block {
+  border-top-color: rgb(255 255 255 / 0.1);
+}
+
+.dark .translation-source-toggle {
+  color: rgb(154 160 171);
+}
+
+.dark .translation-source-content {
+  background: rgb(255 255 255 / 0.05);
+  border-color: rgb(255 255 255 / 0.08);
+  color: rgb(214 219 227);
 }
 
 .dark .translation-word-title,

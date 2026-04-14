@@ -87,6 +87,15 @@ std::string ToStdString(NSString* value) {
   return utf8 ? std::string(utf8) : "";
 }
 
+void RunOnMainThreadSync(dispatch_block_t task) {
+  if (!task) return;
+  if ([NSThread isMainThread]) {
+    task();
+  } else {
+    dispatch_sync(dispatch_get_main_queue(), task);
+  }
+}
+
 bool IsPointInsideBubbleWindow(NSPoint point) {
   if (gBubbleWindowNumbers.empty()) return false;
 
@@ -1765,14 +1774,18 @@ public:
     : Napi::AsyncWorker(deferred.Env()), deferred_(deferred), useMenu_(useMenu), appPid_(appPid) {}
 
   void Execute() override {
-    @autoreleasepool {
-      AXUIElementRef app = nullptr;
-      if (useMenu_ && appPid_ > 0) {
-        app = AXUIElementCreateApplication(appPid_);
+    // AppKit pasteboard access is not thread-safe. Running the whole fallback on
+    // the main queue also prevents overlapping clipboard save/restore sequences.
+    RunOnMainThreadSync(^{
+      @autoreleasepool {
+        AXUIElementRef app = nullptr;
+        if (useMenu_ && appPid_ > 0) {
+          app = AXUIElementCreateApplication(appPid_);
+        }
+        result_ = GetTextByClipboard(useMenu_, app);
+        if (app) CFRelease(app);
       }
-      result_ = GetTextByClipboard(useMenu_, app);
-      if (app) CFRelease(app);
-    }
+    });
   }
 
   void OnOK() override {
@@ -1801,17 +1814,19 @@ public:
       expectedText_(std::move(expectedText)) {}
 
   void Execute() override {
-    @autoreleasepool {
-      AXUIElementRef app = nullptr;
-      if (useMenu_ && appPid_ > 0) {
-        app = AXUIElementCreateApplication(appPid_);
+    RunOnMainThreadSync(^{
+      @autoreleasepool {
+        AXUIElementRef app = nullptr;
+        if (useMenu_ && appPid_ > 0) {
+          app = AXUIElementCreateApplication(appPid_);
+        }
+
+        NSString* expected = expectedText_.empty() ? nil : @(expectedText_.c_str());
+        copied_ = CopySelection(useMenu_, app, expected);
+
+        if (app) CFRelease(app);
       }
-
-      NSString* expected = expectedText_.empty() ? nil : @(expectedText_.c_str());
-      copied_ = CopySelection(useMenu_, app, expected);
-
-      if (app) CFRelease(app);
-    }
+    });
   }
 
   void OnOK() override {

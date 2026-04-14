@@ -2,6 +2,7 @@ import type { CapabilitySettings, CapabilitySettingsPatch } from '@/lib/capabili
 
 export type TranslationEngineId = 'google' | 'deepl' | 'bing' | 'youdao' | 'ai' | 'gemma'
 export type TranslationQueryMode = 'text' | 'word'
+export type TranslationSpeechRole = 'source' | 'translated' | 'headword'
 
 export type TranslationSettings = CapabilitySettings
 
@@ -87,6 +88,8 @@ export interface TranslationLanguageOption {
 export interface TranslationWindowState {
   status: 'idle' | 'loading' | 'success' | 'error'
   pinned: boolean
+  isSpeaking: boolean
+  speakingRole?: TranslationSpeechRole
   queryMode: TranslationQueryMode
   engineId: TranslationEngineId
   enabledEngineIds: TranslationEngineId[]
@@ -128,6 +131,12 @@ export interface TranslationWindowResizePayload {
   deltaY?: number
 }
 
+export interface TranslationWindowSpeakPayload {
+  text: string
+  lang: string
+  role: TranslationSpeechRole
+}
+
 export interface TranslationWindowPreloadApi {
   onState(handler: (state: TranslationWindowState) => void): () => void
   getState(): Promise<TranslationWindowState | null>
@@ -143,5 +152,7 @@ export interface TranslationWindowPreloadApi {
   resizeWindow(payload: TranslationWindowResizePayload): void
   dismissTopmost(): Promise<{ ok: boolean }>
   copyTranslatedText(): Promise<{ ok: boolean }>
+  speak(payload: TranslationWindowSpeakPayload): Promise<{ ok: boolean; active: boolean }>
+  stopSpeaking(): Promise<{ ok: boolean; active: boolean }>
   closeWindow(): Promise<{ ok: boolean }>
 }

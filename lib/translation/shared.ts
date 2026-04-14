@@ -5,6 +5,7 @@ import type {
   TranslationLanguageOption,
   TranslationQueryMode,
   TranslationSettings,
+  TranslationWindowSpeakPayload,
 } from './types'
 
 export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma']
@@ -117,6 +118,8 @@ export const TranslationWindowChannel = {
   Move: 'translationWindow:move',
   Resize: 'translationWindow:resize',
   Copy: 'translationWindow:copy',
+  Speak: 'translationWindow:speak',
+  StopSpeaking: 'translationWindow:stopSpeaking',
   Close: 'translationWindow:close',
   DismissTopmost: 'translationWindow:dismissTopmost',
 } as const
@@ -127,6 +130,14 @@ export const getLanguageLabel = (code: string) => {
 
 export const getLanguageFamily = (code: string) => {
   return code.toLowerCase().split('-')[0]
+}
+
+export const isEnglishLanguage = (code?: string) => {
+  if (!code) {
+    return false
+  }
+
+  return getLanguageFamily(code) === 'en'
 }
 
 export const isSameLanguage = (left: string, right: string) => {
@@ -142,8 +153,84 @@ export const trimTranslationText = (text: string) => {
     .trim()
 }
 
+export const looksLikeEnglishText = (text: string) => {
+  const normalized = trimTranslationText(text)
+
+  if (!normalized) {
+    return false
+  }
+
+  if (/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/i.test(normalized)) {
+    return false
+  }
+
+  const latinLetterCount = normalized.match(/[A-Za-z]/g)?.length ?? 0
+  return latinLetterCount >= Math.min(4, normalized.length)
+}
+
 export const isEnglishWord = (text: string) => {
   return /^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(text) && text.length <= 48
+}
+
+const normalizeSpeechLocale = (code?: string) => {
+  if (!code || !isEnglishLanguage(code)) {
+    return 'en-US'
+  }
+
+  return code.toLowerCase() === 'en-gb' ? 'en-GB' : 'en-US'
+}
+
+export const resolveEnglishSpeechPayload = ({
+  queryMode,
+  sourceText,
+  translatedText,
+  sourceLanguage,
+  targetLanguage,
+  detectedSourceLanguage,
+  headword,
+}: {
+  queryMode: TranslationQueryMode
+  sourceText: string
+  translatedText: string
+  sourceLanguage: string
+  targetLanguage: string
+  detectedSourceLanguage?: string
+  headword?: string
+}): TranslationWindowSpeakPayload | null => {
+  if (queryMode === 'word') {
+    const normalizedHeadword = headword?.trim() ?? ''
+    if (!isEnglishWord(normalizedHeadword)) {
+      return null
+    }
+
+    return {
+      text: normalizedHeadword,
+      lang: 'en-US',
+      role: 'headword',
+    }
+  }
+
+  const normalizedSourceText = trimTranslationText(sourceText)
+  const normalizedTranslatedText = trimTranslationText(translatedText)
+  const resolvedSourceLanguage = detectedSourceLanguage || sourceLanguage
+
+  if (normalizedSourceText && (isEnglishLanguage(resolvedSourceLanguage) || looksLikeEnglishText(normalizedSourceText))) {
+    return {
+      text: normalizedSourceText,
+      lang: normalizeSpeechLocale(resolvedSourceLanguage),
+      role: 'source',
+    }
+  }
+
+  if (normalizedTranslatedText && (isEnglishLanguage(targetLanguage) || looksLikeEnglishText(normalizedTranslatedText))) {
+    return {
+      text: normalizedTranslatedText,
+      lang: normalizeSpeechLocale(targetLanguage),
+      role: 'translated',
+    }
+  }
+
+  return null
 }
 
 export const resolveTranslationQueryMode = (
