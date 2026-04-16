@@ -1,9 +1,11 @@
 import { clipboard, ipcMain, screen } from 'electron'
+import { capabilityService } from '@/lib/capability/service'
 import { translateMessage } from '@/lib/i18n/shared'
 import {
   DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT,
   getEnabledTranslationEngineIds,
   getTranslationWindowMinHeight,
+  isSpeechProviderReady,
   resolvePreferredTranslationEngine,
   resolveTranslationQueryMode,
   translationLanguages,
@@ -118,6 +120,8 @@ export class TranslationWindowManager {
       status: 'loading',
       pinned: this.state?.pinned ?? false,
       isSpeaking: false,
+      activeSpeechProvider: settings.speechService.activeProvider,
+      speechProviderReady: isSpeechProviderReady(settings),
       queryMode: initialQueryMode,
       engineId,
       enabledEngineIds,
@@ -163,6 +167,8 @@ export class TranslationWindowManager {
       status: 'loading',
       pinned: this.state?.pinned ?? false,
       isSpeaking: false,
+      activeSpeechProvider: settings.speechService.activeProvider,
+      speechProviderReady: isSpeechProviderReady(settings),
       queryMode: 'text',
       engineId,
       enabledEngineIds,
@@ -199,6 +205,8 @@ export class TranslationWindowManager {
       status: 'error',
       pinned: this.state?.pinned ?? false,
       isSpeaking: false,
+      activeSpeechProvider: settings.speechService.activeProvider,
+      speechProviderReady: isSpeechProviderReady(settings),
       queryMode: 'text',
       engineId,
       enabledEngineIds,
@@ -385,6 +393,8 @@ export class TranslationWindowManager {
       status: 'loading',
       isSpeaking: false,
       speakingRole: undefined,
+      activeSpeechProvider: settings.speechService.activeProvider,
+      speechProviderReady: isSpeechProviderReady(settings),
       sourceLanguage: payload.sourceLanguage,
       targetLanguage: payload.targetLanguage ?? currentState.targetLanguage,
       engineId,
@@ -418,6 +428,8 @@ export class TranslationWindowManager {
         status: 'success',
         isSpeaking: false,
         speakingRole: undefined,
+        activeSpeechProvider: settings.speechService.activeProvider,
+        speechProviderReady: isSpeechProviderReady(settings),
         engineId: result.engineId,
         enabledEngineIds,
         queryMode: result.queryMode,
@@ -444,6 +456,8 @@ export class TranslationWindowManager {
         status: 'error',
         isSpeaking: false,
         speakingRole: undefined,
+        activeSpeechProvider: settings.speechService.activeProvider,
+        speechProviderReady: isSpeechProviderReady(settings),
         enabledEngineIds,
         queryMode: 'text',
         wordEntry: undefined,
@@ -633,37 +647,52 @@ export class TranslationWindowManager {
       return false
     }
 
-    this.logger.info('[TranslationWindowManager] speech start requested', {
-      role: payload.role,
-      lang: payload.lang,
-      length: payload.text.length,
-    })
+    const settings = await capabilityService.getSettings()
 
-    const started = await this.speechController.speak(payload.text, () => {
-      if (!this.state?.isSpeaking) {
-        return
+    try {
+      this.logger.info('[TranslationWindowManager] speech start requested', {
+        provider: settings.speechService.activeProvider,
+        role: payload.role,
+        lang: payload.lang,
+        length: payload.text.length,
+      })
+
+      const started = await this.speechController.speak(settings, payload.text, () => {
+        if (!this.state?.isSpeaking) {
+          return
+        }
+
+        this.state = {
+          ...this.state,
+          isSpeaking: false,
+          speakingRole: undefined,
+        }
+        this.sendState()
+      })
+
+      if (!started || !this.state) {
+        this.logger.warn('[TranslationWindowManager] speech start skipped')
+        return false
       }
 
       this.state = {
         ...this.state,
-        isSpeaking: false,
-        speakingRole: undefined,
+        isSpeaking: true,
+        speakingRole: payload.role,
+        activeSpeechProvider: settings.speechService.activeProvider,
+        speechProviderReady: isSpeechProviderReady(settings),
       }
       this.sendState()
-    })
+      return true
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.logger.info('[TranslationWindowManager] speech request aborted')
+        return false
+      }
 
-    if (!started || !this.state) {
-      this.logger.warn('[TranslationWindowManager] speech start skipped')
+      this.logger.error('[TranslationWindowManager] speech start failed', error)
       return false
     }
-
-    this.state = {
-      ...this.state,
-      isSpeaking: true,
-      speakingRole: payload.role,
-    }
-    this.sendState()
-    return true
   }
 
   private stopSpeaking() {

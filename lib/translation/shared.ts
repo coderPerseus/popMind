@@ -1,4 +1,5 @@
 import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
+import { DEFAULT_ELEVENLABS_VOICE_ID, normalizeElevenLabsVoiceId } from '@/lib/speech-service/shared'
 import type {
   TranslateInput,
   TranslationEngineId,
@@ -7,6 +8,7 @@ import type {
   TranslationSettings,
   TranslationWindowSpeakPayload,
 } from './types'
+import type { SpeechProviderId } from '@/lib/capability/types'
 
 export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma']
 
@@ -97,6 +99,21 @@ export const defaultTranslationSettings: TranslationSettings = {
       serper: { apiKey: '' },
       brave: { apiKey: '' },
       jina: { apiKey: '' },
+    },
+  },
+  speechService: {
+    activeProvider: 'system',
+    providers: {
+      elevenlabs: {
+        apiKey: '',
+        voiceId: DEFAULT_ELEVENLABS_VOICE_ID,
+        modelId: 'eleven_multilingual_v2',
+      },
+      openai: {
+        apiKey: '',
+        voice: 'alloy',
+        model: 'gpt-4o-mini-tts',
+      },
     },
   },
 }
@@ -231,6 +248,21 @@ export const resolveEnglishSpeechPayload = ({
   }
 
   return null
+}
+
+export const isSpeechProviderReady = (settings: TranslationSettings, providerId?: SpeechProviderId) => {
+  const activeProvider = providerId ?? settings.speechService.activeProvider
+
+  if (activeProvider === 'system') {
+    return true
+  }
+
+  if (activeProvider === 'openai') {
+    return Boolean(settings.speechService.providers.openai.apiKey.trim())
+  }
+
+  const config = settings.speechService.providers.elevenlabs
+  return Boolean(config.apiKey.trim() && normalizeElevenLabsVoiceId(config.voiceId))
 }
 
 export const resolveTranslationQueryMode = (
@@ -385,6 +417,22 @@ export const mergeSettings = (
         jina: {
           ...previous.webSearch.providers.jina,
           ...patch.webSearch?.providers?.jina,
+        },
+      },
+    },
+    speechService: {
+      ...previous.speechService,
+      ...patch.speechService,
+      providers: {
+        ...previous.speechService.providers,
+        ...patch.speechService?.providers,
+        elevenlabs: {
+          ...previous.speechService.providers.elevenlabs,
+          ...patch.speechService?.providers?.elevenlabs,
+        },
+        openai: {
+          ...previous.speechService.providers.openai,
+          ...patch.speechService?.providers?.openai,
         },
       },
     },

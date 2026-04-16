@@ -1,11 +1,14 @@
 import { app } from 'electron'
 import { join } from 'node:path'
+import { DEFAULT_ELEVENLABS_VOICE_ID, normalizeElevenLabsVoiceId } from '@/lib/speech-service/shared'
 import type {
   AppLanguage,
   CapabilitySettings,
   CapabilitySettingsPatch,
+  ElevenLabsProviderConfig,
   LegacyTranslationSettings,
   LocalGemmaConfig,
+  OpenAiSpeechProviderConfig,
 } from './types'
 
 export const capabilitySettingsFileName = 'capability-settings.json'
@@ -19,6 +22,18 @@ const defaultAiProviderConfig = {
 
 const defaultWebSearchProviderConfig = {
   apiKey: '',
+}
+
+const defaultElevenLabsProviderConfig: ElevenLabsProviderConfig = {
+  apiKey: '',
+  voiceId: DEFAULT_ELEVENLABS_VOICE_ID,
+  modelId: 'eleven_multilingual_v2',
+}
+
+const defaultOpenAiSpeechProviderConfig: OpenAiSpeechProviderConfig = {
+  apiKey: '',
+  voice: 'alloy',
+  model: 'gpt-4o-mini-tts',
 }
 
 const defaultLocalGemmaConfig: LocalGemmaConfig = {
@@ -87,6 +102,13 @@ export const defaultCapabilitySettings: CapabilitySettings = {
       jina: { ...defaultWebSearchProviderConfig },
     },
   },
+  speechService: {
+    activeProvider: 'system',
+    providers: {
+      elevenlabs: { ...defaultElevenLabsProviderConfig },
+      openai: { ...defaultOpenAiSpeechProviderConfig },
+    },
+  },
 }
 
 const normalizeEnabledEngines = (options: {
@@ -136,6 +158,9 @@ export const mergeCapabilitySettings = (
     patch.localModels?.gemma,
     patch.aiService?.providers?.gemma
   )
+  const nextElevenLabsVoiceId =
+    normalizeElevenLabsVoiceId(patch.speechService?.providers?.elevenlabs?.voiceId ?? previous.speechService.providers.elevenlabs.voiceId) ||
+    DEFAULT_ELEVENLABS_VOICE_ID
 
   return {
     ...previous,
@@ -207,6 +232,23 @@ export const mergeCapabilitySettings = (
         jina: {
           ...previous.webSearch.providers.jina,
           ...patch.webSearch?.providers?.jina,
+        },
+      },
+    },
+    speechService: {
+      ...previous.speechService,
+      ...patch.speechService,
+      providers: {
+        ...previous.speechService.providers,
+        ...patch.speechService?.providers,
+        elevenlabs: {
+          ...previous.speechService.providers.elevenlabs,
+          ...patch.speechService?.providers?.elevenlabs,
+          voiceId: nextElevenLabsVoiceId,
+        },
+        openai: {
+          ...previous.speechService.providers.openai,
+          ...patch.speechService?.providers?.openai,
         },
       },
     },

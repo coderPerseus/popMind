@@ -8,7 +8,19 @@ import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useI18n } from '@/app/i18n'
 import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
-import type { AiProviderId, AppLanguage, CapabilitySettings, LocalGemmaConfig, WebSearchProviderId } from '@/lib/capability/types'
+import {
+  DEFAULT_ELEVENLABS_VOICE_ID,
+  ELEVENLABS_PRESET_VOICE_IDS,
+  normalizeElevenLabsVoiceId,
+} from '@/lib/speech-service/shared'
+import type {
+  AiProviderId,
+  AppLanguage,
+  CapabilitySettings,
+  LocalGemmaConfig,
+  SpeechProviderId,
+  WebSearchProviderId,
+} from '@/lib/capability/types'
 import type { I18nKey } from '@/lib/i18n/shared'
 import type { ExplainHistoryListItem, HistoryDataType, SearchHistoryListItem, SearchHistorySummary } from '@/lib/search-history/types'
 import type { ThemeMode } from '@/lib/theme/shared'
@@ -54,6 +66,14 @@ const webSearchProviders: Array<{ id: WebSearchProviderId; label: string; keyUrl
   { id: 'brave', label: 'Brave', keyUrl: 'https://brave.com/search/api/' },
   { id: 'jina', label: 'Jina', keyUrl: 'https://s.jina.ai' },
 ]
+
+const speechProviderOptions: Array<{ id: SpeechProviderId; label: string }> = [
+  { id: 'system', label: 'macOS System' },
+  { id: 'elevenlabs', label: 'ElevenLabs' },
+  { id: 'openai', label: 'OpenAI' },
+]
+
+const CUSTOM_ELEVENLABS_VOICE_OPTION = '__custom__'
 
 const getProviderLabel = (provider: AiProviderId | null | undefined, fallbackLabel = 'None') => {
   return aiProviderOptions.find((item) => item.id === provider)?.label ?? fallbackLabel
@@ -136,6 +156,8 @@ export function SettingsPage() {
   const [busyHistoryAction, setBusyHistoryAction] = useState<'' | 'export' | 'clear'>('')
   const [isTestingAiService, setIsTestingAiService] = useState(false)
   const [aiTestMessage, setAiTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
+  const [isTestingSpeechService, setIsTestingSpeechService] = useState(false)
+  const [speechTestMessage, setSpeechTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
   const [gemmaCheckState, setGemmaCheckState] = useState<GemmaCheckState>({
     status: 'idle',
     installed: false,
@@ -159,6 +181,13 @@ export function SettingsPage() {
   )
 
   const activeAiProvider = settings?.aiService.activeProvider ?? null
+  const activeSpeechProvider = settings?.speechService.activeProvider ?? 'system'
+  const elevenLabsVoiceId = settings?.speechService.providers.elevenlabs.voiceId ?? DEFAULT_ELEVENLABS_VOICE_ID
+  const selectedElevenLabsVoiceOption = ELEVENLABS_PRESET_VOICE_IDS.includes(
+    elevenLabsVoiceId as (typeof ELEVENLABS_PRESET_VOICE_IDS)[number]
+  )
+    ? elevenLabsVoiceId
+    : CUSTOM_ELEVENLABS_VOICE_OPTION
   const gemmaConfigured = settings ? isLocalGemmaConfigured(settings) : false
   const visibleAiProviderOptions = useMemo(
     () => aiProviderOptions.filter((item) => item.id !== 'gemma' || gemmaConfigured || activeAiProvider === 'gemma'),
@@ -453,6 +482,105 @@ export function SettingsPage() {
     )
   }
 
+  const updateSpeechProvider = (providerId: SpeechProviderId) => {
+    setSpeechTestMessage(null)
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            speechService: {
+              ...current.speechService,
+              activeProvider: providerId,
+            },
+          }
+        : current
+    )
+
+    void persistPatch({
+      speechService: {
+        activeProvider: providerId,
+      },
+    })
+  }
+
+  const updateElevenLabsField = (key: 'apiKey' | 'voiceId' | 'modelId', value: string) => {
+    const nextValue = key === 'voiceId' ? normalizeElevenLabsVoiceId(value) : value
+    setSpeechTestMessage(null)
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            speechService: {
+              ...current.speechService,
+              providers: {
+                ...current.speechService.providers,
+                elevenlabs: {
+                  ...current.speechService.providers.elevenlabs,
+                  [key]: nextValue,
+                },
+              },
+            },
+          }
+        : current
+    )
+
+    void persistPatch(
+      {
+        speechService: {
+          providers: {
+            elevenlabs: {
+              [key]: nextValue,
+            },
+          },
+        },
+      },
+      true
+    )
+  }
+
+  const updateElevenLabsVoiceSelection = (value: string) => {
+    if (value === CUSTOM_ELEVENLABS_VOICE_OPTION) {
+      updateElevenLabsField('voiceId', '')
+      return
+    }
+
+    updateElevenLabsField('voiceId', value)
+  }
+
+  const updateOpenAiSpeechField = (key: 'apiKey' | 'voice' | 'model', value: string) => {
+    setSpeechTestMessage(null)
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            speechService: {
+              ...current.speechService,
+              providers: {
+                ...current.speechService.providers,
+                openai: {
+                  ...current.speechService.providers.openai,
+                  [key]: value,
+                },
+              },
+            },
+          }
+        : current
+    )
+
+    void persistPatch(
+      {
+        speechService: {
+          providers: {
+            openai: {
+              [key]: value,
+            },
+          },
+        },
+      },
+      true
+    )
+  }
+
   const runWebSearchProviderTest = async (providerId: WebSearchProviderId) => {
     if (!settings) {
       return
@@ -551,6 +679,49 @@ export function SettingsPage() {
       })
     } finally {
       setIsTestingAiService(false)
+    }
+  }
+
+  const runSpeechServiceTest = async () => {
+    if (!settings) {
+      return
+    }
+
+    setSpeechTestMessage(null)
+    setIsTestingSpeechService(true)
+
+    try {
+      const result = await capability.testSpeechService(settings)
+
+      if (result.ok) {
+        setSpeechTestMessage({
+          tone: 'success',
+          message: t('settings.capability.speech.testSuccess', {
+            provider:
+              speechProviderOptions.find((item) => item.id === result.providerId)?.label ?? result.providerId ?? t('common.none'),
+            voice: result.voiceId ?? t('common.none'),
+            model: result.modelId ?? t('common.none'),
+          }),
+        })
+        return
+      }
+
+      if (result.errorCode === 'missing-config') {
+        setSpeechTestMessage({
+          tone: 'error',
+          message: t('settings.capability.speech.testMissingConfig'),
+        })
+        return
+      }
+
+      setSpeechTestMessage({
+        tone: 'error',
+        message: t('settings.capability.speech.testFailed', {
+          message: result.errorMessage ?? t('common.none'),
+        }),
+      })
+    } finally {
+      setIsTestingSpeechService(false)
     }
   }
 
@@ -841,6 +1012,137 @@ export function SettingsPage() {
                       {provider.label}
                     </Badge>
                   ))}
+                </div>
+              </section>
+
+              <section className="settings-surface">
+                <div className="settings-surface-heading">
+                  <div>
+                    <div className="settings-item-title">{t('settings.capability.speech.title')}</div>
+                    <div className="settings-item-desc">{t('settings.capability.speech.desc')}</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void runSpeechServiceTest()}
+                    disabled={!settings || isTestingSpeechService}
+                  >
+                    {isTestingSpeechService ? t('settings.capability.speech.testing') : t('settings.capability.speech.test')}
+                  </Button>
+                </div>
+
+                <div className="settings-form-grid">
+                  <label className="settings-field settings-field-span">
+                    <span className="settings-field-label">{t('settings.capability.speech.provider')}</span>
+                    <Select value={activeSpeechProvider} onChange={(event) => updateSpeechProvider(event.target.value as SpeechProviderId)}>
+                      {speechProviderOptions.map((provider) => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+
+                  {activeSpeechProvider === 'elevenlabs' ? (
+                    <>
+                      <label className="settings-field settings-field-span">
+                        <span className="settings-field-label">{t('settings.capability.speech.apiKey')}</span>
+                        <Input
+                          type="password"
+                          value={settings?.speechService.providers.elevenlabs.apiKey ?? ''}
+                          onChange={(event) => updateElevenLabsField('apiKey', event.target.value)}
+                          placeholder="sk_..."
+                        />
+                      </label>
+                      <label className="settings-field">
+                        <span className="settings-field-label">{t('settings.capability.speech.voiceId')}</span>
+                        <Select value={selectedElevenLabsVoiceOption} onChange={(event) => updateElevenLabsVoiceSelection(event.target.value)}>
+                          {ELEVENLABS_PRESET_VOICE_IDS.map((voiceId) => (
+                            <option key={voiceId} value={voiceId}>
+                              {voiceId}
+                            </option>
+                          ))}
+                          <option value={CUSTOM_ELEVENLABS_VOICE_OPTION}>自定义</option>
+                        </Select>
+                      </label>
+                      {selectedElevenLabsVoiceOption === CUSTOM_ELEVENLABS_VOICE_OPTION ? (
+                        <label className="settings-field">
+                          <span className="settings-field-label">自定义 Voice ID</span>
+                          <Input
+                            type="text"
+                            value={settings?.speechService.providers.elevenlabs.voiceId ?? ''}
+                            onChange={(event) => updateElevenLabsField('voiceId', event.target.value)}
+                            placeholder={DEFAULT_ELEVENLABS_VOICE_ID}
+                          />
+                        </label>
+                      ) : null}
+                      <label className="settings-field">
+                        <span className="settings-field-label">{t('settings.capability.speech.model')}</span>
+                        <Input
+                          type="text"
+                          value={settings?.speechService.providers.elevenlabs.modelId ?? ''}
+                          onChange={(event) => updateElevenLabsField('modelId', event.target.value)}
+                          placeholder="eleven_multilingual_v2"
+                        />
+                      </label>
+                    </>
+                  ) : null}
+
+                  {activeSpeechProvider === 'openai' ? (
+                    <>
+                      <label className="settings-field settings-field-span">
+                        <span className="settings-field-label">{t('settings.capability.speech.apiKey')}</span>
+                        <Input
+                          type="password"
+                          value={settings?.speechService.providers.openai.apiKey ?? ''}
+                          onChange={(event) => updateOpenAiSpeechField('apiKey', event.target.value)}
+                          placeholder="sk-..."
+                        />
+                      </label>
+                      <div className="settings-item-desc">
+                        {t('settings.capability.speech.openaiDefaultHint', {
+                          voice: settings?.speechService.providers.openai.voice ?? 'alloy',
+                          model: settings?.speechService.providers.openai.model ?? 'gpt-4o-mini-tts',
+                        })}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
+                {speechTestMessage ? (
+                  <div className={`settings-status-message ${speechTestMessage.tone === 'success' ? 'is-success' : 'is-error'}`}>
+                    {speechTestMessage.message}
+                  </div>
+                ) : null}
+
+                <div className="settings-action-row">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      void webOpenUrl(
+                        activeSpeechProvider === 'openai'
+                          ? 'https://developers.openai.com/api/docs/guides/text-to-speech'
+                          : 'https://elevenlabs.io/docs/overview/intro'
+                      )
+                    }
+                  >
+                    <Globe size={14} />
+                    {t('settings.capability.speech.docs')}
+                  </Button>
+                  {activeSpeechProvider === 'elevenlabs' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        void webOpenUrl(
+                          'https://help.elevenlabs.io/hc/en-us/articles/14599760033937-How-do-I-find-the-voice-ID-of-my-voices-via-the-website-and-API'
+                        )
+                      }
+                    >
+                      {t('settings.capability.speech.voiceHelp')}
+                    </Button>
+                  ) : null}
                 </div>
               </section>
 

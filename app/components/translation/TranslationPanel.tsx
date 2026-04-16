@@ -17,6 +17,8 @@ const emptyState: TranslationWindowState = {
   status: 'idle',
   pinned: false,
   isSpeaking: false,
+  activeSpeechProvider: 'system',
+  speechProviderReady: true,
   queryMode: 'text',
   engineId: 'google',
   enabledEngineIds: ['google'],
@@ -542,6 +544,16 @@ export function TranslationPanel() {
                     <div className="translation-word-head">
                       <div className="translation-word-head-main">
                         <div className="translation-word-title">{state.wordEntry.headword}</div>
+                        <Button
+                          className={`translation-word-speak-btn ${state.isSpeaking ? 'is-speaking' : ''}`}
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleSpeak}
+                          disabled={!speechPayload || state.status === 'loading' || !state.speechProviderReady}
+                          aria-label={state.isSpeaking ? '停止朗读单词' : '朗读单词'}
+                        >
+                          {state.isSpeaking ? <Square size={14} /> : <Volume2 size={14} />}
+                        </Button>
                       </div>
                       {state.wordEntry.phonetics.length > 0 && (
                         <div className="translation-word-phonetics">
@@ -678,7 +690,7 @@ export function TranslationPanel() {
                 variant="ghost"
                 size="sm"
                 onClick={handleSpeak}
-                disabled={!speechPayload || state.status === 'loading'}
+                disabled={!speechPayload || state.status === 'loading' || !state.speechProviderReady}
               >
                 {state.isSpeaking ? <Square size={13} /> : <Volume2 size={13} />}
                 <span>{state.isSpeaking ? '停止' : '朗读'}</span>

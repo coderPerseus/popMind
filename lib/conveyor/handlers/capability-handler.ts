@@ -6,6 +6,7 @@ export const registerCapabilityHandlers = () => {
   handle('capability-get-settings', () => capabilityService.getSettings())
   handle('capability-update-settings', (patch: CapabilitySettingsPatch) => capabilityService.updateSettings(patch))
   handle('capability-test-ai-service', (settings: CapabilitySettings) => capabilityService.testAiService(settings))
+  handle('capability-test-speech-service', (settings: CapabilitySettings) => capabilityService.testSpeechService(settings))
   handle('capability-test-web-search-provider', (settings: CapabilitySettings, providerId: WebSearchProviderId) =>
     capabilityService.testWebSearchProvider(settings, providerId)
   )

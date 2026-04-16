@@ -4,6 +4,7 @@ const appLanguageSchema = z.enum(['zh-CN', 'en'])
 const translationEngineIdSchema = z.enum(['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma'])
 const aiProviderSchema = z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma'])
 const webSearchProviderSchema = z.enum(['tavily', 'serper', 'brave', 'jina'])
+const speechProviderSchema = z.enum(['system', 'elevenlabs', 'openai'])
 
 const aiProviderConfigSchema = z.object({
   apiKey: z.string(),
@@ -20,6 +21,18 @@ const localGemmaConfigSchema = z.object({
 
 const webSearchProviderConfigSchema = z.object({
   apiKey: z.string(),
+})
+
+const elevenLabsProviderConfigSchema = z.object({
+  apiKey: z.string(),
+  voiceId: z.string(),
+  modelId: z.string(),
+})
+
+const openAiSpeechProviderConfigSchema = z.object({
+  apiKey: z.string(),
+  voice: z.string(),
+  model: z.string(),
 })
 
 const capabilitySettingsSchema = z.object({
@@ -56,6 +69,13 @@ const capabilitySettingsSchema = z.object({
       serper: webSearchProviderConfigSchema,
       brave: webSearchProviderConfigSchema,
       jina: webSearchProviderConfigSchema,
+    }),
+  }),
+  speechService: z.object({
+    activeProvider: speechProviderSchema,
+    providers: z.object({
+      elevenlabs: elevenLabsProviderConfigSchema,
+      openai: openAiSpeechProviderConfigSchema,
     }),
   }),
 })
@@ -112,6 +132,17 @@ const capabilitySettingsPatchSchema = z.object({
         .optional(),
     })
     .optional(),
+  speechService: z
+    .object({
+      activeProvider: speechProviderSchema.optional(),
+      providers: z
+        .object({
+          elevenlabs: elevenLabsProviderConfigSchema.partial().optional(),
+          openai: openAiSpeechProviderConfigSchema.partial().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 })
 
 const aiServiceTestResultSchema = z.object({
@@ -126,6 +157,15 @@ const webSearchServiceTestResultSchema = z.object({
   ok: z.boolean(),
   providerId: webSearchProviderSchema,
   resultCount: z.number(),
+  errorCode: z.enum(['missing-config', 'request-failed']).optional(),
+  errorMessage: z.string().optional(),
+})
+
+const speechServiceTestResultSchema = z.object({
+  ok: z.boolean(),
+  providerId: speechProviderSchema,
+  voiceId: z.string().nullable(),
+  modelId: z.string().nullable(),
   errorCode: z.enum(['missing-config', 'request-failed']).optional(),
   errorMessage: z.string().optional(),
 })
@@ -147,6 +187,10 @@ export const capabilityIpcSchema = {
     args: z.tuple([capabilitySettingsSchema, webSearchProviderSchema]),
     return: webSearchServiceTestResultSchema,
   },
+  'capability-test-speech-service': {
+    args: z.tuple([capabilitySettingsSchema]),
+    return: speechServiceTestResultSchema,
+  },
 }
 
 export const capabilityRuntimeSchema = {
@@ -154,8 +198,10 @@ export const capabilityRuntimeSchema = {
   translationEngineIdSchema,
   aiProviderSchema,
   webSearchProviderSchema,
+  speechProviderSchema,
   capabilitySettingsSchema,
   capabilitySettingsPatchSchema,
   aiServiceTestResultSchema,
   webSearchServiceTestResultSchema,
+  speechServiceTestResultSchema,
 }
