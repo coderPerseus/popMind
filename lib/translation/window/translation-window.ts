@@ -21,7 +21,10 @@ export interface TranslationWindowPort {
 export class TranslationWindow implements TranslationWindowPort {
   private readonly window: BrowserWindow
 
-  constructor(private readonly bridge: SelectionBridge) {
+  constructor(
+    private readonly bridge: SelectionBridge,
+    private readonly logger: Console = console
+  ) {
     this.window = this.createWindow()
   }
 
@@ -59,6 +62,36 @@ export class TranslationWindow implements TranslationWindowPort {
     translationWindow.setAlwaysOnTop(true, 'pop-up-menu')
     translationWindow.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
+    })
+    translationWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      console.log('[TranslationWindow][console]', {
+        level,
+        message,
+        line,
+        sourceId,
+      })
+    })
+    translationWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+      console.error('[TranslationWindow] preload-error', {
+        preloadPath,
+        error,
+      })
+    })
+    translationWindow.webContents.on('did-finish-load', () => {
+      void translationWindow.webContents
+        .executeJavaScript(
+          'JSON.stringify({ hasTranslationWindow: Boolean(window.translationWindow), keys: Object.keys(window).filter((key) => key.includes("translation")) })',
+          true
+        )
+        .then((result) => {
+          console.log('[TranslationWindow] renderer globals', {
+            result,
+            url: translationWindow.webContents.getURL(),
+          })
+        })
+        .catch((error) => {
+          console.error('[TranslationWindow] inspect globals failed', { error })
+        })
     })
 
     translationWindow.once('ready-to-show', () => {

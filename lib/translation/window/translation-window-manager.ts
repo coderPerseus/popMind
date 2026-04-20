@@ -293,7 +293,7 @@ export class TranslationWindowManager {
       return this.window
     }
 
-    this.window = new TranslationWindow(this.bridge)
+    this.window = new TranslationWindow(this.bridge, this.logger)
     this.detachMoveListener = this.window.onMove(() => undefined)
 
     return this.window

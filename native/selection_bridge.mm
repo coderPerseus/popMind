@@ -137,6 +137,20 @@ bool IsVSCodeBundleId(NSString* bundleId) {
   return [bundleId hasPrefix:@"com.microsoft.VSCode"];
 }
 
+bool IsObsidianBundleId(NSString* bundleId) {
+  if (!bundleId) return false;
+  return [bundleId isEqualToString:@"md.obsidian"];
+}
+
+bool IsZedBundleId(NSString* bundleId) {
+  if (!bundleId) return false;
+  return [bundleId isEqualToString:@"dev.zed.Zed"];
+}
+
+bool AllowsLooseSelectionFallback(NSString* bundleId) {
+  return IsVSCodeBundleId(bundleId) || IsObsidianBundleId(bundleId) || IsZedBundleId(bundleId);
+}
+
 std::string GetAXRoleDebug(AXUIElementRef el) {
   if (!el) return "";
 
@@ -1498,12 +1512,12 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   SelectionScene scene = SelectionScene::kNone;
   if (hasSelection) {
     scene = SelectionScene::kBoxSelect;
-  } else if (IsVSCodeBundleId(frontBundleId) &&
+  } else if (AllowsLooseSelectionFallback(frontBundleId) &&
              !hasFreshFileDragPayload &&
              !nearFocusedWindowEdge) {
-    // VS Code terminal often keeps AX focus on an unfriendly text field that
-    // exposes no selected-range metadata on mouseUp. Still allow the later
-    // snapshot + clipboard fallback path to recover the selection text.
+    // Some editors keep AX focus on an element that exposes no selected-range
+    // metadata on mouseUp. Still allow the later snapshot + clipboard fallback
+    // path to recover the selection text.
     scene = SelectionScene::kBoxSelect;
   } else if (BundleIdEquals(frontBundleId, "org.zotero.zotero") &&
              hasFocusedElem &&

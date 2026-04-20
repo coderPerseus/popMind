@@ -10,8 +10,9 @@ import {
   resolveEnglishSpeechPayload,
   translationEngineLabels,
   translationEngineOrder,
+  translationLanguages,
 } from '@/lib/translation/shared'
-import type { TranslationWindowResizeEdge, TranslationWindowState } from '@/lib/translation/types'
+import type { TranslationWindowPreloadApi, TranslationWindowResizeEdge, TranslationWindowState } from '@/lib/translation/types'
 
 const emptyState: TranslationWindowState = {
   status: 'idle',
@@ -29,6 +30,50 @@ const emptyState: TranslationWindowState = {
   languages: [],
 }
 
+const missingTranslationWindowApi: TranslationWindowPreloadApi = {
+  onState() {
+    return () => {}
+  },
+  onSpeechState() {
+    return () => {}
+  },
+  async getState() {
+    return null
+  },
+  async getSpeechState() {
+    return {
+      isSpeaking: false,
+      activeSpeechProvider: 'system',
+      speechProviderReady: false,
+    }
+  },
+  async retranslate() {
+    return { ok: false }
+  },
+  async setPinned() {
+    return { ok: false, pinned: false }
+  },
+  setDragging() {},
+  notifyInteraction() {},
+  moveWindow() {},
+  resizeWindow() {},
+  async dismissTopmost() {
+    return { ok: false }
+  },
+  async copyTranslatedText() {
+    return { ok: false }
+  },
+  async speak() {
+    return { ok: false, active: false }
+  },
+  async stopSpeaking() {
+    return { ok: false, active: false }
+  },
+  async closeWindow() {
+    return { ok: false }
+  },
+}
+
 const resizeHandleConfigs: Array<{ edge: TranslationWindowResizeEdge; label: string }> = [
   { edge: 'top', label: '从顶部调整翻译窗口大小' },
   { edge: 'right', label: '从右侧调整翻译窗口大小' },
@@ -41,6 +86,8 @@ const resizeHandleConfigs: Array<{ edge: TranslationWindowResizeEdge; label: str
 ]
 
 export function TranslationPanel() {
+  const translationWindowApiRef = useRef<TranslationWindowPreloadApi | null>(null)
+  const translationWindowApi = translationWindowApiRef.current ?? window.translationWindow ?? missingTranslationWindowApi
   const [state, setState] = useState<TranslationWindowState>(emptyState)
   const [sourceLanguage, setSourceLanguage] = useState('auto')
   const [targetLanguage, setTargetLanguage] = useState('en')
@@ -83,6 +130,9 @@ export function TranslationPanel() {
 
   useEffect(() => {
     let mounted = true
+    let unsubscribe: (() => void) | null = null
+    let pollTimer: number | null = null
+    let failTimer: number | null = null
 
     const syncState = (nextState: TranslationWindowState) => {
       if (!mounted) {
@@ -96,16 +146,67 @@ export function TranslationPanel() {
       setCopied(false)
     }
 
-    const unsubscribe = window.translationWindow.onState(syncState)
-    void window.translationWindow.getState().then((nextState) => {
-      if (nextState) {
-        syncState(nextState)
+    const bindApi = (api: TranslationWindowPreloadApi) => {
+      translationWindowApiRef.current = api
+      unsubscribe = api.onState(syncState)
+      void api.getState().then((nextState) => {
+        if (nextState) {
+          syncState(nextState)
+        }
+      })
+    }
+
+    const tryBindApi = () => {
+      const api = window.translationWindow
+      if (!api) {
+        return false
       }
-    })
+
+      if (pollTimer != null) {
+        window.clearInterval(pollTimer)
+        pollTimer = null
+      }
+
+      if (failTimer != null) {
+        window.clearTimeout(failTimer)
+        failTimer = null
+      }
+
+      bindApi(api)
+      return true
+    }
+
+    if (!tryBindApi()) {
+      pollTimer = window.setInterval(() => {
+        if (tryBindApi()) {
+          console.info('[TranslationPanel] translationWindow api bound after retry')
+        }
+      }, 50)
+
+      failTimer = window.setTimeout(() => {
+        if (translationWindowApiRef.current || !mounted) {
+          return
+        }
+
+        console.error('[TranslationPanel] translationWindow api missing after retry window')
+        setState({
+          ...emptyState,
+          status: 'error',
+          errorMessage: '翻译窗口初始化失败，请关闭后重试',
+          languages: translationLanguages,
+        })
+      }, 1500)
+    }
 
     return () => {
       mounted = false
-      unsubscribe()
+      if (pollTimer != null) {
+        window.clearInterval(pollTimer)
+      }
+      if (failTimer != null) {
+        window.clearTimeout(failTimer)
+      }
+      unsubscribe?.()
     }
   }, [])
 
@@ -145,7 +246,7 @@ export function TranslationPanel() {
       }
 
       event.preventDefault()
-      void window.translationWindow.dismissTopmost()
+      void translationWindowApi.dismissTopmost()
     }
 
     document.addEventListener('keydown', handleKeyDown)
@@ -165,7 +266,7 @@ export function TranslationPanel() {
       }
 
       const nextHeight = Math.ceil(panelRef.current.scrollHeight + 20)
-      window.translationWindow.resizeWindow({
+      translationWindowApi.resizeWindow({
         height: nextHeight,
         minHeight: getTranslationWindowMinHeight(state.queryMode),
         source: 'content',
@@ -205,8 +306,8 @@ export function TranslationPanel() {
   })
 
   const handleRetranslate = async () => {
-    window.translationWindow.notifyInteraction()
-    await window.translationWindow.retranslate({
+    translationWindowApi.notifyInteraction()
+    await translationWindowApi.retranslate({
       sourceLanguage,
       targetLanguage,
       engineId,
@@ -214,16 +315,16 @@ export function TranslationPanel() {
   }
 
   const handleCopy = async () => {
-    window.translationWindow.notifyInteraction()
-    await window.translationWindow.copyTranslatedText()
+    translationWindowApi.notifyInteraction()
+    await translationWindowApi.copyTranslatedText()
     setCopied(true)
   }
 
   const handleSpeak = async () => {
-    window.translationWindow.notifyInteraction(1500)
+    translationWindowApi.notifyInteraction(1500)
 
     if (state.isSpeaking) {
-      await window.translationWindow.stopSpeaking()
+      await translationWindowApi.stopSpeaking()
       return
     }
 
@@ -231,11 +332,11 @@ export function TranslationPanel() {
       return
     }
 
-    await window.translationWindow.speak(speechPayload)
+    await translationWindowApi.speak(speechPayload)
   }
 
   const handleEngineChange = async (nextEngineId: TranslationWindowState['engineId']) => {
-    window.translationWindow.notifyInteraction()
+    translationWindowApi.notifyInteraction()
     setEngineId(nextEngineId)
     setCopied(false)
 
@@ -243,7 +344,7 @@ export function TranslationPanel() {
       return
     }
 
-    await window.translationWindow.retranslate({
+    await translationWindowApi.retranslate({
       sourceLanguage,
       targetLanguage,
       engineId: nextEngineId,
@@ -251,7 +352,7 @@ export function TranslationPanel() {
   }
 
   const handleTargetLanguageChange = async (nextTargetLanguage: string) => {
-    window.translationWindow.notifyInteraction()
+    translationWindowApi.notifyInteraction()
     setTargetLanguage(nextTargetLanguage)
     setCopied(false)
 
@@ -259,7 +360,7 @@ export function TranslationPanel() {
       return
     }
 
-    await window.translationWindow.retranslate({
+    await translationWindowApi.retranslate({
       sourceLanguage,
       targetLanguage: nextTargetLanguage,
       engineId,
@@ -267,8 +368,8 @@ export function TranslationPanel() {
   }
 
   const handlePinToggle = async () => {
-    window.translationWindow.notifyInteraction()
-    const result = await window.translationWindow.setPinned(!state.pinned)
+    translationWindowApi.notifyInteraction()
+    const result = await translationWindowApi.setPinned(!state.pinned)
     setState((current) => ({ ...current, pinned: result.pinned }))
   }
 
@@ -284,7 +385,7 @@ export function TranslationPanel() {
       target.releasePointerCapture(pointerId)
     }
 
-    window.translationWindow.setDragging(false)
+    translationWindowApi.setDragging(false)
   }
 
   const handleDragStart = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -298,8 +399,8 @@ export function TranslationPanel() {
     dragState.current.pointerId = event.pointerId
     dragState.current.x = event.screenX
     dragState.current.y = event.screenY
-    window.translationWindow.notifyInteraction()
-    window.translationWindow.setDragging(true)
+    translationWindowApi.notifyInteraction()
+    translationWindowApi.setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -317,7 +418,7 @@ export function TranslationPanel() {
     dragState.current.x = event.screenX
     dragState.current.y = event.screenY
 
-    window.translationWindow.moveWindow(deltaX, deltaY)
+    translationWindowApi.moveWindow(deltaX, deltaY)
   }
 
   const handleDragEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -344,7 +445,7 @@ export function TranslationPanel() {
     if (resizeState.current.edge && (deltaX !== 0 || deltaY !== 0)) {
       resizeState.current.x = resizeState.current.pendingX
       resizeState.current.y = resizeState.current.pendingY
-      window.translationWindow.resizeWindow({
+      translationWindowApi.resizeWindow({
         source: 'manual',
         edge: resizeState.current.edge,
         deltaX,
@@ -360,7 +461,7 @@ export function TranslationPanel() {
     }
 
     setActiveResizeEdge(null)
-    window.translationWindow.setDragging(false)
+    translationWindowApi.setDragging(false)
   }
 
   const handleResizeStart = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -384,8 +485,8 @@ export function TranslationPanel() {
     resizeState.current.pendingY = event.screenY
     hasManualResizeRef.current = true
     setActiveResizeEdge(edge)
-    window.translationWindow.notifyInteraction()
-    window.translationWindow.setDragging(true)
+    translationWindowApi.notifyInteraction()
+    translationWindowApi.setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -404,7 +505,7 @@ export function TranslationPanel() {
 
     resizeState.current.x = resizeState.current.pendingX
     resizeState.current.y = resizeState.current.pendingY
-    window.translationWindow.resizeWindow({
+    translationWindowApi.resizeWindow({
       source: 'manual',
       edge: resizeState.current.edge,
       deltaX,
@@ -512,8 +613,8 @@ export function TranslationPanel() {
               variant="ghost"
               size="icon-sm"
               onClick={() => {
-                window.translationWindow.notifyInteraction()
-                void window.translationWindow.closeWindow()
+                translationWindowApi.notifyInteraction()
+                void translationWindowApi.closeWindow()
               }}
               aria-label="Close translation window"
             >
