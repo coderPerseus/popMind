@@ -169,32 +169,31 @@ export class MainExplainSessionService {
       return
     }
 
-    const model = createLanguageModel(settings, this.session.providerId)
-    if (!model) {
-      throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
-    }
-
     const conversationMessages = this.session.messages
     const assistantMessage = createMessage('assistant', '')
-
-    this.session = {
-      ...this.session,
-      status: settings.webSearch.enabled ? 'searching' : 'streaming',
-      loadingMessage: translateMessage(
-        settings.appLanguage,
-        settings.webSearch.enabled ? 'selectionChat.searching' : 'selectionChat.loading'
-      ),
-      aiProvider: model.providerId,
-      modelId: model.modelId,
-      messages: [...conversationMessages, assistantMessage],
-      errorMessage: undefined,
-    }
-    this.emit()
-
     const abortController = new AbortController()
-    this.currentAbortController = abortController
 
     try {
+      const model = createLanguageModel(settings, this.session.providerId)
+      if (!model) {
+        throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
+      }
+
+      this.session = {
+        ...this.session,
+        status: settings.webSearch.enabled ? 'searching' : 'streaming',
+        loadingMessage: translateMessage(
+          settings.appLanguage,
+          settings.webSearch.enabled ? 'selectionChat.searching' : 'selectionChat.loading'
+        ),
+        aiProvider: model.providerId,
+        modelId: model.modelId,
+        messages: [...conversationMessages, assistantMessage],
+        errorMessage: undefined,
+      }
+      this.emit()
+      this.currentAbortController = abortController
+
       const result = await runExplain({
         mode: this.session.mode,
         providerId: this.session.providerId,

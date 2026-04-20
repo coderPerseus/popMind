@@ -566,24 +566,26 @@ export function MainSearch() {
     return () => document.removeEventListener('keydown', handleKey)
   }, [windowDismissTopmost])
 
-  const moveClipboardSelection = useCallback((direction: 'next' | 'previous') => {
-    setClipboardSelectedId((current) => {
-      if (!clipboardItems.length) {
-        return current
-      }
+  const moveClipboardSelection = useCallback(
+    (direction: 'next' | 'previous') => {
+      setClipboardSelectedId((current) => {
+        if (!clipboardItems.length) {
+          return current
+        }
 
-      const currentIndex = clipboardItems.findIndex((item) => item.id === current)
+        const currentIndex = clipboardItems.findIndex((item) => item.id === current)
 
-      if (direction === 'next') {
-        const nextIndex =
-          currentIndex < 0 ? 0 : Math.min(currentIndex + 1, Math.max(clipboardItems.length - 1, 0))
+        if (direction === 'next') {
+          const nextIndex = currentIndex < 0 ? 0 : Math.min(currentIndex + 1, Math.max(clipboardItems.length - 1, 0))
+          return clipboardItems[nextIndex]?.id ?? current
+        }
+
+        const nextIndex = currentIndex < 0 ? Math.max(clipboardItems.length - 1, 0) : Math.max(currentIndex - 1, 0)
         return clipboardItems[nextIndex]?.id ?? current
-      }
-
-      const nextIndex = currentIndex < 0 ? Math.max(clipboardItems.length - 1, 0) : Math.max(currentIndex - 1, 0)
-      return clipboardItems[nextIndex]?.id ?? current
-    })
-  }, [clipboardItems])
+      })
+    },
+    [clipboardItems]
+  )
 
   useEffect(() => {
     if (!isClipboardMode) {
@@ -1044,12 +1046,16 @@ export function MainSearch() {
             engineId={translate.engineId}
             enabledEngineIds={translate.enabledEngineIds}
             copied={translate.copied}
+            speechState={translate.speechState}
             languages={translate.languages}
             onSourceLanguageChange={translate.setSourceLanguage}
             onTargetLanguageChange={translate.setTargetLanguage}
             onEngineChange={translate.setEngineId}
             onCopy={() => {
               void translate.copyResult()
+            }}
+            onSpeak={(payload) => {
+              void translate.toggleSpeak(payload)
             }}
             onRetranslate={translate.retranslate}
           />

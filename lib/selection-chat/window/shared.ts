@@ -5,6 +5,7 @@ export const SelectionChatWindowChannel = {
   Regenerate: 'selectionChatWindow:regenerate',
   Stop: 'selectionChatWindow:stop',
   SetPinned: 'selectionChatWindow:setPinned',
+  SetWebSearchEnabled: 'selectionChatWindow:setWebSearchEnabled',
   SetDragging: 'selectionChatWindow:setDragging',
   CopyMessage: 'selectionChatWindow:copyMessage',
   Close: 'selectionChatWindow:close',

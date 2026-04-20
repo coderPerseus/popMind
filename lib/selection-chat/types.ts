@@ -19,6 +19,7 @@ export interface SelectionChatSession {
   messages: SelectionChatMessage[]
   status: 'idle' | 'searching' | 'streaming' | 'ready' | 'error'
   pinned: boolean
+  webSearchEnabled: boolean
   language: AppLanguage
   aiProvider?: AiProviderId
   webSearchProvider?: WebSearchProviderId
@@ -38,6 +39,7 @@ export interface SelectionChatWindowPreloadApi {
   regenerate(): Promise<{ ok: boolean }>
   stop(): Promise<{ ok: boolean }>
   setPinned(pinned: boolean): Promise<{ ok: boolean; pinned: boolean }>
+  setWebSearchEnabled(enabled: boolean): Promise<{ ok: boolean; enabled: boolean }>
   setDragging(isDragging: boolean): void
   closeWindow(): Promise<{ ok: boolean }>
   copyMessage(messageId: string): Promise<{ ok: boolean }>

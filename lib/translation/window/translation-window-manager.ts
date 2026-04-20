@@ -1,4 +1,4 @@
-import { clipboard, ipcMain, screen } from 'electron'
+import { BrowserWindow, clipboard, ipcMain, screen } from 'electron'
 import { capabilityService } from '@/lib/capability/service'
 import { translateMessage } from '@/lib/i18n/shared'
 import {
@@ -18,6 +18,7 @@ import type {
   TranslationEngineId,
   TranslationQueryMode,
   TranslationWindowSpeakPayload,
+  TranslationSpeechState,
   TranslationWindowResizeEdge,
   TranslationSettings,
   TranslationWindowResizePayload,
@@ -66,6 +67,11 @@ export class TranslationWindowManager {
   private detachMoveListener: (() => void) | null = null
   private readonly speechController = new MacOsSpeechController()
   private state: TranslationWindowState | null = null
+  private speechState: TranslationSpeechState = {
+    isSpeaking: false,
+    activeSpeechProvider: 'system',
+    speechProviderReady: true,
+  }
   private pendingRequest: {
     text: string
     selectionId?: string
@@ -261,6 +267,7 @@ export class TranslationWindowManager {
 
   dispose() {
     ipcMain.removeHandler(TranslationWindowChannel.GetState)
+    ipcMain.removeHandler(TranslationWindowChannel.GetSpeechState)
     ipcMain.removeHandler(TranslationWindowChannel.Retranslate)
     ipcMain.removeHandler(TranslationWindowChannel.SetPinned)
     ipcMain.removeHandler(TranslationWindowChannel.Copy)
@@ -294,6 +301,7 @@ export class TranslationWindowManager {
 
   private setupIpc() {
     ipcMain.handle(TranslationWindowChannel.GetState, async () => this.state)
+    ipcMain.handle(TranslationWindowChannel.GetSpeechState, async () => this.speechState)
     ipcMain.handle(
       TranslationWindowChannel.Retranslate,
       async (
@@ -643,11 +651,13 @@ export class TranslationWindowManager {
   }
 
   private async startSpeaking(payload: TranslationWindowSpeakPayload) {
-    if (!this.state) {
-      return false
-    }
-
     const settings = await capabilityService.getSettings()
+    const nextSpeechState: TranslationSpeechState = {
+      isSpeaking: false,
+      speakingRole: undefined,
+      activeSpeechProvider: settings.speechService.activeProvider,
+      speechProviderReady: isSpeechProviderReady(settings),
+    }
 
     try {
       this.logger.info('[TranslationWindowManager] speech start requested', {
@@ -658,62 +668,93 @@ export class TranslationWindowManager {
       })
 
       const started = await this.speechController.speak(settings, payload.text, () => {
-        if (!this.state?.isSpeaking) {
+        const hasActiveSpeech = this.speechState.isSpeaking || this.state?.isSpeaking
+        if (!hasActiveSpeech) {
           return
         }
 
-        this.state = {
-          ...this.state,
+        this.speechState = {
+          ...this.speechState,
           isSpeaking: false,
           speakingRole: undefined,
         }
-        this.sendState()
+        if (this.state?.isSpeaking) {
+          this.state = {
+            ...this.state,
+            isSpeaking: false,
+            speakingRole: undefined,
+          }
+          this.sendState()
+        }
+        this.sendSpeechState()
       })
 
-      if (!started || !this.state) {
+      if (!started) {
         this.logger.warn('[TranslationWindowManager] speech start skipped')
         return false
       }
 
-      this.state = {
-        ...this.state,
+      this.speechState = {
+        ...nextSpeechState,
         isSpeaking: true,
         speakingRole: payload.role,
-        activeSpeechProvider: settings.speechService.activeProvider,
-        speechProviderReady: isSpeechProviderReady(settings),
       }
-      this.sendState()
+
+      if (this.state) {
+        this.state = {
+          ...this.state,
+          isSpeaking: true,
+          speakingRole: payload.role,
+          activeSpeechProvider: nextSpeechState.activeSpeechProvider,
+          speechProviderReady: nextSpeechState.speechProviderReady,
+        }
+        this.sendState()
+      }
+      this.sendSpeechState()
       return true
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         this.logger.info('[TranslationWindowManager] speech request aborted')
+        this.speechState = nextSpeechState
+        this.sendSpeechState()
         return false
       }
 
       this.logger.error('[TranslationWindowManager] speech start failed', error)
+      this.speechState = nextSpeechState
+      this.sendSpeechState()
       return false
     }
   }
 
   private stopSpeaking() {
-    if (this.state?.isSpeaking) {
+    if (this.speechState.isSpeaking || this.state?.isSpeaking) {
       this.logger.info('[TranslationWindowManager] speech stop requested', {
-        role: this.state.speakingRole,
+        role: this.speechState.speakingRole ?? this.state?.speakingRole,
       })
     }
 
     this.speechController.stop()
 
-    if (!this.state?.isSpeaking) {
-      return
-    }
-
-    this.state = {
-      ...this.state,
+    const wasSpeaking = this.speechState.isSpeaking || this.state?.isSpeaking
+    this.speechState = {
+      ...this.speechState,
       isSpeaking: false,
       speakingRole: undefined,
     }
-    this.sendState()
+
+    if (this.state?.isSpeaking) {
+      this.state = {
+        ...this.state,
+        isSpeaking: false,
+        speakingRole: undefined,
+      }
+      this.sendState()
+    }
+
+    if (wasSpeaking) {
+      this.sendSpeechState()
+    }
   }
 
   private resolveManualResizeBounds(
@@ -775,6 +816,16 @@ export class TranslationWindowManager {
     }
 
     this.window.sendState(this.state)
+  }
+
+  private sendSpeechState() {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) {
+        continue
+      }
+
+      window.webContents.send(TranslationWindowChannel.SpeechState, this.speechState)
+    }
   }
 
   private showWindow() {

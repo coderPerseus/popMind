@@ -109,8 +109,10 @@ const zhCN = createMessages({
     '使用引导：先安装并打开 LM Studio，下载 Gemma 模型，加载模型后开启本地 API 服务，再回到这里点“检测环境”。',
   'settings.privacy.gemma.mainWindowOnly': '当前配置默认只服务于主窗口 `/gemma` 对话。',
   'settings.privacy.gemma.translationHint': '当 Gemma 配置完成后，翻译引擎里会额外出现 “Gemma” 选项。',
-  'settings.privacy.gemma.generalProviderHint': '当 Gemma 配置完成后，常规页的 AI Provider 里也会出现 “Gemma” 供你主动选择。',
-  'settings.privacy.gemma.generalHint': 'Gemma 的连接信息已迁移到“隐私”页统一管理。这里仅保留是否把 Gemma 作为常规 AI Provider 使用的选择。',
+  'settings.privacy.gemma.generalProviderHint':
+    '当 Gemma 配置完成后，常规页的 AI Provider 里也会出现 “Gemma” 供你主动选择。',
+  'settings.privacy.gemma.generalHint':
+    'Gemma 的连接信息已迁移到“隐私”页统一管理。这里仅保留是否把 Gemma 作为常规 AI Provider 使用的选择。',
   'settings.capability.search.title': '网络搜索配置',
   'settings.capability.search.desc': '用于搜索增强解释，默认关闭。',
   'settings.capability.search.enabled': '启用网络搜索',
@@ -135,7 +137,8 @@ const zhCN = createMessages({
   'settings.capability.speech.testing': '测试中',
   'settings.capability.speech.testSuccess': (params) =>
     `连接成功，当前服务：${params?.provider ?? 'Unknown'} / ${params?.voice ?? 'Unknown'} / ${params?.model ?? 'Unknown'}`,
-  'settings.capability.speech.testMissingConfig': '请先选择 Provider；如果使用 ElevenLabs，请填写 API Key 和 Voice ID。',
+  'settings.capability.speech.testMissingConfig':
+    '请先选择 Provider；如果使用 ElevenLabs，请填写 API Key 和 Voice ID。',
   'settings.capability.speech.testFailed': (params) => `测试失败：${params?.message ?? '未知错误'}`,
   'settings.history.searchTab': '搜索历史',
   'settings.history.explainTab': '解释历史',
@@ -313,6 +316,7 @@ const zhCN = createMessages({
   'selectionChat.error.generic': '解释失败，请稍后重试。',
   'selectionChat.error.missingAiConfig': '未配置 AI 服务，请先前往配置中心选择 Provider 并填写 API Key。',
   'selectionChat.error.contextLimit': '当前对话上下文已超过模型上限，请开启新的解释会话或缩短输入。',
+  'selectionChat.error.timeout': 'AI 服务响应超时，请检查配置或网络后重试。',
   'selectionChat.empty': '选择文本后点击“解释”，这里会开始一个轻量对话。',
   'selectionChat.source.title': '参考来源',
   'selectionChat.status.search': '联网搜索已开启',
@@ -434,7 +438,8 @@ const en = createMessages({
   'settings.privacy.gemma.guide':
     'Setup guide: install and open LM Studio, download a Gemma model, load it, enable the local API service, then return here and click "Detect Environment".',
   'settings.privacy.gemma.mainWindowOnly': 'This configuration is used by `/gemma` in the main window by default.',
-  'settings.privacy.gemma.translationHint': 'Once Gemma is configured, an extra "Gemma" option will appear in translation engines.',
+  'settings.privacy.gemma.translationHint':
+    'Once Gemma is configured, an extra "Gemma" option will appear in translation engines.',
   'settings.privacy.gemma.generalProviderHint':
     'Once Gemma is configured, "Gemma" will also appear in General > AI Provider for optional use.',
   'settings.privacy.gemma.generalHint':
@@ -647,6 +652,8 @@ const en = createMessages({
     'AI service is not configured. Open Settings and set a provider with an API key first.',
   'selectionChat.error.contextLimit':
     'The conversation has exceeded the model context limit. Start a new explanation or shorten the input.',
+  'selectionChat.error.timeout':
+    'The AI service timed out. Check your configuration or network connection and try again.',
   'selectionChat.empty': 'Select text and click "Explain" to start a lightweight chat.',
   'selectionChat.source.title': 'Sources',
   'selectionChat.status.search': 'Web search enabled',

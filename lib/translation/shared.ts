@@ -127,7 +127,9 @@ export const DEFAULT_TRANSLATION_WORD_WINDOW_MIN_HEIGHT = 600
 
 export const TranslationWindowChannel = {
   State: 'translationWindow:state',
+  SpeechState: 'translationWindow:speechState',
   GetState: 'translationWindow:getState',
+  GetSpeechState: 'translationWindow:getSpeechState',
   Retranslate: 'translationWindow:retranslate',
   SetPinned: 'translationWindow:setPinned',
   SetDragging: 'translationWindow:setDragging',
@@ -231,7 +233,10 @@ export const resolveEnglishSpeechPayload = ({
   const normalizedTranslatedText = trimTranslationText(translatedText)
   const resolvedSourceLanguage = detectedSourceLanguage || sourceLanguage
 
-  if (normalizedSourceText && (isEnglishLanguage(resolvedSourceLanguage) || looksLikeEnglishText(normalizedSourceText))) {
+  if (
+    normalizedSourceText &&
+    (isEnglishLanguage(resolvedSourceLanguage) || looksLikeEnglishText(normalizedSourceText))
+  ) {
     return {
       text: normalizedSourceText,
       lang: normalizeSpeechLocale(resolvedSourceLanguage),
@@ -239,7 +244,10 @@ export const resolveEnglishSpeechPayload = ({
     }
   }
 
-  if (normalizedTranslatedText && (isEnglishLanguage(targetLanguage) || looksLikeEnglishText(normalizedTranslatedText))) {
+  if (
+    normalizedTranslatedText &&
+    (isEnglishLanguage(targetLanguage) || looksLikeEnglishText(normalizedTranslatedText))
+  ) {
     return {
       text: normalizedTranslatedText,
       lang: normalizeSpeechLocale(targetLanguage),
@@ -313,7 +321,9 @@ const hasConfiguredGemmaTranslation = (settings: TranslationSettings) => {
 }
 
 export const getEnabledTranslationEngineIds = (settings: TranslationSettings): TranslationEngineId[] => {
-  const enabledEngineIds = getVisibleTranslationEngineIds(settings).filter((engineId) => settings.enabledEngines[engineId])
+  const enabledEngineIds = getVisibleTranslationEngineIds(settings).filter(
+    (engineId) => settings.enabledEngines[engineId]
+  )
 
   if (!hasConfiguredAiTranslation(settings) || !enabledEngineIds.includes('ai')) {
     if (hasConfiguredGemmaTranslation(settings) && enabledEngineIds.includes('gemma')) {

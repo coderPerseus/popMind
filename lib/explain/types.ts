@@ -34,6 +34,7 @@ export type RunExplainInput = {
   providerId?: AiProviderId
   selectionText: string
   messages: ExplainConversationMessage[]
+  webSearchEnabled?: boolean
   sourceAppName?: string
   contextImage?: ExplainImageContext
   signal?: AbortSignal

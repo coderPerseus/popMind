@@ -1,12 +1,12 @@
-import { Check, Copy, LoaderCircle, RefreshCw } from 'lucide-react'
+import { Check, Copy, LoaderCircle, RefreshCw, Square, Volume2 } from 'lucide-react'
 import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
 import { Select } from '@/app/components/ui/select'
 import type { TranslateCardState } from '@/app/components/home/use-translate-command'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
 import { useI18n } from '@/app/i18n'
-import { getLanguageLabel, translationEngineLabels } from '@/lib/translation/shared'
-import type { TranslationEngineId, TranslationLanguageOption } from '@/lib/translation/types'
+import { getLanguageLabel, resolveEnglishSpeechPayload, translationEngineLabels } from '@/lib/translation/shared'
+import type { TranslationEngineId, TranslationLanguageOption, TranslationSpeechState } from '@/lib/translation/types'
 
 type TranslateCardProps = {
   command: MainSearchCommand & { kind: 'translate' }
@@ -16,11 +16,13 @@ type TranslateCardProps = {
   engineId: TranslationEngineId
   enabledEngineIds: TranslationEngineId[]
   copied: boolean
+  speechState: TranslationSpeechState
   languages: TranslationLanguageOption[]
   onSourceLanguageChange: (value: string) => void
   onTargetLanguageChange: (value: string) => void
   onEngineChange: (value: TranslationEngineId) => void
   onCopy: () => void
+  onSpeak: (payload: { text: string; lang: string; role: 'source' | 'translated' | 'headword' }) => void
   onRetranslate: () => void
 }
 
@@ -32,11 +34,13 @@ export function TranslateCard({
   engineId,
   enabledEngineIds,
   copied,
+  speechState,
   languages,
   onSourceLanguageChange,
   onTargetLanguageChange,
   onEngineChange,
   onCopy,
+  onSpeak,
   onRetranslate,
 }: TranslateCardProps) {
   const { language } = useI18n()
@@ -44,6 +48,16 @@ export function TranslateCard({
   const isLoading = cardState.status === 'loading'
   const translatedText = cardState.status === 'success' ? cardState.translatedText : ''
   const wordEntry = cardState.status === 'success' ? cardState.wordEntry : undefined
+  const speechPayload = resolveEnglishSpeechPayload({
+    queryMode: cardState.status === 'success' ? cardState.queryMode : 'text',
+    sourceText: cardState.status === 'success' ? cardState.query : '',
+    translatedText,
+    sourceLanguage: cardState.status === 'success' ? cardState.sourceLanguage : sourceLanguage,
+    targetLanguage: cardState.status === 'success' ? cardState.targetLanguage : targetLanguage,
+    detectedSourceLanguage: cardState.status === 'success' ? cardState.detectedSourceLanguage : undefined,
+    headword: wordEntry?.headword,
+  })
+  const canSpeak = Boolean(speechPayload) && speechState.speechProviderReady && !isLoading
   const translatedPreview =
     !command.text && cardState.status === 'idle'
       ? language === 'en'
@@ -131,7 +145,31 @@ export function TranslateCard({
               {isWordMode && wordEntry ? (
                 <div className="ms-translate-word-card">
                   <div className="ms-translate-word-head">
-                    <div className="ms-translate-word-title">{wordEntry.headword}</div>
+                    <div className="ms-translate-word-headline">
+                      <div className="ms-translate-word-title">{wordEntry.headword}</div>
+                      <Button
+                        className={`ms-translate-word-speak-btn ${speechState.isSpeaking ? 'is-speaking' : ''}`}
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => {
+                          if (speechPayload) {
+                            onSpeak(speechPayload)
+                          }
+                        }}
+                        disabled={!canSpeak}
+                        aria-label={
+                          speechState.isSpeaking
+                            ? language === 'en'
+                              ? 'Stop speaking'
+                              : '停止朗读'
+                            : language === 'en'
+                              ? 'Speak word'
+                              : '朗读单词'
+                        }
+                      >
+                        {speechState.isSpeaking ? <Square size={15} /> : <Volume2 size={15} />}
+                      </Button>
+                    </div>
                     {wordEntry.phonetics.length > 0 ? (
                       <div className="ms-translate-word-phonetics">
                         {wordEntry.phonetics.map((item) => (
@@ -229,6 +267,31 @@ export function TranslateCard({
           </div>
 
           <div className="ms-translate-command-footer-actions">
+            {!isWordMode ? (
+              <Button
+                className={`ms-translate-command-action-btn ${speechState.isSpeaking ? 'is-speaking' : ''}`}
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (speechPayload) {
+                    onSpeak(speechPayload)
+                  }
+                }}
+                disabled={!canSpeak}
+              >
+                {speechState.isSpeaking ? <Square size={13} /> : <Volume2 size={13} />}
+                <span>
+                  {speechState.isSpeaking
+                    ? language === 'en'
+                      ? 'Stop'
+                      : '停止'
+                    : language === 'en'
+                      ? 'Speak'
+                      : '朗读'}
+                </span>
+              </Button>
+            ) : null}
+
             <Button
               className="ms-translate-command-action-btn"
               variant="ghost"

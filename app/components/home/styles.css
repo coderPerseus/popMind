@@ -545,11 +545,39 @@
   gap: 10px;
 }
 
+.ms-translate-word-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .ms-translate-word-title {
   font-size: 24px;
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.03em;
+}
+
+.ms-translate-word-speak-btn {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 91, 168, 0.18);
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(59, 91, 168, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.ms-translate-word-speak-btn:hover:not(:disabled),
+.ms-translate-command-action-btn.is-speaking:hover:not(:disabled) {
+  background: rgba(59, 91, 168, 0.14);
+  color: rgba(37, 99, 235, 0.96);
+}
+
+.ms-translate-word-speak-btn.is-speaking,
+.ms-translate-command-action-btn.is-speaking {
+  background: rgba(59, 91, 168, 0.14);
+  color: rgba(37, 99, 235, 0.96);
 }
 
 .ms-translate-word-phonetics {
@@ -2046,6 +2074,12 @@
 .dark .ms-translate-word-list-title,
 .dark .ms-translate-word-example-source {
   color: rgba(255, 255, 255, 0.95);
+}
+
+.dark .ms-translate-word-speak-btn {
+  border-color: rgba(147, 197, 253, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(191, 219, 254, 0.94);
 }
 
 .dark .ms-translate-word-phonetic-label,

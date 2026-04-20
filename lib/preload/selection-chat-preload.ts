@@ -23,6 +23,9 @@ const api: SelectionChatWindowPreloadApi = {
   setPinned(pinned) {
     return ipcRenderer.invoke(SelectionChatWindowChannel.SetPinned, pinned)
   },
+  setWebSearchEnabled(enabled) {
+    return ipcRenderer.invoke(SelectionChatWindowChannel.SetWebSearchEnabled, enabled)
+  },
   setDragging(isDragging) {
     ipcRenderer.send(SelectionChatWindowChannel.SetDragging, isDragging)
   },

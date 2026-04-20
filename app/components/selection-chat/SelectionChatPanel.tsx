@@ -1,7 +1,20 @@
-import { ArrowUpRight, Check, ChevronDown, Copy, GripHorizontal, LoaderCircle, Pin, RotateCcw, SendHorizontal, Square, X } from 'lucide-react'
+import {
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  Copy,
+  GripHorizontal,
+  LoaderCircle,
+  Pin,
+  RotateCcw,
+  SendHorizontal,
+  Square,
+  X,
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
+import { Switch } from '@/app/components/ui/switch'
 import { Textarea } from '@/app/components/ui/textarea'
 import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import type { SelectionChatMessage, SelectionChatWindowState } from '@/lib/selection-chat/types'
@@ -75,7 +88,7 @@ export function SelectionChatPanel() {
   const session = state.session
   const uiLanguage = session?.language ?? 'zh-CN'
   const isStreaming = session?.status === 'streaming' || session?.status === 'searching'
-  const statusLabel = session?.status === 'error' ? session.errorMessage ?? '' : ''
+  const statusLabel = session?.status === 'error' ? (session.errorMessage ?? '') : ''
   const topbarMeta = [session?.aiProvider, session?.modelId, session?.webSearchProvider].filter(Boolean).join(' · ')
   const visibleMessages =
     session?.messages.filter(
@@ -301,6 +314,16 @@ export function SelectionChatPanel() {
           </div>
 
           <div className="selection-chat-topbar-actions">
+            <label className="selection-chat-network-toggle">
+              <span className="selection-chat-network-toggle-label">{uiLanguage === 'en' ? 'Web' : '联网'}</span>
+              <Switch
+                checked={session?.webSearchEnabled ?? true}
+                size="sm"
+                disabled={isStreaming}
+                aria-label={uiLanguage === 'en' ? 'Enable web search' : '开启联网搜索'}
+                onCheckedChange={(checked) => void window.selectionChatWindow.setWebSearchEnabled(checked)}
+              />
+            </label>
             <Button
               className={`selection-chat-icon-btn ${session?.pinned ? 'is-active' : ''}`}
               variant="ghost"
@@ -348,7 +371,9 @@ export function SelectionChatPanel() {
                   ))}
 
                   {statusLabel ? (
-                    <div className={`selection-chat-status ${session.status === 'error' ? 'is-error' : ''}`}>{statusLabel}</div>
+                    <div className={`selection-chat-status ${session.status === 'error' ? 'is-error' : ''}`}>
+                      {statusLabel}
+                    </div>
                   ) : null}
                   <div ref={messagesEndRef} />
                 </div>
@@ -386,11 +411,21 @@ export function SelectionChatPanel() {
             />
 
             {isStreaming ? (
-              <Button className="selection-chat-send-btn" size="icon-sm" variant="outline" onClick={() => void window.selectionChatWindow.stop()}>
+              <Button
+                className="selection-chat-send-btn"
+                size="icon-sm"
+                variant="outline"
+                onClick={() => void window.selectionChatWindow.stop()}
+              >
                 <Square size={14} />
               </Button>
             ) : (
-              <Button className="selection-chat-send-btn" size="icon-sm" onClick={() => void submit()} disabled={!draft.trim() || isSending}>
+              <Button
+                className="selection-chat-send-btn"
+                size="icon-sm"
+                onClick={() => void submit()}
+                disabled={!draft.trim() || isSending}
+              >
                 {isSending ? <LoaderCircle className="animate-spin" size={14} /> : <SendHorizontal size={14} />}
               </Button>
             )}
@@ -461,7 +496,10 @@ function MessageBubble({
                     : '展开来源列表'}
               </span>
             </span>
-            <ChevronDown size={14} className={`selection-chat-sources-toggle-icon ${sourcesExpanded ? 'is-expanded' : ''}`} />
+            <ChevronDown
+              size={14}
+              className={`selection-chat-sources-toggle-icon ${sourcesExpanded ? 'is-expanded' : ''}`}
+            />
           </button>
 
           {sourcesExpanded ? (
@@ -485,14 +523,26 @@ function MessageBubble({
       {message.role === 'assistant' && !isAnimating && (message.text || message.errorMessage) ? (
         <div className="selection-chat-message-actions">
           {message.text ? (
-            <Button className="selection-chat-inline-btn selection-chat-action-btn" size="sm" variant="ghost" onClick={() => void onCopy()}>
+            <Button
+              className="selection-chat-inline-btn selection-chat-action-btn"
+              size="sm"
+              variant="ghost"
+              onClick={() => void onCopy()}
+            >
               {copied ? <Check size={14} /> : <Copy size={14} />}
-              <span>{copied ? (uiLanguage === 'en' ? 'Copied' : '已复制') : uiLanguage === 'en' ? 'Copy' : '复制'}</span>
+              <span>
+                {copied ? (uiLanguage === 'en' ? 'Copied' : '已复制') : uiLanguage === 'en' ? 'Copy' : '复制'}
+              </span>
             </Button>
           ) : null}
 
           {canRegenerate ? (
-            <Button className="selection-chat-inline-btn selection-chat-action-btn" size="sm" variant="ghost" onClick={onRegenerate}>
+            <Button
+              className="selection-chat-inline-btn selection-chat-action-btn"
+              size="sm"
+              variant="ghost"
+              onClick={onRegenerate}
+            >
               <RotateCcw size={14} />
               <span>{uiLanguage === 'en' ? 'Regenerate' : '重新生成'}</span>
             </Button>

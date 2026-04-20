@@ -4,6 +4,7 @@ import type { MainSearchCommand } from '@/app/components/home/query-command'
 import { copyTextToClipboard } from '@/app/plugins/main-search'
 import {
   getEnabledTranslationEngineIds,
+  isSpeechProviderReady,
   resolvePreferredTranslationEngine,
   translationLanguages,
 } from '@/lib/translation/shared'
@@ -11,6 +12,7 @@ import type {
   TranslationEngineId,
   TranslationLanguageOption,
   TranslationQueryMode,
+  TranslationSpeechState,
   TranslationSettings,
   TranslationWordEntry,
 } from '@/lib/translation/types'
@@ -83,6 +85,11 @@ export function useTranslateCommand(command: MainSearchCommand) {
   const [engineId, setEngineId] = useState<TranslationEngineId>('google')
   const [enabledEngineIds, setEnabledEngineIds] = useState<TranslationEngineId[]>(['google'])
   const [copied, setCopied] = useState(false)
+  const [speechState, setSpeechState] = useState<TranslationSpeechState>({
+    isSpeaking: false,
+    activeSpeechProvider: 'system',
+    speechProviderReady: true,
+  })
   const requestIdRef = useRef(0)
   const debounceTimerRef = useRef<number | null>(null)
   const defaultLanguagesRef = useRef({
@@ -121,6 +128,11 @@ export function useTranslateCommand(command: MainSearchCommand) {
         setTargetLanguage((current) => (current === DEFAULT_TARGET_LANGUAGE ? nextTargetLanguage : current))
         setEngineId((current) => (current === 'google' ? nextEngineId : current))
         setEnabledEngineIds(nextEnabledEngineIds.length ? nextEnabledEngineIds : [nextEngineId])
+        setSpeechState((current) => ({
+          ...current,
+          activeSpeechProvider: settings.speechService.activeProvider,
+          speechProviderReady: isSpeechProviderReady(settings),
+        }))
       })
       .catch(() => undefined)
 
@@ -128,6 +140,30 @@ export function useTranslateCommand(command: MainSearchCommand) {
       mounted = false
     }
   }, [translation])
+
+  useEffect(() => {
+    let mounted = true
+
+    const syncSpeechState = (nextState: TranslationSpeechState) => {
+      if (!mounted) {
+        return
+      }
+
+      setSpeechState(nextState)
+    }
+
+    const unsubscribe = window.translationWindow.onSpeechState(syncSpeechState)
+    void window.translationWindow.getSpeechState().then((nextState) => {
+      if (nextState) {
+        syncSpeechState(nextState)
+      }
+    })
+
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
+  }, [])
 
   const runTranslate = useCallback(
     async (
@@ -310,6 +346,21 @@ export function useTranslateCommand(command: MainSearchCommand) {
     return didCopy
   }, [cardState])
 
+  const toggleSpeak = useCallback(
+    async (payload: { text: string; lang: string; role: 'source' | 'translated' | 'headword' }) => {
+      window.translationWindow.notifyInteraction(1500)
+
+      if (speechState.isSpeaking) {
+        await window.translationWindow.stopSpeaking()
+        return false
+      }
+
+      const result = await window.translationWindow.speak(payload)
+      return result.active
+    },
+    [speechState.isSpeaking]
+  )
+
   const reset = useCallback(() => {
     requestIdRef.current += 1
     if (debounceTimerRef.current) {
@@ -335,10 +386,12 @@ export function useTranslateCommand(command: MainSearchCommand) {
     engineId,
     enabledEngineIds,
     copied,
+    speechState,
     setSourceLanguage: handleSourceLanguageChange,
     setTargetLanguage: handleTargetLanguageChange,
     setEngineId: handleEngineChange,
     copyResult,
+    toggleSpeak,
     retranslate: runImmediately,
     languages: translationLanguages as TranslationLanguageOption[],
   }

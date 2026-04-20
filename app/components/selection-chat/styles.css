@@ -106,8 +106,28 @@ body,
 .selection-chat-topbar-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+.selection-chat-network-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 8px;
+  min-height: 28px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.7);
+  border: 1px solid rgb(0 0 0 / 0.05);
+  color: rgb(88 96 110);
+  user-select: none;
+}
+
+.selection-chat-network-toggle-label {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .selection-chat-icon-btn,
@@ -173,9 +193,7 @@ body,
   position: relative;
   overflow: hidden;
   padding: 13px 16px 13px 18px;
-  background:
-    linear-gradient(135deg, rgb(248 250 252 / 0.98), rgb(240 244 248 / 0.94)),
-    rgb(255 255 255 / 0.94);
+  background: linear-gradient(135deg, rgb(248 250 252 / 0.98), rgb(240 244 248 / 0.94)), rgb(255 255 255 / 0.94);
 }
 
 .selection-chat-context-card::before {
@@ -789,9 +807,7 @@ body,
   }
 
   .selection-chat-context-card {
-    background:
-      linear-gradient(135deg, rgb(30 41 59 / 0.88), rgb(15 23 42 / 0.8)),
-      rgb(15 23 42 / 0.72);
+    background: linear-gradient(135deg, rgb(30 41 59 / 0.88), rgb(15 23 42 / 0.8)), rgb(15 23 42 / 0.72);
   }
 
   .selection-chat-context-card::before {

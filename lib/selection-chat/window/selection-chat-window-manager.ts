@@ -87,6 +87,7 @@ export class SelectionChatWindowManager {
     ipcMain.removeHandler(SelectionChatWindowChannel.Regenerate)
     ipcMain.removeHandler(SelectionChatWindowChannel.Stop)
     ipcMain.removeHandler(SelectionChatWindowChannel.SetPinned)
+    ipcMain.removeHandler(SelectionChatWindowChannel.SetWebSearchEnabled)
     ipcMain.removeHandler(SelectionChatWindowChannel.CopyMessage)
     ipcMain.removeHandler(SelectionChatWindowChannel.Close)
     ipcMain.removeHandler(SelectionChatWindowChannel.DismissTopmost)
@@ -128,6 +129,11 @@ export class SelectionChatWindowManager {
       this.noteInteraction()
       selectionChatService.setPinned(pinned)
       return { ok: true, pinned }
+    })
+    ipcMain.handle(SelectionChatWindowChannel.SetWebSearchEnabled, async (_event, enabled: boolean) => {
+      this.noteInteraction()
+      selectionChatService.setWebSearchEnabled(enabled)
+      return { ok: true, enabled }
     })
     ipcMain.handle(SelectionChatWindowChannel.CopyMessage, async (_event, messageId: string) => {
       this.noteInteraction()

@@ -107,6 +107,13 @@ export interface TranslationWindowState {
   languages: TranslationLanguageOption[]
 }
 
+export interface TranslationSpeechState {
+  isSpeaking: boolean
+  speakingRole?: TranslationSpeechRole
+  activeSpeechProvider: SpeechProviderId
+  speechProviderReady: boolean
+}
+
 export interface TranslationAnchorPoint {
   x: number
   topY: number
@@ -141,7 +148,9 @@ export interface TranslationWindowSpeakPayload {
 
 export interface TranslationWindowPreloadApi {
   onState(handler: (state: TranslationWindowState) => void): () => void
+  onSpeechState(handler: (state: TranslationSpeechState) => void): () => void
   getState(): Promise<TranslationWindowState | null>
+  getSpeechState(): Promise<TranslationSpeechState>
   retranslate(payload: {
     sourceLanguage: string
     targetLanguage: string

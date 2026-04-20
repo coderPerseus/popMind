@@ -56,6 +56,7 @@ export class SelectionChatService {
       messages,
       status: 'error',
       pinned: false,
+      webSearchEnabled: true,
       language,
       errorMessage: translateMessage(language, 'selectionChat.error.missingAiConfig'),
     }
@@ -102,6 +103,7 @@ export class SelectionChatService {
       messages,
       status: 'ready',
       pinned: false,
+      webSearchEnabled: true,
       language: settings.appLanguage,
       aiProvider: model.providerId,
       modelId: model.modelId,
@@ -194,6 +196,19 @@ export class SelectionChatService {
     this.emit()
   }
 
+  setWebSearchEnabled(enabled: boolean) {
+    if (!this.session) {
+      return
+    }
+
+    this.session = {
+      ...this.session,
+      webSearchEnabled: enabled,
+      webSearchProvider: enabled ? this.session.webSearchProvider : undefined,
+    }
+    this.emit()
+  }
+
   private async runAssistantTurn() {
     if (!this.session) {
       return
@@ -205,38 +220,39 @@ export class SelectionChatService {
       return
     }
 
-    const model = createLanguageModel(settings)
-    if (!model) {
-      throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
-    }
-
     const conversationMessages = this.session.messages
     const assistantMessage = createMessage('assistant', '')
-
-    this.session = {
-      ...this.session,
-      status: settings.webSearch.enabled ? 'searching' : 'streaming',
-      loadingMessage: translateMessage(
-        settings.appLanguage,
-        settings.webSearch.enabled ? 'selectionChat.searching' : 'selectionChat.loading'
-      ),
-      aiProvider: model.providerId,
-      modelId: model.modelId,
-      messages: [...conversationMessages, assistantMessage],
-      errorMessage: undefined,
-    }
-    this.emit()
-
     const abortController = new AbortController()
-    this.currentAbortController = abortController
 
     try {
+      const model = createLanguageModel(settings)
+      if (!model) {
+        throw new Error(translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'))
+      }
+
+      this.session = {
+        ...this.session,
+        status: this.session.webSearchEnabled ? 'searching' : 'streaming',
+        loadingMessage: translateMessage(
+          settings.appLanguage,
+          this.session.webSearchEnabled ? 'selectionChat.searching' : 'selectionChat.loading'
+        ),
+        aiProvider: model.providerId,
+        modelId: model.modelId,
+        webSearchProvider: undefined,
+        messages: [...conversationMessages, assistantMessage],
+        errorMessage: undefined,
+      }
+      this.emit()
+      this.currentAbortController = abortController
+
       const result = await runExplain({
         selectionText: this.session.selectionText,
         messages: conversationMessages.map((message) => ({
           role: message.role,
           text: message.text,
         })),
+        webSearchEnabled: this.session.webSearchEnabled,
         sourceAppName: this.sourceAppName,
         contextImage: this.contextImage,
         signal: abortController.signal,
