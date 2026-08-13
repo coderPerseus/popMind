@@ -5,7 +5,7 @@ export const braveProvider: WebSearchProvider = {
   isConfigured(apiKey) {
     return Boolean(apiKey.trim())
   },
-  async search({ query, apiKey }) {
+  async search({ query, apiKey, signal }) {
     const url = new URL('https://api.search.brave.com/res/v1/web/search')
     url.searchParams.set('q', query)
     url.searchParams.set('count', '5')
@@ -15,6 +15,7 @@ export const braveProvider: WebSearchProvider = {
         Accept: 'application/json',
         'X-Subscription-Token': apiKey,
       },
+      signal,
     })
 
     if (!response.ok) {

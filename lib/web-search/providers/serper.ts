@@ -5,13 +5,14 @@ export const serperProvider: WebSearchProvider = {
   isConfigured(apiKey) {
     return Boolean(apiKey.trim())
   },
-  async search({ query, apiKey }) {
+  async search({ query, apiKey, signal }) {
     const response = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'x-api-key': apiKey,
       },
+      signal,
       body: JSON.stringify({
         q: query,
         num: 5,

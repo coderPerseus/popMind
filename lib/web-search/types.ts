@@ -10,5 +10,5 @@ export interface WebSearchResult {
 export interface WebSearchProvider {
   id: WebSearchProviderId
   isConfigured(apiKey: string): boolean
-  search(input: { query: string; apiKey: string }): Promise<WebSearchResult[]>
+  search(input: { query: string; apiKey: string; signal?: AbortSignal }): Promise<WebSearchResult[]>
 }

@@ -259,8 +259,7 @@ export class TextPickerManager {
     this.language = language
     this.skills = this.skills.map((skill) => ({
       ...skill,
-      label:
-        createDefaultSkills(language).find((item) => item.commandId === skill.commandId)?.label ?? skill.label,
+      label: createDefaultSkills(language).find((item) => item.commandId === skill.commandId)?.label ?? skill.label,
     }))
 
     if (this.pickedInfo && this.bubbleWindow.isVisible()) {
@@ -360,7 +359,9 @@ export class TextPickerManager {
       return
     }
 
-    const minimumWidth = normalizeSelectedLink(this.pickedInfo?.text ?? '') ? TOOLBAR_COMPACT_MIN_WIDTH : TOOLBAR_MIN_WIDTH
+    const minimumWidth = normalizeSelectedLink(this.pickedInfo?.text ?? '')
+      ? TOOLBAR_COMPACT_MIN_WIDTH
+      : TOOLBAR_MIN_WIDTH
     const nextWidth = Math.max(minimumWidth, Math.round(requestedWidth))
     if (nextWidth === this.bubbleWidth) {
       return
@@ -448,7 +449,8 @@ export class TextPickerManager {
 
     const scene = (event.scene || SelectionScene.NONE) as SelectionSceneValue | string
     const floatingVisible = this.bubbleWindow.isVisible() || this.isSecondaryFloatingVisible?.() === true
-    const insideFloatingSurface = this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event) === true
+    const insideFloatingSurface =
+      this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event) === true
 
     if (scene === SelectionScene.APP_FOCUS_DISMISS && Date.now() < this.ignoreAppFocusDismissUntil) {
       return
@@ -482,9 +484,7 @@ export class TextPickerManager {
     }
 
     const isPointerScene =
-      scene === SelectionScene.NONE ||
-      scene === SelectionScene.BOX_SELECT ||
-      scene === SelectionScene.MULTI_CLICK
+      scene === SelectionScene.NONE || scene === SelectionScene.BOX_SELECT || scene === SelectionScene.MULTI_CLICK
 
     if (isPointerScene && (this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event))) {
       return

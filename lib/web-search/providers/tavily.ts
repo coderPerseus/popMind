@@ -5,12 +5,13 @@ export const tavilyProvider: WebSearchProvider = {
   isConfigured(apiKey) {
     return Boolean(apiKey.trim())
   },
-  async search({ query, apiKey }) {
+  async search({ query, apiKey, signal }) {
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
       },
+      signal,
       body: JSON.stringify({
         api_key: apiKey,
         query,

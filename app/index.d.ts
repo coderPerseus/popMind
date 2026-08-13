@@ -2,6 +2,7 @@
 import type { BubblePreloadApi } from '@/lib/text-picker/shared'
 import type { SelectionChatWindowPreloadApi } from '@/lib/selection-chat/types'
 import type { TranslationWindowPreloadApi } from '@/lib/translation/types'
+import type { InputTranslationWindowPreloadApi } from '@/lib/input-translation/shared'
 
 declare module '*.css' {
   const content: string
@@ -38,5 +39,6 @@ declare global {
     textPicker: BubblePreloadApi
     selectionChatWindow: SelectionChatWindowPreloadApi
     translationWindow: TranslationWindowPreloadApi
+    inputTranslationWindow: InputTranslationWindowPreloadApi
   }
 }

@@ -125,10 +125,21 @@ const registerMainWindowSurface = (window: BrowserWindow) => {
         return true
       }
 
-      // The settings route shares the same BrowserWindow instance, but it must not
-      // inherit the auto-dismiss behavior used by the home search surface.
+      // Settings shares the main BrowserWindow. It should stay open for blur /
+      // selection noise, but hide when a translation or explain bubble takes over.
       if (currentRoute !== 'home') {
-        return false
+        const shouldHideSettingsForOverlay =
+          context.reason === 'surface-opened' &&
+          (context.target === 'translation' || context.target === 'selection-chat')
+
+        if (shouldHideSettingsForOverlay) {
+          logMainWindow('hide-settings-for-overlay', {
+            target: context.target,
+            reason: context.reason,
+          })
+        }
+
+        return shouldHideSettingsForOverlay
       }
 
       if (context.reason === 'blur') {

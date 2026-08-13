@@ -173,8 +173,7 @@ body,
 }
 
 .selection-chat-context-card,
-.selection-chat-empty-card,
-.selection-chat-thread-shell {
+.selection-chat-empty-card {
   border: 1px solid rgb(230 233 240 / 0.92);
   border-radius: 14px;
   background: rgb(255 255 255 / 0.94);
@@ -191,6 +190,7 @@ body,
 
 .selection-chat-context-card {
   position: relative;
+  flex-shrink: 0;
   overflow: hidden;
   padding: 13px 16px 13px 18px;
   background: linear-gradient(135deg, rgb(248 250 252 / 0.98), rgb(240 244 248 / 0.94)), rgb(255 255 255 / 0.94);
@@ -230,19 +230,12 @@ body,
   line-height: 1.65;
 }
 
-.selection-chat-thread-shell {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-}
-
 .selection-chat-thread {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 12px 12px;
+  padding: 2px 2px 4px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -250,21 +243,28 @@ body,
 }
 
 .selection-chat-message {
-  border-radius: 16px;
-  padding: 11px 12px;
-  border: 1px solid rgb(226 231 239 / 0.92);
-  box-shadow: 0 1px 1px rgb(0 0 0 / 0.02);
+  padding: 2px 2px 4px;
 }
 
 .selection-chat-message.is-user {
   align-self: flex-end;
   width: min(82%, 420px);
+  border-radius: 16px;
+  padding: 11px 12px;
+  border: 1px solid rgb(226 231 239 / 0.92);
   background: linear-gradient(145deg, rgb(235 240 248 / 0.94), rgb(225 233 244 / 0.88));
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.02);
 }
 
 .selection-chat-message.is-assistant {
   align-self: stretch;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.98), rgb(250 251 254 / 0.95));
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.selection-chat-message.is-error {
+  color: rgb(185 28 28);
 }
 
 .selection-chat-message-head {
@@ -391,6 +391,7 @@ body,
 }
 
 .selection-chat-streaming,
+.selection-chat-stopped,
 .selection-chat-status,
 .selection-chat-error {
   font-size: 13px;
@@ -478,7 +479,13 @@ body,
 .selection-chat-streaming {
   min-height: 20px;
   justify-content: flex-start;
+  flex-wrap: wrap;
   padding: 2px 0;
+  color: rgb(107 114 128);
+}
+
+.selection-chat-stopped {
+  min-height: 20px;
   color: rgb(107 114 128);
 }
 
@@ -670,7 +677,6 @@ body,
 
   .selection-chat-context-card,
   .selection-chat-empty-card,
-  .selection-chat-thread-shell,
   .selection-chat-composer-frame {
     border-color: rgb(255 255 255 / 0.08);
     background: rgb(15 23 42 / 0.72);
@@ -691,16 +697,23 @@ body,
     color: rgb(148 163 184);
   }
 
-  .selection-chat-message {
-    border-color: rgb(255 255 255 / 0.08);
-  }
-
   .selection-chat-message.is-user {
+    border-color: rgb(255 255 255 / 0.08);
     background: linear-gradient(160deg, rgb(32 43 61 / 0.94), rgb(26 36 51 / 0.9));
   }
 
   .selection-chat-message.is-assistant {
-    background: linear-gradient(180deg, rgb(15 23 42 / 0.86), rgb(17 24 39 / 0.78));
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .selection-chat-message.is-error {
+    color: rgb(254 202 202);
+  }
+
+  .selection-chat-stopped {
+    color: rgb(148 163 184);
   }
 
   .selection-chat-status {

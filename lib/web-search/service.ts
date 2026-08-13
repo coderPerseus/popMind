@@ -37,7 +37,11 @@ export class WebSearchService {
     return null
   }
 
-  async search(settings: CapabilitySettings, query: string): Promise<{
+  async search(
+    settings: CapabilitySettings,
+    query: string,
+    signal?: AbortSignal
+  ): Promise<{
     providerId?: WebSearchProviderId
     results: WebSearchResult[]
   }> {
@@ -49,6 +53,7 @@ export class WebSearchService {
     const results = await providers[resolved.providerId].search({
       query,
       apiKey: resolved.apiKey,
+      signal,
     })
 
     return {

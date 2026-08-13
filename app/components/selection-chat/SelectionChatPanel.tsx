@@ -85,10 +85,28 @@ export function SelectionChatPanel() {
     setDraft('')
   }, [state.session?.id])
 
+  useEffect(() => {
+    const current = state.session
+    console.info('[SelectionChatUI] status', {
+      id: current?.id,
+      status: current?.status,
+      errorMessage: current?.errorMessage,
+      loadingMessage: current?.loadingMessage,
+      lastRole: current?.messages.at(-1)?.role,
+      lastTextLength: current?.messages.at(-1)?.text.length ?? 0,
+      lastError: current?.messages.at(-1)?.errorMessage,
+    })
+  }, [
+    state.session?.id,
+    state.session?.status,
+    state.session?.errorMessage,
+    state.session?.loadingMessage,
+    state.session?.messages,
+  ])
+
   const session = state.session
   const uiLanguage = session?.language ?? 'zh-CN'
   const isStreaming = session?.status === 'streaming' || session?.status === 'searching'
-  const statusLabel = session?.status === 'error' ? (session.errorMessage ?? '') : ''
   const topbarMeta = [session?.aiProvider, session?.modelId, session?.webSearchProvider].filter(Boolean).join(' · ')
   const visibleMessages =
     session?.messages.filter(
@@ -100,6 +118,10 @@ export function SelectionChatPanel() {
           message.text.trim() === session.selectionText.trim()
         )
     ) ?? []
+  const statusLabel =
+    session?.status === 'error' && !visibleMessages.some((message) => message.errorMessage)
+      ? (session.errorMessage ?? '')
+      : ''
   const latestAssistantMessageId = [...visibleMessages].reverse().find((message) => message.role === 'assistant')?.id
   const eyebrowTitle =
     session?.mode === 'ask'
@@ -317,7 +339,7 @@ export function SelectionChatPanel() {
             <label className="selection-chat-network-toggle">
               <span className="selection-chat-network-toggle-label">{uiLanguage === 'en' ? 'Web' : '联网'}</span>
               <Switch
-                checked={session?.webSearchEnabled ?? true}
+                checked={session?.webSearchEnabled ?? false}
                 size="sm"
                 disabled={isStreaming}
                 aria-label={uiLanguage === 'en' ? 'Enable web search' : '开启联网搜索'}
@@ -348,35 +370,35 @@ export function SelectionChatPanel() {
         <div className="selection-chat-body">
           {session ? (
             <>
-              <div className="selection-chat-context-card">
-                <div className="selection-chat-context-text">{session.selectionText}</div>
-              </div>
+              <div className="selection-chat-thread" ref={threadRef} onScroll={onThreadScroll}>
+                {visibleMessages.map((message, index) => (
+                  <MessageBubble
+                    key={message.id}
+                    message={message}
+                    copied={copiedMessageId === message.id}
+                    uiLanguage={uiLanguage}
+                    isStreaming={isStreaming}
+                    loadingLabel={session.loadingMessage}
+                    isAnimating={message.role === 'assistant' && index === visibleMessages.length - 1 && isStreaming}
+                    canRegenerate={message.id === latestAssistantMessageId}
+                    onCopy={async () => {
+                      await window.selectionChatWindow.copyMessage(message.id)
+                      setCopiedMessageId(message.id)
+                    }}
+                    onRegenerate={() => void window.selectionChatWindow.regenerate()}
+                  />
+                ))}
 
-              <div className="selection-chat-thread-shell">
-                <div className="selection-chat-thread" ref={threadRef} onScroll={onThreadScroll}>
-                  {visibleMessages.map((message, index) => (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      copied={copiedMessageId === message.id}
-                      uiLanguage={uiLanguage}
-                      isAnimating={message.role === 'assistant' && index === visibleMessages.length - 1 && isStreaming}
-                      canRegenerate={message.id === latestAssistantMessageId}
-                      onCopy={async () => {
-                        await window.selectionChatWindow.copyMessage(message.id)
-                        setCopiedMessageId(message.id)
-                      }}
-                      onRegenerate={() => void window.selectionChatWindow.regenerate()}
-                    />
-                  ))}
+                {statusLabel ? (
+                  <div className={`selection-chat-status ${session.status === 'error' ? 'is-error' : ''}`}>
+                    {statusLabel}
+                  </div>
+                ) : null}
 
-                  {statusLabel ? (
-                    <div className={`selection-chat-status ${session.status === 'error' ? 'is-error' : ''}`}>
-                      {statusLabel}
-                    </div>
-                  ) : null}
-                  <div ref={messagesEndRef} />
+                <div className="selection-chat-context-card">
+                  <div className="selection-chat-context-text">{session.selectionText}</div>
                 </div>
+                <div ref={messagesEndRef} />
               </div>
             </>
           ) : (
@@ -412,10 +434,18 @@ export function SelectionChatPanel() {
 
             {isStreaming ? (
               <Button
-                className="selection-chat-send-btn"
+                className="selection-chat-send-btn selection-chat-stop-btn"
                 size="icon-sm"
                 variant="outline"
-                onClick={() => void window.selectionChatWindow.stop()}
+                onClick={() => {
+                  console.info('[SelectionChatUI] composer stop clicked', {
+                    sessionId: session?.id,
+                    status: session?.status,
+                  })
+                  void window.selectionChatWindow.stop()
+                }}
+                aria-label={uiLanguage === 'en' ? 'Stop' : '停止'}
+                title={uiLanguage === 'en' ? 'Stop' : '停止'}
               >
                 <Square size={14} />
               </Button>
@@ -440,6 +470,8 @@ function MessageBubble({
   message,
   copied,
   uiLanguage,
+  isStreaming,
+  loadingLabel,
   isAnimating,
   canRegenerate,
   onCopy,
@@ -448,6 +480,8 @@ function MessageBubble({
   message: SelectionChatMessage
   copied: boolean
   uiLanguage: 'zh-CN' | 'en'
+  isStreaming: boolean
+  loadingLabel?: string
   isAnimating: boolean
   canRegenerate: boolean
   onCopy: () => Promise<void>
@@ -458,9 +492,14 @@ function MessageBubble({
     uiLanguage === 'en'
       ? `Sources${message.sources?.length ? ` · ${message.sources.length}` : ''}`
       : `参考来源${message.sources?.length ? ` · ${message.sources.length}` : ''}`
+  const showLoading = message.role === 'assistant' && isStreaming && !message.text && !message.errorMessage
+  const showStopped = message.role === 'assistant' && !isStreaming && !message.text && !message.errorMessage
+  const stoppedLabel = uiLanguage === 'en' ? 'Generation stopped' : '已停止生成'
 
   return (
-    <article className={`selection-chat-message is-${message.role} ${isAnimating ? 'is-animating' : ''}`}>
+    <article
+      className={`selection-chat-message is-${message.role} ${isAnimating ? 'is-animating' : ''} ${message.errorMessage && !message.text ? 'is-error' : ''}`}
+    >
       {message.text ? (
         <Streamdown
           className="selection-chat-markdown"
@@ -470,11 +509,14 @@ function MessageBubble({
         >
           {message.text}
         </Streamdown>
-      ) : (
+      ) : showLoading ? (
         <div className="selection-chat-streaming">
           <LoaderCircle size={14} className="animate-spin" />
+          <span>{loadingLabel || (uiLanguage === 'en' ? 'Generating…' : '正在生成…')}</span>
         </div>
-      )}
+      ) : showStopped ? (
+        <div className="selection-chat-stopped">{stoppedLabel}</div>
+      ) : null}
 
       {message.sources?.length ? (
         <div className={`selection-chat-sources-wrap ${sourcesExpanded ? 'is-expanded' : ''}`}>
@@ -520,7 +562,7 @@ function MessageBubble({
 
       {message.errorMessage ? <div className="selection-chat-error">{message.errorMessage}</div> : null}
 
-      {message.role === 'assistant' && !isAnimating && (message.text || message.errorMessage) ? (
+      {message.role === 'assistant' && !isAnimating && (message.text || message.errorMessage || showStopped) ? (
         <div className="selection-chat-message-actions">
           {message.text ? (
             <Button

@@ -1,0 +1,293 @@
+@import '@/app/styles/globals.css';
+
+:root {
+  color-scheme: light;
+  font-family: ui-rounded, 'SF Pro Rounded', 'SF Pro Text', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#input-translation-root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.input-translation-shell {
+  width: 100%;
+  padding: 5px;
+}
+
+.input-translation-panel {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px 5px;
+  border: 1px solid rgb(28 32 40 / 0.12);
+  border-radius: 13px;
+  background: rgb(252 252 253 / 0.96);
+  box-shadow:
+    0 13px 32px rgb(14 20 31 / 0.14),
+    0 2px 7px rgb(14 20 31 / 0.07),
+    inset 0 1px 0 rgb(255 255 255 / 0.96);
+  backdrop-filter: blur(26px) saturate(1.25);
+}
+
+.input-translation-field {
+  position: relative;
+}
+
+.input-translation-field [data-slot='textarea'] {
+  display: block;
+  min-height: 46px;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 41px 8px 5px;
+  color: rgb(24 28 36);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 21px;
+  letter-spacing: -0.01em;
+  overscroll-behavior: contain;
+  box-shadow: none;
+}
+
+.input-translation-field [data-slot='textarea']::placeholder {
+  color: rgb(128 135 147);
+  font-weight: 450;
+}
+
+.input-translation-field [data-slot='textarea']:focus {
+  border: 0;
+  box-shadow: none;
+}
+
+.input-translation-panel[data-status='error'] .input-translation-field [data-slot='textarea'] {
+  color: rgb(153 48 48);
+}
+
+.input-translation-submit {
+  position: absolute;
+  top: 5px;
+  right: 2px;
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(31 36 45 / 0.075);
+  color: rgb(75 82 94);
+  cursor: pointer;
+  transition:
+    transform 110ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.input-translation-submit:hover:not(:disabled) {
+  background: rgb(31 36 45 / 0.12);
+  color: rgb(37 43 53);
+}
+
+.input-translation-submit:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.input-translation-submit:disabled {
+  cursor: default;
+  opacity: 0.32;
+}
+
+.input-translation-panel[data-status='success'] .input-translation-submit {
+  background: rgb(43 123 87 / 0.1);
+  color: rgb(43 123 87);
+}
+
+.input-translation-toolbar {
+  display: flex;
+  height: 27px;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  padding-top: 3px;
+  border-top: 1px solid rgb(37 43 54 / 0.07);
+  cursor: grab;
+  user-select: none;
+}
+
+.input-translation-toolbar.is-dragging {
+  cursor: grabbing;
+}
+
+.input-translation-compact-select {
+  position: relative;
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  color: rgb(104 111 124);
+}
+
+.input-translation-compact-select > svg:last-child {
+  position: absolute;
+  right: 3px;
+  z-index: 1;
+  color: rgb(142 148 158);
+  pointer-events: none;
+}
+
+.input-translation-select-label {
+  padding-left: 4px;
+  color: rgb(126 132 143);
+  font-size: 9.5px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.input-translation-compact-select [data-slot='select'] {
+  height: 22px;
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0 15px 0 3px;
+  color: rgb(63 69 80);
+  font-size: 10.5px;
+  font-weight: 630;
+  line-height: 22px;
+  box-shadow: none;
+  cursor: pointer;
+  user-select: auto;
+}
+
+.input-translation-compact-select [data-slot='select']:hover,
+.input-translation-compact-select [data-slot='select']:focus {
+  background: rgb(31 36 45 / 0.055);
+  box-shadow: none;
+}
+
+.input-translation-compact-select.engine-select [data-slot='select'] {
+  width: 67px;
+}
+
+.input-translation-compact-select.language-select [data-slot='select'] {
+  width: 62px;
+}
+
+.input-translation-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  padding: 0 3px;
+  color: rgb(136 142 153);
+  font-size: 9.5px;
+  font-weight: 580;
+  white-space: nowrap;
+}
+
+.input-translation-status:empty {
+  display: none;
+}
+
+.input-translation-status.status-success {
+  color: rgb(43 123 87);
+}
+
+.input-translation-status.status-error {
+  color: rgb(184 65 65);
+}
+
+.input-translation-close {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(137 143 154);
+  cursor: pointer;
+  transition:
+    background-color 130ms ease,
+    color 130ms ease,
+    transform 100ms ease;
+}
+
+.input-translation-close:hover {
+  background: rgb(31 36 45 / 0.07);
+  color: rgb(65 71 82);
+}
+
+.input-translation-close:active {
+  transform: scale(0.9);
+}
+
+.input-translation-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.input-translation-spinner {
+  animation: input-translation-spin 700ms linear infinite;
+}
+
+@keyframes input-translation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dark .input-translation-panel {
+  border-color: rgb(255 255 255 / 0.11);
+  background: rgb(31 33 38 / 0.97);
+  box-shadow:
+    0 16px 38px rgb(0 0 0 / 0.42),
+    0 3px 10px rgb(0 0 0 / 0.28),
+    inset 0 1px 0 rgb(255 255 255 / 0.07);
+}
+
+.dark .input-translation-field [data-slot='textarea'] {
+  background: transparent;
+  color: rgb(243 245 249);
+}
+
+.dark .input-translation-field [data-slot='textarea']::placeholder {
+  color: rgb(143 149 160);
+}
+
+.dark .input-translation-toolbar {
+  border-top-color: rgb(255 255 255 / 0.07);
+}
+
+.dark .input-translation-compact-select [data-slot='select'] {
+  color: rgb(213 217 225);
+}
+
+.dark .input-translation-select-label {
+  color: rgb(139 145 157);
+}
+
+.dark .input-translation-compact-select [data-slot='select']:hover,
+.dark .input-translation-compact-select [data-slot='select']:focus,
+.dark .input-translation-close:hover {
+  background: rgb(255 255 255 / 0.07);
+}

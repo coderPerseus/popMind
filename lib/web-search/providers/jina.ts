@@ -5,7 +5,7 @@ export const jinaProvider: WebSearchProvider = {
   isConfigured(apiKey) {
     return Boolean(apiKey.trim())
   },
-  async search({ query, apiKey }) {
+  async search({ query, apiKey, signal }) {
     const response = await fetch(`https://s.jina.ai/${encodeURIComponent(query)}`, {
       headers: apiKey.trim()
         ? {
@@ -15,6 +15,7 @@ export const jinaProvider: WebSearchProvider = {
         : {
             Accept: 'application/json',
           },
+      signal,
     })
 
     if (!response.ok) {

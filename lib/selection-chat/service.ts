@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { createLanguageModel } from '@/lib/ai-service/provider-factory'
 import { capabilityService } from '@/lib/capability/service'
 import { translateMessage } from '@/lib/i18n/shared'
-import { runExplain } from '@/lib/explain/runner'
+import { isAbortError, runExplain } from '@/lib/explain/runner'
+import { mainLogger } from '@/lib/main/logger'
 import { searchHistoryService } from '@/lib/search-history/service'
 import type { ExplainHistoryMessage } from '@/lib/search-history/types'
 import type { ExplainImageContext } from '@/lib/explain/types'
@@ -36,7 +37,8 @@ export class SelectionChatService {
 
   private setMissingAiConfigState(
     input: { mode: 'explain' | 'ask'; selectionText: string; selectionId?: string; sourceAppId?: string },
-    language: 'zh-CN' | 'en'
+    language: 'zh-CN' | 'en',
+    webSearchEnabled = false
   ) {
     const selectionText = input.selectionText.trim()
     if (!selectionText) {
@@ -56,7 +58,7 @@ export class SelectionChatService {
       messages,
       status: 'error',
       pinned: false,
-      webSearchEnabled: true,
+      webSearchEnabled,
       language,
       errorMessage: translateMessage(language, 'selectionChat.error.missingAiConfig'),
     }
@@ -76,13 +78,19 @@ export class SelectionChatService {
     sourceAppName?: string
     contextImage?: ExplainImageContext
   }) {
+    const runId = this.beginRun()
     this.sourceAppName = input.sourceAppName?.trim() || undefined
     this.contextImage = input.contextImage
 
     const settings = await capabilityService.getSettings()
+    if (!this.isRunActive(runId)) {
+      mainLogger.info('[SelectionChat] openSession skipped after cancel', { runId, activeRunId: this.activeRunId })
+      return this.session
+    }
+
     const model = createLanguageModel(settings)
     if (!model) {
-      return this.setMissingAiConfigState(input, settings.appLanguage)
+      return this.setMissingAiConfigState(input, settings.appLanguage, settings.webSearch.enabled)
     }
 
     const selectionText = input.selectionText.trim()
@@ -103,15 +111,22 @@ export class SelectionChatService {
       messages,
       status: 'ready',
       pinned: false,
-      webSearchEnabled: true,
+      webSearchEnabled: settings.webSearch.enabled,
       language: settings.appLanguage,
       aiProvider: model.providerId,
       modelId: model.modelId,
     }
     this.emit()
+    mainLogger.info('[SelectionChat] session opened', {
+      runId,
+      sessionId: this.session.id,
+      mode: input.mode,
+      textLength: selectionText.length,
+      webSearchEnabled: this.session.webSearchEnabled,
+    })
 
     if (input.mode === 'explain') {
-      await this.runAssistantTurn()
+      await this.runAssistantTurn(runId)
     }
 
     return this.session
@@ -127,14 +142,21 @@ export class SelectionChatService {
       return
     }
 
+    const runId = this.beginRun()
     this.session = {
       ...this.session,
       messages: [...this.session.messages, nextMessage],
       status: 'ready',
       errorMessage: undefined,
+      loadingMessage: undefined,
     }
     this.emit()
-    await this.runAssistantTurn()
+    mainLogger.info('[SelectionChat] submitMessage', {
+      runId,
+      sessionId: this.session.id,
+      textLength: nextMessage.text.length,
+    })
+    await this.runAssistantTurn(runId)
   }
 
   async regenerate() {
@@ -147,6 +169,7 @@ export class SelectionChatService {
       messages.pop()
     }
 
+    const runId = this.beginRun()
     this.session = {
       ...this.session,
       messages,
@@ -155,33 +178,31 @@ export class SelectionChatService {
       loadingMessage: undefined,
     }
     this.emit()
-    await this.runAssistantTurn()
+    mainLogger.info('[SelectionChat] regenerate', { runId, sessionId: this.session.id })
+    await this.runAssistantTurn(runId)
   }
 
   async stop() {
-    this.activeRunId += 1
-    this.currentAbortController?.abort()
-    this.currentAbortController = null
-
-    if (this.session) {
-      this.session = {
-        ...this.session,
-        status: 'ready',
-        loadingMessage: undefined,
-      }
-      await this.persistSession()
-      this.emit()
-    }
+    const sessionId = this.session?.id
+    const previousStatus = this.session?.status
+    this.cancelRun()
+    this.applyStoppedState()
+    mainLogger.warn('[SelectionChat] stop requested', {
+      sessionId,
+      previousStatus,
+      activeRunId: this.activeRunId,
+      lastTextLength: this.session?.messages.at(-1)?.text.length ?? 0,
+    })
+    await this.persistSession()
   }
 
   async close() {
-    this.activeRunId += 1
-    this.currentAbortController?.abort()
-    this.currentAbortController = null
+    this.cancelRun()
     this.session = null
     this.sourceAppName = undefined
     this.contextImage = undefined
     this.emit()
+    mainLogger.info('[SelectionChat] session closed')
   }
 
   setPinned(pinned: boolean) {
@@ -209,14 +230,14 @@ export class SelectionChatService {
     this.emit()
   }
 
-  private async runAssistantTurn() {
-    if (!this.session) {
+  private async runAssistantTurn(runId: number) {
+    if (!this.session || !this.isRunActive(runId)) {
       return
     }
 
-    const runId = ++this.activeRunId
     const settings = await capabilityService.getSettings()
-    if (!this.isRunActive(runId)) {
+    if (!this.isRunActive(runId) || !this.session) {
+      mainLogger.info('[SelectionChat] run skipped after cancel', { runId, activeRunId: this.activeRunId })
       return
     }
 
@@ -245,6 +266,12 @@ export class SelectionChatService {
       }
       this.emit()
       this.currentAbortController = abortController
+      mainLogger.info('[SelectionChat] assistant turn started', {
+        runId,
+        sessionId: this.session.id,
+        status: this.session.status,
+        webSearchEnabled: this.session.webSearchEnabled,
+      })
 
       const result = await runExplain({
         selectionText: this.session.selectionText,
@@ -308,9 +335,30 @@ export class SelectionChatService {
         ],
       }
       this.emit()
+      mainLogger.info('[SelectionChat] assistant turn ready', {
+        runId,
+        sessionId: this.session.id,
+        textLength: result.text.length,
+        sourceCount: result.sources.length,
+      })
       await this.persistSession()
     } catch (error) {
       if (!this.isRunActive(runId) || !this.session) {
+        mainLogger.info('[SelectionChat] assistant turn ignored after cancel', {
+          runId,
+          activeRunId: this.activeRunId,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+        return
+      }
+
+      if (isAbortError(error) || abortController.signal.aborted) {
+        this.applyStoppedState()
+        mainLogger.warn('[SelectionChat] assistant turn aborted', {
+          runId,
+          sessionId: this.session?.id,
+        })
+        await this.persistSession()
         return
       }
 
@@ -333,6 +381,11 @@ export class SelectionChatService {
         messages: nextLastMessage ? [...this.session.messages.slice(0, -1), nextLastMessage] : this.session.messages,
       }
       this.emit()
+      mainLogger.warn('[SelectionChat] assistant turn failed', {
+        runId,
+        sessionId: this.session.id,
+        error: message,
+      })
       await this.persistSession()
     } finally {
       if (this.currentAbortController === abortController) {
@@ -341,8 +394,35 @@ export class SelectionChatService {
     }
   }
 
+  private beginRun() {
+    this.currentAbortController?.abort()
+    this.currentAbortController = null
+    this.activeRunId += 1
+    return this.activeRunId
+  }
+
+  private cancelRun() {
+    this.activeRunId += 1
+    this.currentAbortController?.abort()
+    this.currentAbortController = null
+  }
+
+  private applyStoppedState() {
+    if (!this.session) {
+      return
+    }
+
+    this.session = {
+      ...this.session,
+      status: 'ready',
+      loadingMessage: undefined,
+      errorMessage: undefined,
+    }
+    this.emit()
+  }
+
   private isRunActive(runId: number) {
-    return this.activeRunId === runId && this.session != null
+    return this.activeRunId === runId
   }
 
   private async persistSession() {

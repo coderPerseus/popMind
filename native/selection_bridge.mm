@@ -2029,6 +2029,7 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         gIsLeftMouseDown = false;
         gDragPasteboardChangeCountOnMouseDown = -1;
         EmitAction(scene, loc);
+
         return;
       }
     }];

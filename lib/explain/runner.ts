@@ -13,6 +13,31 @@ import {
 import type { ExplainResult, RunExplainInput } from './types'
 
 const EXPLAIN_REQUEST_TIMEOUT_MS = 30_000
+const SEARCH_REQUEST_TIMEOUT_MS = 12_000
+
+export const isAbortError = (error: unknown) => {
+  if (!error) {
+    return false
+  }
+
+  if (error instanceof Error) {
+    return error.name === 'AbortError' || /aborted|AbortError/i.test(error.message)
+  }
+
+  return typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'AbortError'
+}
+
+const createAbortError = (message = 'The operation was aborted.') => {
+  const error = new Error(message)
+  error.name = 'AbortError'
+  return error
+}
+
+const throwIfAborted = (signal?: AbortSignal) => {
+  if (signal?.aborted) {
+    throw createAbortError()
+  }
+}
 
 const createSmoothTransform = (language: ExplainResult['language']) => {
   const chunking = language === 'zh-CN' ? new Intl.Segmenter('zh', { granularity: 'word' }) : ('word' as const)
@@ -105,14 +130,32 @@ export const runExplain = async ({
   let webSearchProvider: ExplainResult['webSearchProvider']
 
   if (effectiveSettings.webSearch.enabled) {
+    throwIfAborted(signal)
+    const searchAbort = createTimedAbortSignal(signal, SEARCH_REQUEST_TIMEOUT_MS)
     try {
-      const search = await webSearchService.search(effectiveSettings, `${selectionText}\n${latestQuestion}`)
+      const search = await webSearchService.search(
+        effectiveSettings,
+        `${selectionText}\n${latestQuestion}`,
+        searchAbort.signal
+      )
       searchResults = search.results
       webSearchProvider = search.providerId
-    } catch {
+    } catch (error) {
+      if (signal?.aborted || (isAbortError(error) && !searchAbort.didTimeout())) {
+        throw isAbortError(error) ? error : createAbortError()
+      }
+
+      mainLogger.warn('[ExplainRunner] search_failed', {
+        reason: error instanceof Error ? error.message : String(error),
+        timedOut: searchAbort.didTimeout(),
+      })
       searchResults = []
+    } finally {
+      searchAbort.cleanup()
     }
   }
+
+  throwIfAborted(signal)
 
   let text = ''
   const systemPrompt =

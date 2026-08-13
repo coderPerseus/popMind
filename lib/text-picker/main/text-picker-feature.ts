@@ -10,6 +10,7 @@ import { formatLanguageLabel, translateMessage } from '@/lib/i18n/shared'
 import { normalizeSelectedLink } from '@/lib/text-picker/link-utils'
 import { SelectionChatWindowManager } from '@/lib/selection-chat/window/selection-chat-window-manager'
 import { TranslationWindowManager } from '@/lib/translation/window/translation-window-manager'
+import { InputTranslationWindowManager } from '@/lib/input-translation/window/input-translation-window-manager'
 import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/text-picker/shared'
 import type { PickedInfo } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
@@ -41,6 +42,7 @@ const IPC_EVENT_CHANNELS = [
 ] as const
 
 const HIDE_BUBBLE_SHORTCUT = 'CommandOrControl+Shift+X'
+const INPUT_TRANSLATION_SHORTCUT = 'CommandOrControl+Shift+I'
 const SCREENSHOT_TRANSLATE_SHORTCUT = 'CommandOrControl+Alt+T'
 const SCREENSHOT_SEARCH_SHORTCUT = 'CommandOrControl+Alt+S'
 const MAX_COMMAND_CONTEXTS = 12
@@ -60,6 +62,7 @@ export class TextPickerFeature {
   private bubbleWindow: SelectionBubbleWindow | null = null
   private manager: TextPickerManager | null = null
   private translationWindowManager: TranslationWindowManager | null = null
+  private inputTranslationWindowManager: InputTranslationWindowManager | null = null
   private selectionChatWindowManager: SelectionChatWindowManager | null = null
   private screenshotTranslationService: ScreenshotTranslationService | null = null
   private screenshotSearchService: ScreenshotSearchService | null = null
@@ -105,6 +108,18 @@ export class TextPickerFeature {
         this.manager?.syncDismissKeyMonitor()
       },
     })
+    this.inputTranslationWindowManager = new InputTranslationWindowManager(this.bridge, this.logger, {
+      onWillShow: () => {
+        this.manager?.hideBubble()
+        this.translationWindowManager?.hideIfFloating()
+        if (!this.selectionChatWindowManager?.isPinned()) {
+          this.selectionChatWindowManager?.hide()
+        }
+      },
+      onVisibilityChange: () => {
+        this.manager?.syncDismissKeyMonitor()
+      },
+    })
     this.screenshotTranslationService = new ScreenshotTranslationService(this.translationWindowManager)
     this.screenshotSearchService = new ScreenshotSearchService(undefined, undefined, this.logger)
     this.manager = new TextPickerManager({
@@ -120,7 +135,8 @@ export class TextPickerFeature {
       },
       isSecondaryFloatingVisible: () =>
         (this.translationWindowManager?.isVisible() ?? false) ||
-        (this.selectionChatWindowManager?.isVisible() ?? false),
+        (this.selectionChatWindowManager?.isVisible() ?? false) ||
+        (this.inputTranslationWindowManager?.isVisible() ?? false),
       isEventInsideSecondaryFloating: (event) => {
         const x = Number(event.x)
         const y = Number(event.y)
@@ -131,7 +147,8 @@ export class TextPickerFeature {
 
         return (
           (this.translationWindowManager?.containsPoint(x, y) ?? false) ||
-          (this.selectionChatWindowManager?.containsPoint(x, y) ?? false)
+          (this.selectionChatWindowManager?.containsPoint(x, y) ?? false) ||
+          (this.inputTranslationWindowManager?.containsPoint(x, y) ?? false)
         )
       },
       hideSecondaryFloating: () => {
@@ -141,6 +158,7 @@ export class TextPickerFeature {
         if (!this.selectionChatWindowManager?.isPinned()) {
           this.selectionChatWindowManager?.hide()
         }
+        this.inputTranslationWindowManager?.hide()
       },
       dispatchAutoDismiss: (context) => {
         this.dispatchAutoDismiss(context)
@@ -150,6 +168,7 @@ export class TextPickerFeature {
     this.registerAutoDismissSurfaces()
     this.createStatusTray()
     this.setupIpc()
+    this.registerInputTranslationShortcut()
     this.registerScreenshotShortcuts()
     const settings = await capabilityService.getSettings()
     this.appLanguage = settings.appLanguage
@@ -203,6 +222,7 @@ export class TextPickerFeature {
 
   dispose() {
     globalShortcut.unregister(HIDE_BUBBLE_SHORTCUT)
+    globalShortcut.unregister(INPUT_TRANSLATION_SHORTCUT)
     globalShortcut.unregister(SCREENSHOT_TRANSLATE_SHORTCUT)
     globalShortcut.unregister(SCREENSHOT_SEARCH_SHORTCUT)
     this.stopPermissionRetryPolling()
@@ -220,6 +240,8 @@ export class TextPickerFeature {
 
     this.translationWindowManager?.dispose()
     this.translationWindowManager = null
+    this.inputTranslationWindowManager?.dispose()
+    this.inputTranslationWindowManager = null
     this.selectionChatWindowManager?.dispose()
     this.selectionChatWindowManager = null
     this.screenshotTranslationService = null
@@ -454,6 +476,7 @@ export class TextPickerFeature {
         accelerator: 'Alt+Space',
         click: () => {
           this.manager?.hideBubble()
+          this.inputTranslationWindowManager?.hide()
           void showMainWindow('home')
         },
       },
@@ -475,9 +498,14 @@ export class TextPickerFeature {
         type: 'separator',
       },
       {
-        label: isEnabled ? translateMessage(language, 'tray.disableSelection') : translateMessage(language, 'tray.enableSelection'),
+        label: isEnabled
+          ? translateMessage(language, 'tray.disableSelection')
+          : translateMessage(language, 'tray.enableSelection'),
         click: () => {
           this.manager?.setGlobalEnabled(!isEnabled)
+          if (isEnabled) {
+            this.inputTranslationWindowManager?.hide()
+          }
         },
       },
       {
@@ -485,6 +513,7 @@ export class TextPickerFeature {
         accelerator: 'Command+,',
         click: () => {
           this.manager?.hideBubble()
+          this.inputTranslationWindowManager?.hide()
           void showMainWindow('settings')
         },
       },
@@ -499,7 +528,9 @@ export class TextPickerFeature {
       },
       {
         label: translateMessage(language, 'tray.quit'),
-        role: 'quit',
+        click: () => {
+          app.quit()
+        },
       },
       {
         label: translateMessage(language, 'tray.exportLogs'),
@@ -513,6 +544,13 @@ export class TextPickerFeature {
   private registerSelectionShortcuts() {
     this.registerGlobalShortcut(HIDE_BUBBLE_SHORTCUT, 'hide-bubble', () => {
       this.manager?.hideBubble()
+      this.inputTranslationWindowManager?.hide()
+    })
+  }
+
+  private registerInputTranslationShortcut() {
+    this.registerGlobalShortcut(INPUT_TRANSLATION_SHORTCUT, 'input-translation', () => {
+      void this.inputTranslationWindowManager?.showAtCursor()
     })
   }
 
@@ -647,11 +685,13 @@ export class TextPickerFeature {
 
   private async triggerScreenshotTranslation() {
     this.manager?.hideBubble()
+    this.inputTranslationWindowManager?.hide()
     await this.screenshotTranslationService?.start()
   }
 
   private async triggerScreenshotSearch() {
     this.manager?.hideBubble()
+    this.inputTranslationWindowManager?.hide()
     await this.screenshotSearchService?.start()
   }
 
@@ -818,6 +858,9 @@ export class TextPickerFeature {
 
     ipcMain.handle(TextPickerChannel.SetGlobalEnabled, async (_event, enabled: boolean) => {
       this.manager?.setGlobalEnabled(enabled)
+      if (!enabled) {
+        this.inputTranslationWindowManager?.hide()
+      }
       return { ok: true }
     })
 
