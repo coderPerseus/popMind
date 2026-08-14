@@ -26,6 +26,7 @@ const explainSessionSchema = z.object({
   language: z.enum(['zh-CN', 'en']),
   aiProvider: z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma']).optional(),
   modelId: z.string().optional(),
+  webSearchEnabled: z.boolean(),
   webSearchProvider: z.enum(['tavily', 'serper', 'brave', 'jina']).optional(),
   errorMessage: z.string().optional(),
   loadingMessage: z.string().optional(),
@@ -41,7 +42,12 @@ export const explainIpcSchema = {
     return: explainStateSchema,
   },
   'explain-start': {
-    args: z.tuple([z.string(), z.enum(['explain', 'chat']).optional(), z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma']).optional()]),
+    args: z.tuple([
+      z.string(),
+      z.enum(['explain', 'chat']).optional(),
+      z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma']).optional(),
+      z.boolean().optional(),
+    ]),
     return: z.object({ ok: z.boolean() }),
   },
   'explain-submit': {
@@ -59,5 +65,13 @@ export const explainIpcSchema = {
   'explain-reset': {
     args: z.tuple([]),
     return: z.object({ ok: z.boolean() }),
+  },
+  'explain-set-web-search': {
+    args: z.tuple([z.boolean()]),
+    return: z.object({ ok: z.boolean(), enabled: z.boolean() }),
+  },
+  'explain-set-provider': {
+    args: z.tuple([z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma'])]),
+    return: z.object({ ok: z.boolean(), providerId: z.enum(['openai', 'anthropic', 'google', 'kimi', 'deepseek', 'gemma']) }),
   },
 }

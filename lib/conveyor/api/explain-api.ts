@@ -14,10 +14,16 @@ export class ExplainApi extends ConveyorApi {
   }
 
   getState = () => this.invoke('explain-get-state')
-  startSession = (selectionText: string, mode: ExplainSessionMode = 'explain', providerId?: AiProviderId) =>
-    this.invoke('explain-start', selectionText, mode, providerId)
+  startSession = (
+    selectionText: string,
+    mode: ExplainSessionMode = 'explain',
+    providerId?: AiProviderId,
+    webSearchEnabled?: boolean
+  ) => this.invoke('explain-start', selectionText, mode, providerId, webSearchEnabled)
   submitMessage = (message: string) => this.invoke('explain-submit', message)
   regenerate = () => this.invoke('explain-regenerate')
   stop = () => this.invoke('explain-stop')
   reset = () => this.invoke('explain-reset')
+  setWebSearchEnabled = (enabled: boolean) => this.invoke('explain-set-web-search', enabled)
+  setProvider = (providerId: AiProviderId) => this.invoke('explain-set-provider', providerId)
 }

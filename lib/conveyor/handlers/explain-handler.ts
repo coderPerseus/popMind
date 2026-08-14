@@ -20,10 +20,13 @@ export const registerExplainHandlers = () => {
   })
 
   handle('explain-get-state', () => ({ session: mainExplainSessionService.getState() }))
-  handle('explain-start', async (selectionText: string, mode: ExplainSessionMode = 'explain', providerId?: AiProviderId) => {
-    await mainExplainSessionService.startSession(selectionText, mode, providerId)
-    return { ok: true }
-  })
+  handle(
+    'explain-start',
+    async (selectionText: string, mode: ExplainSessionMode = 'explain', providerId?: AiProviderId, webSearchEnabled?: boolean) => {
+      await mainExplainSessionService.startSession(selectionText, mode, providerId, webSearchEnabled)
+      return { ok: true }
+    }
+  )
   handle('explain-submit', async (message: string) => {
     await mainExplainSessionService.submitMessage(message)
     return { ok: true }
@@ -39,5 +42,13 @@ export const registerExplainHandlers = () => {
   handle('explain-reset', async () => {
     await mainExplainSessionService.reset()
     return { ok: true }
+  })
+  handle('explain-set-web-search', async (enabled: boolean) => {
+    mainExplainSessionService.setWebSearchEnabled(enabled)
+    return { ok: true, enabled }
+  })
+  handle('explain-set-provider', async (providerId: AiProviderId) => {
+    await mainExplainSessionService.setProvider(providerId)
+    return { ok: true, providerId }
   })
 }

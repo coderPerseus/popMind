@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { createLanguageModel } from '@/lib/ai-service/provider-factory'
 import { capabilityService } from '@/lib/capability/service'
 import { translateMessage } from '@/lib/i18n/shared'
+import { mainLogger } from '@/lib/main/logger'
 import { searchHistoryService } from '@/lib/search-history/service'
 import type { ExplainHistoryMessage } from '@/lib/search-history/types'
-import { runExplain } from './runner'
+import { isAbortError, runExplain } from './runner'
 import type { ExplainConversationMessage, ExplainSession, ExplainSessionMessage, ExplainSessionMode } from './types'
 import type { AiProviderId } from '@/lib/capability/types'
 
@@ -40,7 +41,8 @@ export class MainExplainSessionService {
     selectionText: string,
     language: 'zh-CN' | 'en',
     mode: ExplainSessionMode,
-    providerId?: AiProviderId
+    providerId: AiProviderId | undefined,
+    webSearchEnabled: boolean
   ) {
     const firstUserMessage = createMessage('user', selectionText.trim())
     if (!firstUserMessage.text) {
@@ -57,17 +59,35 @@ export class MainExplainSessionService {
       messages: [firstUserMessage],
       status: 'error',
       language,
+      webSearchEnabled,
       errorMessage: translateMessage(language, 'selectionChat.error.missingAiConfig'),
     }
     this.emit()
     return this.session
   }
 
-  async startSession(selectionText: string, mode: ExplainSessionMode = 'explain', providerId?: AiProviderId) {
+  async startSession(
+    selectionText: string,
+    mode: ExplainSessionMode = 'explain',
+    providerId?: AiProviderId,
+    webSearchEnabled?: boolean
+  ) {
+    const runId = this.beginRun()
     const settings = await capabilityService.getSettings()
+    if (!this.isRunActive(runId)) {
+      return this.session
+    }
+
+    const nextWebSearchEnabled = typeof webSearchEnabled === 'boolean' ? webSearchEnabled : settings.webSearch.enabled
     const model = createLanguageModel(settings, providerId)
     if (!model) {
-      return this.setMissingAiConfigState(selectionText, settings.appLanguage, mode, providerId)
+      return this.setMissingAiConfigState(
+        selectionText,
+        settings.appLanguage,
+        mode,
+        providerId,
+        nextWebSearchEnabled
+      )
     }
 
     const firstUserMessage = createMessage('user', selectionText.trim())
@@ -80,16 +100,22 @@ export class MainExplainSessionService {
     this.session = {
       id: randomUUID(),
       mode,
-      providerId,
+      providerId: providerId ?? model.providerId,
       selectionText: firstUserMessage.text,
       messages: [firstUserMessage],
       status: 'ready',
       language: settings.appLanguage,
       aiProvider: model.providerId,
       modelId: model.modelId,
+      webSearchEnabled: nextWebSearchEnabled,
     }
     this.emit()
-    await this.runAssistantTurn()
+    mainLogger.info('[MainExplain] session started', {
+      sessionId: this.session.id,
+      providerId: this.session.providerId,
+      webSearchEnabled: this.session.webSearchEnabled,
+    })
+    await this.runAssistantTurn(runId)
     return this.session
   }
 
@@ -103,14 +129,16 @@ export class MainExplainSessionService {
       return
     }
 
+    const runId = this.beginRun()
     this.session = {
       ...this.session,
       messages: [...this.session.messages, nextMessage],
       status: 'ready',
       errorMessage: undefined,
+      loadingMessage: undefined,
     }
     this.emit()
-    await this.runAssistantTurn()
+    await this.runAssistantTurn(runId)
   }
 
   async regenerate() {
@@ -123,6 +151,7 @@ export class MainExplainSessionService {
       messages.pop()
     }
 
+    const runId = this.beginRun()
     this.session = {
       ...this.session,
       messages,
@@ -131,41 +160,76 @@ export class MainExplainSessionService {
       loadingMessage: undefined,
     }
     this.emit()
-    await this.runAssistantTurn()
+    await this.runAssistantTurn(runId)
   }
 
   async stop() {
-    this.activeRunId += 1
-    this.currentAbortController?.abort()
-    this.currentAbortController = null
-
-    if (this.session) {
-      this.session = {
-        ...this.session,
-        status: 'ready',
-        loadingMessage: undefined,
-      }
-      await this.persistSession()
-      this.emit()
-    }
+    this.cancelRun()
+    this.applyStoppedState()
+    mainLogger.warn('[MainExplain] stop requested', {
+      sessionId: this.session?.id,
+      lastTextLength: this.session?.messages.at(-1)?.text.length ?? 0,
+    })
+    await this.persistSession()
   }
 
   async reset() {
-    this.activeRunId += 1
-    this.currentAbortController?.abort()
-    this.currentAbortController = null
+    this.cancelRun()
     this.session = null
     this.emit()
   }
 
-  private async runAssistantTurn() {
+  setWebSearchEnabled(enabled: boolean) {
     if (!this.session) {
       return
     }
 
-    const runId = ++this.activeRunId
+    this.session = {
+      ...this.session,
+      webSearchEnabled: enabled,
+      webSearchProvider: enabled ? this.session.webSearchProvider : undefined,
+    }
+    this.emit()
+    mainLogger.info('[MainExplain] web search toggled', {
+      sessionId: this.session.id,
+      enabled,
+    })
+  }
+
+  async setProvider(providerId: AiProviderId) {
+    if (!this.session) {
+      return
+    }
+
     const settings = await capabilityService.getSettings()
-    if (!this.isRunActive(runId)) {
+    const model = createLanguageModel(settings, providerId)
+    this.session = {
+      ...this.session,
+      providerId,
+      aiProvider: model?.providerId ?? providerId,
+      modelId: model?.modelId,
+      errorMessage: model ? undefined : translateMessage(settings.appLanguage, 'selectionChat.error.missingAiConfig'),
+      status: model ? this.session.status : 'error',
+    }
+    this.emit()
+    mainLogger.info('[MainExplain] provider changed', {
+      sessionId: this.session.id,
+      providerId,
+      modelId: this.session.modelId,
+    })
+
+    if (model) {
+      await this.regenerate()
+    }
+  }
+
+  private async runAssistantTurn(runId: number) {
+    if (!this.session || !this.isRunActive(runId)) {
+      return
+    }
+
+    const settings = await capabilityService.getSettings()
+    if (!this.isRunActive(runId) || !this.session) {
       return
     }
 
@@ -181,10 +245,10 @@ export class MainExplainSessionService {
 
       this.session = {
         ...this.session,
-        status: settings.webSearch.enabled ? 'searching' : 'streaming',
+        status: this.session.webSearchEnabled ? 'searching' : 'streaming',
         loadingMessage: translateMessage(
           settings.appLanguage,
-          settings.webSearch.enabled ? 'selectionChat.searching' : 'selectionChat.loading'
+          this.session.webSearchEnabled ? 'selectionChat.searching' : 'selectionChat.loading'
         ),
         aiProvider: model.providerId,
         modelId: model.modelId,
@@ -202,6 +266,7 @@ export class MainExplainSessionService {
           role: message.role,
           text: message.text,
         })) as ExplainConversationMessage[],
+        webSearchEnabled: this.session.webSearchEnabled,
         signal: abortController.signal,
         onChunk: (_chunk, fullText) => {
           if (!this.isRunActive(runId) || !this.session) {
@@ -262,6 +327,12 @@ export class MainExplainSessionService {
         return
       }
 
+      if (isAbortError(error) || abortController.signal.aborted) {
+        this.applyStoppedState()
+        await this.persistSession()
+        return
+      }
+
       const message =
         error instanceof Error ? error.message : translateMessage(settings.appLanguage, 'selectionChat.error.generic')
       const lastMessage = this.session.messages.at(-1)
@@ -289,8 +360,35 @@ export class MainExplainSessionService {
     }
   }
 
+  private beginRun() {
+    this.currentAbortController?.abort()
+    this.currentAbortController = null
+    this.activeRunId += 1
+    return this.activeRunId
+  }
+
+  private cancelRun() {
+    this.activeRunId += 1
+    this.currentAbortController?.abort()
+    this.currentAbortController = null
+  }
+
+  private applyStoppedState() {
+    if (!this.session) {
+      return
+    }
+
+    this.session = {
+      ...this.session,
+      status: 'ready',
+      loadingMessage: undefined,
+      errorMessage: undefined,
+    }
+    this.emit()
+  }
+
   private isRunActive(runId: number) {
-    return this.activeRunId === runId && this.session != null
+    return this.activeRunId === runId
   }
 
   private async persistSession() {

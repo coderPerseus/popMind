@@ -59,6 +59,7 @@ export interface ExplainSession {
   status: 'idle' | 'searching' | 'streaming' | 'ready' | 'error'
   language: AppLanguage
   aiProvider?: AiProviderId
+  webSearchEnabled: boolean
   webSearchProvider?: WebSearchProviderId
   errorMessage?: string
   loadingMessage?: string

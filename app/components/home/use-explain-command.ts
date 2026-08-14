@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
+import { listConfiguredAiProviders } from '@/lib/capability/ai-providers'
 import type { MainExplainState, ExplainSessionMode } from '@/lib/explain/types'
-import type { AiProviderId } from '@/lib/capability/types'
+import type { AiProviderId, CapabilitySettings } from '@/lib/capability/types'
 
 const emptyState: MainExplainState = {
   session: null,
@@ -12,12 +13,17 @@ const useMainAiCommand = (
   command: MainSearchCommand,
   commandKind: Extract<MainSearchCommand, { kind: 'explain' | 'gemma' }>['kind'],
   sessionMode: ExplainSessionMode,
-  providerId?: AiProviderId
+  lockedProviderId?: AiProviderId
 ) => {
   const explain = useConveyor('explain')
+  const capability = useConveyor('capability')
   const [state, setState] = useState<MainExplainState>(emptyState)
+  const [settings, setSettings] = useState<CapabilitySettings | null>(null)
+  const [preferredProviderId, setPreferredProviderId] = useState<AiProviderId | undefined>(lockedProviderId)
+  const [preferredWebSearch, setPreferredWebSearch] = useState<boolean | null>(null)
 
   const isActive = command.kind === commandKind
+  const configuredProviders = useMemo(() => (settings ? listConfiguredAiProviders(settings) : []), [settings])
 
   useEffect(() => {
     let mounted = true
@@ -35,6 +41,29 @@ const useMainAiCommand = (
       unsubscribe()
     }
   }, [explain])
+
+  useEffect(() => {
+    let mounted = true
+    const syncSettings = (nextSettings: CapabilitySettings) => {
+      if (mounted) {
+        setSettings(nextSettings)
+      }
+    }
+
+    const unsubscribe = capability.onState(syncSettings)
+    void capability.getSettings().then(syncSettings)
+
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
+  }, [capability])
+
+  useEffect(() => {
+    if (lockedProviderId) {
+      setPreferredProviderId(lockedProviderId)
+    }
+  }, [lockedProviderId])
 
   useEffect(() => {
     if (!isActive || command.kind !== commandKind) {
@@ -57,13 +86,17 @@ const useMainAiCommand = (
     }
   }, [command, commandKind, explain, isActive, sessionMode, state.session])
 
+  const resolvedProviderId = lockedProviderId ?? preferredProviderId ?? settings?.aiService.activeProvider ?? undefined
+  const resolvedWebSearchEnabled =
+    state.session?.webSearchEnabled ?? preferredWebSearch ?? settings?.webSearch.enabled ?? false
+
   const runImmediately = useCallback(() => {
     if (command.kind !== commandKind || !command.text.trim()) {
       return
     }
 
-    void explain.startSession(command.text.trim(), sessionMode, providerId)
-  }, [command, commandKind, explain, providerId, sessionMode])
+    void explain.startSession(command.text.trim(), sessionMode, resolvedProviderId, resolvedWebSearchEnabled)
+  }, [command, commandKind, explain, resolvedProviderId, resolvedWebSearchEnabled, sessionMode])
 
   const submitFollowup = useCallback(
     async (text: string) => {
@@ -85,9 +118,9 @@ const useMainAiCommand = (
     }
 
     if (command.kind === commandKind && command.text.trim()) {
-      void explain.startSession(command.text.trim(), sessionMode, providerId)
+      void explain.startSession(command.text.trim(), sessionMode, resolvedProviderId, resolvedWebSearchEnabled)
     }
-  }, [command, commandKind, explain, providerId, sessionMode, state.session])
+  }, [command, commandKind, explain, resolvedProviderId, resolvedWebSearchEnabled, sessionMode, state.session])
 
   const stop = useCallback(() => {
     void explain.stop()
@@ -97,15 +130,46 @@ const useMainAiCommand = (
     void explain.reset()
   }, [explain])
 
+  const setWebSearchEnabled = useCallback(
+    (enabled: boolean) => {
+      setPreferredWebSearch(enabled)
+      if (state.session) {
+        void explain.setWebSearchEnabled(enabled)
+      }
+    },
+    [explain, state.session]
+  )
+
+  const setProvider = useCallback(
+    (providerId: AiProviderId) => {
+      if (lockedProviderId) {
+        return
+      }
+
+      setPreferredProviderId(providerId)
+      if (state.session) {
+        void explain.setProvider(providerId)
+      }
+    },
+    [explain, lockedProviderId, state.session]
+  )
+
   return {
     isActive,
     state,
     session: state.session,
+    settings,
+    configuredProviders,
+    selectedProviderId: state.session?.providerId ?? state.session?.aiProvider ?? resolvedProviderId,
+    webSearchEnabled: resolvedWebSearchEnabled,
+    canSwitchProvider: !lockedProviderId && configuredProviders.length > 1,
     runImmediately,
     submitFollowup,
     regenerate,
     stop,
     reset,
+    setWebSearchEnabled,
+    setProvider,
   }
 }
 

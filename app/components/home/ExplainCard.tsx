@@ -2,22 +2,44 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import { ArrowUpRight, Check, ChevronDown, Copy, LoaderCircle, RefreshCw, SendHorizontal, Square } from 'lucide-react'
 import { Button } from '@/app/components/ui/button'
+import { Select } from '@/app/components/ui/select'
+import { Switch } from '@/app/components/ui/switch'
 import { Textarea } from '@/app/components/ui/textarea'
 import type { MainSearchCommand } from '@/app/components/home/query-command'
 import { useI18n } from '@/app/i18n'
+import { aiProviderLabels } from '@/lib/capability/ai-providers'
+import type { AiProviderId } from '@/lib/capability/types'
 import type { ExplainSession, ExplainSessionMessage } from '@/lib/explain/types'
 
 type ExplainCardProps = {
   command: MainSearchCommand & { kind: 'explain' | 'gemma' }
   session: ExplainSession | null
+  configuredProviders: AiProviderId[]
+  selectedProviderId?: AiProviderId
+  webSearchEnabled: boolean
+  canSwitchProvider: boolean
   onReexplain: () => void
   onSubmitFollowup: (text: string) => Promise<boolean> | boolean
   onStop: () => void
+  onWebSearchChange: (enabled: boolean) => void
+  onProviderChange: (providerId: AiProviderId) => void
 }
 
 const AUTO_SCROLL_THRESHOLD_PX = 56
 
-export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, onStop }: ExplainCardProps) {
+export function ExplainCard({
+  command,
+  session,
+  configuredProviders,
+  selectedProviderId,
+  webSearchEnabled,
+  canSwitchProvider,
+  onReexplain,
+  onSubmitFollowup,
+  onStop,
+  onWebSearchChange,
+  onProviderChange,
+}: ExplainCardProps) {
   const { language } = useI18n()
   const [draft, setDraft] = useState('')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
@@ -29,12 +51,12 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
   const forceScrollTimeoutRef = useRef<number | null>(null)
 
   const isStreaming = session?.status === 'streaming' || session?.status === 'searching'
-  const statusLabel = session?.status === 'error' ? (session.errorMessage ?? '') : ''
-  const topbarMeta = [session?.aiProvider, session?.modelId, session?.webSearchProvider].filter(Boolean).join(' · ')
   const visibleMessages = session?.messages.filter((message, index) => !(index === 0 && message.role === 'user')) ?? []
-  const latestAssistantMessageId = [...visibleMessages].reverse().find((message) => message.role === 'assistant')?.id
+  const statusLabel =
+    session?.status === 'error' && !visibleMessages.some((message) => message.errorMessage)
+      ? (session.errorMessage ?? '')
+      : ''
   const isChatMode = command.kind === 'gemma' || session?.mode === 'chat'
-  const eyebrowTitle = isChatMode ? 'Gemma' : language === 'en' ? 'Explanation' : '解释卡片'
   const queryPlaceholder = isChatMode
     ? language === 'en'
       ? 'Enter your message'
@@ -42,7 +64,6 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
     : language === 'en'
       ? 'Enter text to explain'
       : '输入要解释的文本'
-  const streamingLabel = isChatMode ? (language === 'en' ? 'Thinking' : '思考中') : language === 'en' ? 'Explaining' : '解释中'
   const idleHint = isChatMode
     ? language === 'en'
       ? 'Press Enter to start chatting'
@@ -179,105 +200,107 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
   }
 
   return (
-    <div className="ms-command-stack">
-      <section className={`ms-explain-command-card ${session?.status === 'error' ? 'is-error' : ''}`}>
-        <div className="ms-explain-command-head">
-          <div className="ms-explain-command-head-copy">
-            <div className="ms-explain-command-eyebrow">{eyebrowTitle}</div>
-            <div className="ms-explain-command-query">{command.text || queryPlaceholder}</div>
-          </div>
+    <section className={`ms-explain-shell ${session?.status === 'error' ? 'is-error' : ''}`}>
+      <nav className="ms-explain-nav">
+        <div className="ms-explain-command-query">{command.text || queryPlaceholder}</div>
 
-          <div className="ms-explain-command-meta-wrap">
-            {isStreaming ? (
-              <div className="ms-explain-command-status">
-                <LoaderCircle size={13} className="ms-translate-command-spin" />
-                <span>{streamingLabel}</span>
-              </div>
-            ) : topbarMeta ? (
-              <div className="ms-explain-command-meta">
-                {topbarMeta.split(' · ').map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-              </div>
-            ) : null}
-          </div>
+        <div className="ms-explain-command-head-actions">
+          <label className="ms-explain-network-toggle">
+            <span>{language === 'en' ? 'Web' : '联网'}</span>
+            <Switch
+              checked={webSearchEnabled}
+              size="sm"
+              disabled={isStreaming}
+              aria-label={language === 'en' ? 'Enable web search' : '开启联网搜索'}
+              onCheckedChange={onWebSearchChange}
+            />
+          </label>
+
+          {canSwitchProvider ? (
+            <Select
+              className="ms-explain-provider-select"
+              value={selectedProviderId ?? ''}
+              disabled={isStreaming}
+              aria-label={language === 'en' ? 'AI provider' : '选择模型服务'}
+              onChange={(event) => {
+                const nextProvider = event.target.value as AiProviderId
+                if (nextProvider) {
+                  onProviderChange(nextProvider)
+                }
+              }}
+            >
+              {configuredProviders.map((providerId) => (
+                <option key={providerId} value={providerId}>
+                  {aiProviderLabels[providerId]}
+                </option>
+              ))}
+            </Select>
+          ) : null}
         </div>
+      </nav>
 
-        {!session ? (
-          <div className="ms-explain-command-body is-placeholder">
-            <div className="ms-explain-command-plain">{idleHint}</div>
-          </div>
-        ) : (
-          <>
-            <div className="ms-explain-context-card">
-              <div className="ms-explain-context-text">{session.selectionText}</div>
-            </div>
+      {!session ? (
+        <div className="ms-explain-thread is-placeholder">
+          <div className="ms-explain-command-plain is-placeholder">{idleHint}</div>
+        </div>
+      ) : (
+        <div className="ms-explain-thread" ref={threadRef} onScroll={onThreadScroll}>
+          {visibleMessages.map((message, index) => (
+            <ExplainMessageBubble
+              key={message.id}
+              message={message}
+              copied={copiedMessageId === message.id}
+              uiLanguage={language}
+              isStreaming={isStreaming}
+              loadingLabel={session.loadingMessage}
+              isAnimating={message.role === 'assistant' && index === visibleMessages.length - 1 && isStreaming}
+              onCopy={async () => {
+                if (!message.text) {
+                  return
+                }
+                await navigator.clipboard.writeText(message.text)
+                setCopiedMessageId(message.id)
+              }}
+            />
+          ))}
 
-            <div className="ms-explain-thread-shell">
-              <div className="ms-explain-thread" ref={threadRef} onScroll={onThreadScroll}>
-                {visibleMessages.map((message, index) => (
-                  <ExplainMessageBubble
-                    key={message.id}
-                    message={message}
-                    copied={copiedMessageId === message.id}
-                    uiLanguage={language}
-                    isAnimating={message.role === 'assistant' && index === visibleMessages.length - 1 && isStreaming}
-                    canRegenerate={message.id === latestAssistantMessageId}
-                    onCopy={async () => {
-                      if (!message.text) {
-                        return
-                      }
-                      await navigator.clipboard.writeText(message.text)
-                      setCopiedMessageId(message.id)
-                    }}
-                    onRegenerate={onReexplain}
-                  />
-                ))}
+          {statusLabel ? (
+            <div className={`ms-explain-status ${session.status === 'error' ? 'is-error' : ''}`}>{statusLabel}</div>
+          ) : null}
+        </div>
+      )}
 
-                {statusLabel ? (
-                  <div className={`ms-explain-status ${session.status === 'error' ? 'is-error' : ''}`}>
-                    {statusLabel}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </>
-        )}
+      <footer className="ms-explain-dock">
+        <div className="ms-explain-command-composer-frame">
+          <Textarea
+            ref={composerRef}
+            className="ms-explain-command-input"
+            rows={1}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={composerPlaceholder}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                if (session) {
+                  void submit()
+                }
+              }
+            }}
+            disabled={!session}
+          />
 
-        <div className="ms-explain-command-footer">
-          <div className="ms-translate-command-footer-actions">
+          <div className="ms-explain-send-wrap">
             <Button
-              className="ms-translate-command-action-btn is-primary"
+              className="ms-explain-regenerate-btn"
               variant="ghost"
               size="sm"
               onClick={onReexplain}
               disabled={isStreaming || !command.text}
             >
-              <RefreshCw size={13} className={isStreaming ? 'ms-translate-command-spin' : ''} />
+              <RefreshCw size={13} />
               <span>{language === 'en' ? 'Regenerate' : '重新生成'}</span>
             </Button>
-          </div>
-        </div>
-
-        <footer className="ms-explain-command-composer">
-          <div className="ms-explain-command-composer-frame">
-            <Textarea
-              ref={composerRef}
-              className="ms-explain-command-input"
-              rows={1}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={composerPlaceholder}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  if (session) {
-                    void submit()
-                  }
-                }
-              }}
-              disabled={!session}
-            />
 
             {isStreaming ? (
               <Button className="ms-explain-command-send-btn" size="icon-sm" variant="outline" onClick={onStop}>
@@ -296,17 +319,13 @@ export function ExplainCard({ command, session, onReexplain, onSubmitFollowup, o
                 }}
                 disabled={session ? !draft.trim() || isSending : !command.text.trim()}
               >
-                {isSending ? (
-                  <LoaderCircle className="ms-translate-command-spin" size={14} />
-                ) : (
-                  <SendHorizontal size={14} />
-                )}
+                {isSending ? <LoaderCircle className="ms-translate-command-spin" size={14} /> : <SendHorizontal size={14} />}
               </Button>
             )}
           </div>
-        </footer>
-      </section>
-    </div>
+        </div>
+      </footer>
+    </section>
   )
 }
 
@@ -314,27 +333,31 @@ function ExplainMessageBubble({
   message,
   copied,
   uiLanguage,
+  isStreaming,
+  loadingLabel,
   isAnimating,
-  canRegenerate,
   onCopy,
-  onRegenerate,
 }: {
   message: ExplainSessionMessage
   copied: boolean
   uiLanguage: 'zh-CN' | 'en'
+  isStreaming: boolean
+  loadingLabel?: string
   isAnimating: boolean
-  canRegenerate: boolean
   onCopy: () => Promise<void>
-  onRegenerate: () => void
 }) {
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
   const sourceToggleLabel =
     uiLanguage === 'en'
       ? `Sources${message.sources?.length ? ` · ${message.sources.length}` : ''}`
       : `参考来源${message.sources?.length ? ` · ${message.sources.length}` : ''}`
+  const showLoading = message.role === 'assistant' && isStreaming && !message.text && !message.errorMessage
+  const showStopped = message.role === 'assistant' && !isStreaming && !message.text && !message.errorMessage
 
   return (
-    <article className={`ms-explain-message is-${message.role} ${isAnimating ? 'is-animating' : ''}`}>
+    <article
+      className={`ms-explain-message is-${message.role} ${isAnimating ? 'is-animating' : ''} ${message.errorMessage && !message.text ? 'is-error' : ''}`}
+    >
       {message.text ? (
         <Streamdown
           className="ms-explain-markdown"
@@ -344,11 +367,14 @@ function ExplainMessageBubble({
         >
           {message.text}
         </Streamdown>
-      ) : (
+      ) : showLoading ? (
         <div className="ms-explain-streaming">
           <LoaderCircle size={14} className="ms-translate-command-spin" />
+          <span>{loadingLabel || (uiLanguage === 'en' ? 'Generating…' : '正在生成…')}</span>
         </div>
-      )}
+      ) : showStopped ? (
+        <div className="ms-explain-streaming">{uiLanguage === 'en' ? 'Generation stopped' : '已停止生成'}</div>
+      ) : null}
 
       {message.sources?.length ? (
         <div className={`ms-explain-sources-wrap ${sourcesExpanded ? 'is-expanded' : ''}`}>
@@ -394,33 +420,12 @@ function ExplainMessageBubble({
 
       {message.errorMessage ? <div className="ms-explain-error">{message.errorMessage}</div> : null}
 
-      {message.role === 'assistant' && !isAnimating && (message.text || message.errorMessage) ? (
+      {message.role === 'assistant' && !isAnimating && message.text ? (
         <div className="ms-explain-message-actions">
-          {message.text ? (
-            <Button
-              className="ms-explain-inline-btn ms-explain-action-btn"
-              size="sm"
-              variant="ghost"
-              onClick={() => void onCopy()}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              <span>
-                {copied ? (uiLanguage === 'en' ? 'Copied' : '已复制') : uiLanguage === 'en' ? 'Copy' : '复制'}
-              </span>
-            </Button>
-          ) : null}
-
-          {canRegenerate ? (
-            <Button
-              className="ms-explain-inline-btn ms-explain-action-btn"
-              size="sm"
-              variant="ghost"
-              onClick={onRegenerate}
-            >
-              <RefreshCw size={14} />
-              <span>{uiLanguage === 'en' ? 'Regenerate' : '重新生成'}</span>
-            </Button>
-          ) : null}
+          <Button className="ms-explain-inline-btn ms-explain-action-btn" size="sm" variant="ghost" onClick={() => void onCopy()}>
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            <span>{copied ? (uiLanguage === 'en' ? 'Copied' : '已复制') : uiLanguage === 'en' ? 'Copy' : '复制'}</span>
+          </Button>
         </div>
       ) : null}
     </article>

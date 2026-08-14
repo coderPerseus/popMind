@@ -1001,14 +1001,16 @@ export function MainSearch() {
       {/* Divider */}
       <div className="ms-divider" />
 
-      {!isClipboardMode ? (
+      {!isClipboardMode && !explain.isActive && !gemma.isActive ? (
         <div className="ms-permission-guide">
           <AccessibilityPermission />
         </div>
       ) : null}
 
       {/* Results area */}
-      <div className={`ms-results ${isClipboardMode ? 'is-clipboard-mode' : ''}`}>
+      <div
+        className={`ms-results ${isClipboardMode ? 'is-clipboard-mode' : ''} ${explain.isActive || gemma.isActive ? 'is-explain-mode' : ''}`}
+      >
         {isClipboardMode ? (
           <ClipboardHistoryPanel
             items={clipboardItems}
@@ -1063,17 +1065,29 @@ export function MainSearch() {
           <ExplainCard
             command={command}
             session={explain.session}
+            configuredProviders={explain.configuredProviders}
+            selectedProviderId={explain.selectedProviderId}
+            webSearchEnabled={explain.webSearchEnabled}
+            canSwitchProvider={explain.canSwitchProvider}
             onReexplain={explain.regenerate}
             onSubmitFollowup={explain.submitFollowup}
             onStop={explain.stop}
+            onWebSearchChange={explain.setWebSearchEnabled}
+            onProviderChange={explain.setProvider}
           />
         ) : gemma.isActive && command.kind === 'gemma' ? (
           <ExplainCard
             command={command}
             session={gemma.session}
+            configuredProviders={gemma.configuredProviders}
+            selectedProviderId={gemma.selectedProviderId}
+            webSearchEnabled={gemma.webSearchEnabled}
+            canSwitchProvider={gemma.canSwitchProvider}
             onReexplain={gemma.regenerate}
             onSubmitFollowup={gemma.submitFollowup}
             onStop={gemma.stop}
+            onWebSearchChange={gemma.setWebSearchEnabled}
+            onProviderChange={gemma.setProvider}
           />
         ) : activePluginPanel ? (
           activePluginPanel
