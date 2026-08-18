@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Copy, GripHorizontal, LoaderCircle, Pin, RefreshCw, Square, Volume2, X } from 'lucide-react'
+import { Check, Copy, GripHorizontal, LoaderCircle, Pin, RefreshCw, Square, Volume2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Streamdown } from 'streamdown'
 import { Button } from '@/app/components/ui/button'
@@ -93,7 +93,6 @@ export function TranslationPanel() {
   const [targetLanguage, setTargetLanguage] = useState('en')
   const [engineId, setEngineId] = useState<TranslationWindowState['engineId']>('google')
   const [copied, setCopied] = useState(false)
-  const [isSourceExpanded, setIsSourceExpanded] = useState(false)
   const [activeResizeEdge, setActiveResizeEdge] = useState<TranslationWindowResizeEdge | null>(null)
   const panelRef = useRef<HTMLElement | null>(null)
   const hasManualResizeRef = useRef(false)
@@ -144,6 +143,21 @@ export function TranslationPanel() {
       setTargetLanguage(nextState.targetLanguage)
       setEngineId(nextState.engineId)
       setCopied(false)
+      console.info('[TranslationPanel][layout]', {
+        status: nextState.status,
+        queryMode: nextState.queryMode,
+        hasSource: Boolean(nextState.sourceText),
+        sourceLength: nextState.sourceText.length,
+        translatedLength: nextState.translatedText.length,
+        layout: nextState.queryMode === 'word' ? 'word' : 'translated-then-source',
+      })
+
+      if (nextState.status === 'loading') {
+        console.info('[TranslationPanel][loading-ui]', {
+          title: nextState.loadingTitle || '翻译中',
+          compact: true,
+        })
+      }
     }
 
     const bindApi = (api: TranslationWindowPreloadApi) => {
@@ -226,10 +240,6 @@ export function TranslationPanel() {
   }, [state.status, state.sourceText])
 
   useEffect(() => {
-    setIsSourceExpanded(false)
-  }, [state.sourceText, state.translatedText, state.queryMode])
-
-  useEffect(() => {
     const resizeTracker = resizeState.current
 
     return () => {
@@ -285,7 +295,6 @@ export function TranslationPanel() {
     targetLanguage,
     engineId,
     isWordMode,
-    isSourceExpanded,
   ])
 
   const translatedPreview =
@@ -625,146 +634,106 @@ export function TranslationPanel() {
 
         {/* ── Body: translation result ── */}
         <div className="translation-body">
-          <div className="translation-result-shell">
-            <div className={`translation-result-card status-${state.status}`}>
-              <div className={`translation-result-content ${isWordMode ? 'is-word-mode' : ''}`}>
-                {state.status === 'loading' ? (
-                  <div className="translation-loading">
-                    <div className="translation-loading-icon">
-                      <LoaderCircle size={16} className="translation-spin" />
+          <div className={`translation-result status-${state.status} ${isWordMode ? 'is-word-mode' : ''}`}>
+            {state.status === 'loading' ? (
+              <div className="translation-loading">
+                <LoaderCircle size={13} className="translation-spin" />
+                <span className="translation-loading-text">{state.loadingTitle || '翻译中'}...</span>
+              </div>
+            ) : isWordMode && state.wordEntry ? (
+              <div className="translation-word-card">
+                <div className="translation-word-head">
+                  <div className="translation-word-head-main">
+                    <div className="translation-word-title">{state.wordEntry.headword}</div>
+                    <Button
+                      className={`translation-word-speak-btn ${state.isSpeaking ? 'is-speaking' : ''}`}
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleSpeak}
+                      disabled={!speechPayload || state.status === 'loading' || !state.speechProviderReady}
+                      aria-label={state.isSpeaking ? '停止朗读单词' : '朗读单词'}
+                    >
+                      {state.isSpeaking ? <Square size={14} /> : <Volume2 size={14} />}
+                    </Button>
+                  </div>
+                  {state.wordEntry.phonetics.length > 0 && (
+                    <div className="translation-word-phonetics">
+                      {state.wordEntry.phonetics.map((item) => (
+                        <span key={`${item.label}-${item.value}`} className="translation-word-phonetic">
+                          <span className="translation-word-phonetic-label">{item.label}</span>
+                          <span>{item.value}</span>
+                        </span>
+                      ))}
                     </div>
-                    <div className="translation-loading-text">
-                      <div className="translation-loading-title">{state.loadingTitle || '翻译中'}</div>
-                      <div className="translation-loading-desc">
-                        {state.loadingDescription || '正在获取译文，请稍候…'}
+                  )}
+                </div>
+
+                {state.wordEntry.definitions.length > 0 && (
+                  <div className="translation-word-section">
+                    {state.wordEntry.definitions.map((item, index) => (
+                      <div key={`${item.part ?? 'def'}-${index}`} className="translation-word-definition">
+                        {item.part ? <span className="translation-word-part">{item.part}</span> : null}
+                        <span className="translation-word-meaning">{item.meaning}</span>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {state.wordEntry.forms.length > 0 && (
+                  <div className="translation-word-section">
+                    <div className="translation-word-section-title">词形变化</div>
+                    <div className="translation-word-tags">
+                      {state.wordEntry.forms.map((item) => (
+                        <span key={`${item.label}-${item.value}`} className="translation-word-tag">
+                          {item.label} · {item.value}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                ) : isWordMode && state.wordEntry ? (
-                  <div className="translation-word-card">
-                    <div className="translation-word-head">
-                      <div className="translation-word-head-main">
-                        <div className="translation-word-title">{state.wordEntry.headword}</div>
-                        <Button
-                          className={`translation-word-speak-btn ${state.isSpeaking ? 'is-speaking' : ''}`}
-                          variant="ghost"
-                          size="icon"
-                          onClick={handleSpeak}
-                          disabled={!speechPayload || state.status === 'loading' || !state.speechProviderReady}
-                          aria-label={state.isSpeaking ? '停止朗读单词' : '朗读单词'}
-                        >
-                          {state.isSpeaking ? <Square size={14} /> : <Volume2 size={14} />}
-                        </Button>
-                      </div>
-                      {state.wordEntry.phonetics.length > 0 && (
-                        <div className="translation-word-phonetics">
-                          {state.wordEntry.phonetics.map((item) => (
-                            <span key={`${item.label}-${item.value}`} className="translation-word-phonetic">
-                              <span className="translation-word-phonetic-label">{item.label}</span>
-                              <span>{item.value}</span>
-                            </span>
-                          ))}
+                )}
+
+                {state.wordEntry.phrases.length > 0 && (
+                  <div className="translation-word-section">
+                    <div className="translation-word-section-title">常见短语</div>
+                    <div className="translation-word-list">
+                      {state.wordEntry.phrases.map((item) => (
+                        <div key={`${item.text}-${item.meaning}`} className="translation-word-list-item">
+                          <div className="translation-word-list-title">{item.text}</div>
+                          <div className="translation-word-list-desc">{item.meaning}</div>
                         </div>
-                      )}
+                      ))}
                     </div>
-
-                    {state.wordEntry.definitions.length > 0 && (
-                      <div className="translation-word-section">
-                        {state.wordEntry.definitions.map((item, index) => (
-                          <div key={`${item.part ?? 'def'}-${index}`} className="translation-word-definition">
-                            {item.part ? <span className="translation-word-part">{item.part}</span> : null}
-                            <span className="translation-word-meaning">{item.meaning}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {state.wordEntry.forms.length > 0 && (
-                      <div className="translation-word-section">
-                        <div className="translation-word-section-title">词形变化</div>
-                        <div className="translation-word-tags">
-                          {state.wordEntry.forms.map((item) => (
-                            <span key={`${item.label}-${item.value}`} className="translation-word-tag">
-                              {item.label} · {item.value}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {state.wordEntry.phrases.length > 0 && (
-                      <div className="translation-word-section">
-                        <div className="translation-word-section-title">常见短语</div>
-                        <div className="translation-word-list">
-                          {state.wordEntry.phrases.map((item) => (
-                            <div key={`${item.text}-${item.meaning}`} className="translation-word-list-item">
-                              <div className="translation-word-list-title">{item.text}</div>
-                              <div className="translation-word-list-desc">{item.meaning}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {state.wordEntry.examples.length > 0 && (
-                      <div className="translation-word-section">
-                        <div className="translation-word-section-title">双语例句</div>
-                        <div className="translation-word-list">
-                          {state.wordEntry.examples.map((item, index) => (
-                            <div key={`${item.source}-${index}`} className="translation-word-list-item">
-                              <div className="translation-word-example-source">{item.source}</div>
-                              <div className="translation-word-example-target">{item.translated}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
-                ) : shouldRenderMarkdown ? (
-                  <>
-                    <Streamdown className="translation-markdown" mode="static" isAnimating={false}>
-                      {state.translatedText}
-                    </Streamdown>
-                    {state.sourceText ? (
-                      <div className={`translation-source-block ${isSourceExpanded ? 'is-expanded' : ''}`}>
-                        <button
-                          type="button"
-                          className="translation-source-toggle"
-                          onClick={() => setIsSourceExpanded((value) => !value)}
-                          aria-expanded={isSourceExpanded}
-                        >
-                          <span>原文</span>
-                          <ChevronDown size={14} />
-                        </button>
-                        {isSourceExpanded ? (
-                          <div className="translation-source-content">{state.sourceText}</div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="translation-result-plain">
-                    {translatedPreview}
-                    {!isWordMode && state.sourceText ? (
-                      <div className={`translation-source-block ${isSourceExpanded ? 'is-expanded' : ''}`}>
-                        <button
-                          type="button"
-                          className="translation-source-toggle"
-                          onClick={() => setIsSourceExpanded((value) => !value)}
-                          aria-expanded={isSourceExpanded}
-                        >
-                          <span>原文</span>
-                          <ChevronDown size={14} />
-                        </button>
-                        {isSourceExpanded ? (
-                          <div className="translation-source-content">{state.sourceText}</div>
-                        ) : null}
-                      </div>
-                    ) : null}
+                )}
+
+                {state.wordEntry.examples.length > 0 && (
+                  <div className="translation-word-section">
+                    <div className="translation-word-section-title">双语例句</div>
+                    <div className="translation-word-list">
+                      {state.wordEntry.examples.map((item, index) => (
+                        <div key={`${item.source}-${index}`} className="translation-word-list-item">
+                          <div className="translation-word-example-source">{item.source}</div>
+                          <div className="translation-word-example-target">{item.translated}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
+            ) : shouldRenderMarkdown ? (
+              <Streamdown className="translation-markdown" mode="static" isAnimating={false}>
+                {state.translatedText}
+              </Streamdown>
+            ) : (
+              <div className="translation-result-plain">{translatedPreview}</div>
+            )}
+
+            {!isWordMode && state.sourceText ? (
+              <>
+                <div className="translation-divider" role="separator" />
+                <div className="translation-source-text">{state.sourceText}</div>
+              </>
+            ) : null}
           </div>
         </div>
 

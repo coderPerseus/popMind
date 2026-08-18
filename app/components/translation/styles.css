@@ -44,12 +44,7 @@ body,
   box-shadow: 0 10px 28px rgb(0 0 0 / 0.14);
 }
 
-.translation-shell.is-resizing .translation-result-card {
-  box-shadow: none;
-}
-
 .translation-shell.is-resizing .translation-panel,
-.translation-shell.is-resizing .translation-result-card,
 .translation-shell.is-resizing .translation-action-btn,
 .translation-shell.is-resizing .translation-icon-btn,
 .translation-shell.is-resizing .translation-drag-handle {
@@ -222,35 +217,24 @@ body,
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding: 12px 12px 10px;
+  padding: 14px 16px 12px;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior-y: contain;
 }
 
-.translation-result-shell {
+.translation-result {
   min-height: min-content;
-}
-
-.translation-result-card {
-  border: 1px solid rgb(230 233 240 / 0.9);
-  border-radius: 14px;
-  background: rgb(255 255 255 / 0.94);
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 0.05),
-    0 4px 14px rgb(0 0 0 / 0.06),
-    inset 0 1px 0 rgb(255 255 255 / 0.7);
   color: rgb(26 28 33);
   font-size: 15px;
   line-height: 1.7;
   letter-spacing: -0.01em;
   user-select: text;
-  transition: box-shadow 200ms ease;
 }
 
-.translation-result-content {
-  box-sizing: border-box;
-  padding: 14px 16px;
+.translation-result.is-word-mode {
+  display: flex;
+  flex-direction: column;
 }
 
 .translation-result-plain {
@@ -258,52 +242,38 @@ body,
   word-break: break-word;
 }
 
-.translation-source-block {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgb(232 235 241 / 0.92);
+.translation-divider {
+  margin: 14px 0 12px;
+  height: 1px;
+  background: rgb(0 0 0 / 0.08);
 }
 
-.translation-source-toggle {
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: rgb(121 127 139);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-}
-
-.translation-source-toggle svg {
-  transition: transform 160ms ease;
-}
-
-.translation-source-block.is-expanded .translation-source-toggle svg {
-  transform: rotate(180deg);
-}
-
-.translation-source-content {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgb(246 248 252 / 0.92);
-  border: 1px solid rgb(230 233 240 / 0.9);
-  color: rgb(63 68 78);
+.translation-source-text {
+  color: rgb(99 104 115);
   font-size: 13px;
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
 }
 
-.translation-result-content.is-word-mode {
-  display: flex;
-  flex-direction: column;
+.translation-result.status-idle {
+  color: rgb(180 185 195);
+  font-size: 14px;
+}
+
+.translation-result.status-idle .translation-source-text {
+  color: rgb(99 104 115);
+}
+
+.translation-result.status-error {
+  color: rgb(188 58 58);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.translation-result.status-error .translation-source-text {
+  color: rgb(99 104 115);
 }
 
 .translation-markdown {
@@ -399,26 +369,6 @@ body,
 
 .translation-markdown > :last-child {
   margin-bottom: 0;
-}
-
-.translation-result-card:hover {
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 0.06),
-    0 6px 18px rgb(0 0 0 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.7);
-}
-
-.translation-result-card.status-idle {
-  color: rgb(180 185 195);
-  font-size: 14px;
-}
-
-.translation-result-card.status-error {
-  color: rgb(188 58 58);
-  font-size: 13.5px;
-  line-height: 1.65;
-  background: rgb(255 248 248 / 0.94);
-  border-color: rgb(220 180 180 / 0.55);
 }
 
 .translation-word-card {
@@ -590,41 +540,18 @@ body,
 
 /* Loading state */
 .translation-loading {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 11px;
-  min-height: 100%;
-}
-
-.translation-loading-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, rgb(99 131 210 / 0.14), rgb(99 131 210 / 0.06));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: rgb(99 131 210);
+  gap: 6px;
+  padding: 0;
+  color: rgb(160 165 175);
 }
 
 .translation-loading-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.translation-loading-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgb(40 44 52);
-  letter-spacing: -0.01em;
-}
-
-.translation-loading-desc {
-  color: rgb(160 165 175);
-  font-size: 11.5px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 400;
+  color: inherit;
 }
 
 /* ── Footer ── */
@@ -822,15 +749,15 @@ body,
 }
 
 /* ── Scrollbar (webkit) ── */
-.translation-result-card ::-webkit-scrollbar {
+.translation-body::-webkit-scrollbar {
   width: 4px;
 }
 
-.translation-result-card ::-webkit-scrollbar-track {
+.translation-body::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.translation-result-card ::-webkit-scrollbar-thumb {
+.translation-body::-webkit-scrollbar-thumb {
   background: rgb(180 185 195 / 0.5);
   border-radius: 2px;
 }
@@ -878,7 +805,7 @@ body,
 }
 
 .dark .translation-arrow,
-.dark .translation-loading-desc,
+.dark .translation-loading,
 .dark .translation-action-btn,
 .dark .translation-icon-btn {
   color: rgb(166 171 181);
@@ -921,25 +848,28 @@ body,
   box-shadow: 0 1px 4px rgb(99 131 210 / 0.22);
 }
 
-.dark .translation-result-card {
-  border-color: rgb(255 255 255 / 0.1);
-  background: rgb(255 255 255 / 0.06);
+.dark .translation-result {
   color: rgb(236 239 244);
-  box-shadow: none;
 }
 
-.dark .translation-result-card:hover {
-  box-shadow: none;
-}
-
-.dark .translation-result-card.status-idle {
+.dark .translation-result.status-idle {
   color: rgb(142 148 160);
 }
 
-.dark .translation-result-card.status-error {
-  background: rgb(120 36 36 / 0.24);
-  border-color: rgb(255 120 120 / 0.24);
+.dark .translation-result.status-error {
   color: rgb(255 206 206);
+}
+
+.dark .translation-result.status-error .translation-source-text {
+  color: rgb(154 160 171);
+}
+
+.dark .translation-divider {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.dark .translation-source-text {
+  color: rgb(154 160 171);
 }
 
 .dark .translation-markdown {
@@ -969,25 +899,10 @@ body,
   color: rgb(147 197 253);
 }
 
-.dark .translation-source-block {
-  border-top-color: rgb(255 255 255 / 0.1);
-}
-
-.dark .translation-source-toggle {
-  color: rgb(154 160 171);
-}
-
-.dark .translation-source-content {
-  background: rgb(255 255 255 / 0.05);
-  border-color: rgb(255 255 255 / 0.08);
-  color: rgb(214 219 227);
-}
-
 .dark .translation-word-title,
 .dark .translation-word-meaning,
 .dark .translation-word-list-title,
-.dark .translation-word-example-source,
-.dark .translation-loading-title {
+.dark .translation-word-example-source {
   color: rgb(242 244 247);
 }
 
@@ -1028,11 +943,6 @@ body,
   color: rgb(155 182 255);
 }
 
-.dark .translation-loading-icon {
-  background: linear-gradient(135deg, rgb(99 131 210 / 0.24), rgb(99 131 210 / 0.12));
-  color: rgb(181 201 255);
-}
-
-.dark .translation-result-card ::-webkit-scrollbar-thumb {
+.dark .translation-body::-webkit-scrollbar-thumb {
   background: rgb(255 255 255 / 0.22);
 }

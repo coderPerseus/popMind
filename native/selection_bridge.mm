@@ -61,6 +61,7 @@ struct ActionEvent {
 
 id gGlobalMouseMonitor = nil;
 id gGlobalKeyMonitor = nil;
+id gLocalKeyMonitor = nil;
 id gActiveSpaceObserver = nil;
 id gAppActivatedObserver = nil;
 id gAppDeactivatedObserver = nil;
@@ -1619,6 +1620,11 @@ void RemoveMonitorsLocked() {
     gGlobalKeyMonitor = nil;
   }
 
+  if (gLocalKeyMonitor) {
+    [NSEvent removeMonitor:gLocalKeyMonitor];
+    gLocalKeyMonitor = nil;
+  }
+
   StopWindowObserver();
 
   NSNotificationCenter* workspaceNC = [NSWorkspace.sharedWorkspace notificationCenter];
@@ -1644,26 +1650,50 @@ void RemoveMonitorsLocked() {
   }
 }
 
-void InstallKeyMonitorLocked() {
-  if (gGlobalKeyMonitor) {
-    return;
+bool IsKeyWindowABubbleSurface() {
+  NSWindow* keyWindow = NSApp.keyWindow;
+  if (!keyWindow) {
+    return false;
   }
 
-  gGlobalKeyMonitor = [NSEvent
-      addGlobalMonitorForEventsMatchingMask:
-          (NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged)
-                                 handler:^(NSEvent* event) {
-    HandleKeyEvent(event);
-  }];
+  return gBubbleWindowNumbers.find(keyWindow.windowNumber) != gBubbleWindowNumbers.end();
+}
+
+void InstallKeyMonitorLocked() {
+  if (!gGlobalKeyMonitor) {
+    gGlobalKeyMonitor = [NSEvent
+        addGlobalMonitorForEventsMatchingMask:
+            (NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged)
+                                   handler:^(NSEvent* event) {
+      HandleKeyEvent(event);
+    }];
+  }
+
+  if (!gLocalKeyMonitor) {
+    gLocalKeyMonitor = [NSEvent
+        addLocalMonitorForEventsMatchingMask:
+            (NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged)
+                                  handler:^NSEvent*(NSEvent* event) {
+      // Keys already headed at our own editable surfaces (ask/translate
+      // inputs) must not dismiss those windows.
+      if (!IsKeyWindowABubbleSurface()) {
+        HandleKeyEvent(event);
+      }
+      return event;
+    }];
+  }
 }
 
 void RemoveKeyMonitorLocked() {
-  if (!gGlobalKeyMonitor) {
-    return;
+  if (gGlobalKeyMonitor) {
+    [NSEvent removeMonitor:gGlobalKeyMonitor];
+    gGlobalKeyMonitor = nil;
   }
 
-  [NSEvent removeMonitor:gGlobalKeyMonitor];
-  gGlobalKeyMonitor = nil;
+  if (gLocalKeyMonitor) {
+    [NSEvent removeMonitor:gLocalKeyMonitor];
+    gLocalKeyMonitor = nil;
+  }
 }
 
 void RemoveMonitors() {
@@ -2014,6 +2044,9 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         gIsLeftMouseDown = true;
         gMouseDownPoint = loc;
         gDragPasteboardChangeCountOnMouseDown = GetDragPasteboardChangeCount();
+        // Dismiss as soon as the pointer goes down outside our surfaces.
+        // Waiting for mouseUp made click-to-dismiss feel unresponsive.
+        EmitAction(SelectionScene::kNone, loc);
         return;
       }
 
@@ -2111,7 +2144,8 @@ Napi::Value SetKeyMonitorEnabled(const Napi::CallbackInfo& info) {
       RemoveKeyMonitorLocked();
     }
 
-    ok = enabled ? gGlobalKeyMonitor != nil : gGlobalKeyMonitor == nil;
+    ok = enabled ? (gGlobalKeyMonitor != nil && gLocalKeyMonitor != nil)
+                 : (gGlobalKeyMonitor == nil && gLocalKeyMonitor == nil);
   };
 
   if ([NSThread isMainThread]) {

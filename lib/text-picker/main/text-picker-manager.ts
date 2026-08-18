@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { appendFileSync } from 'node:fs'
 import { screen } from 'electron'
 import type { AppLanguage } from '@/lib/capability/types'
 import { translateMessage } from '@/lib/i18n/shared'
@@ -25,6 +26,7 @@ import {
   TOOLBAR_HEIGHT,
   TOOLBAR_MIN_WIDTH,
 } from '@/lib/text-picker/shared'
+import { toElectronScreenPoint } from '@/lib/text-picker/screen-point'
 import type { BubbleWindowPort } from './bubble-window'
 import type { DismissContext } from '@/lib/windowing/auto-dismiss-controller'
 
@@ -60,7 +62,6 @@ const DISMISS_SCENES = new Set<SelectionSceneValue>([
 
 const APP_ACTIVATE_SUPPRESS_MS = 700
 const PROGRAMMATIC_MOVE_GUARD_MS = 80
-const NATIVE_DRAG_RELEASE_DELAY_MS = 140
 const POST_DRAG_IGNORE_POINTER_MS = 260
 const POST_SHOW_GESTURE_DISMISS_GUARD_MS = 300
 const POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS = 2500
@@ -77,6 +78,17 @@ const createOpenLinkSkill = (language: AppLanguage): SelectionSkill => ({
   label: translateMessage(language, 'bubble.open'),
   enabled: true,
 })
+
+const debugPicker = (event: string, payload?: Record<string, unknown>) => {
+  try {
+    appendFileSync(
+      '/tmp/popmind-picker-debug.log',
+      `${new Date().toISOString()} ${event} ${payload ? JSON.stringify(payload) : ''}\n`
+    )
+  } catch {
+    // ignore
+  }
+}
 
 export class TextPickerManager {
   private readonly bubbleWindow: BubbleWindowPort
@@ -106,6 +118,7 @@ export class TextPickerManager {
   private ignoreGestureDismissUntil = 0
   private ignoreAppFocusDismissUntil = 0
   private currentAnchor: AnchorPoint | null = null
+  private currentBubbleAnchor: AnchorPoint | null = null
   private bubbleWidth = TOOLBAR_MIN_WIDTH
   private pickedInfo: PickedInfo | null = null
   private language: AppLanguage = 'zh-CN'
@@ -310,6 +323,7 @@ export class TextPickerManager {
     }
 
     this.currentAnchor = null
+    this.currentBubbleAnchor = null
     this.leaveFullscreenOverlayMode()
     this.syncDismissKeyMonitor()
   }
@@ -322,7 +336,12 @@ export class TextPickerManager {
   }
 
   moveBubble(deltaX: number, deltaY: number) {
-    if (this.bubbleWindow.isDestroyed() || !this.bubbleWindow.isVisible() || !this.currentAnchor || !this.pickedInfo) {
+    if (
+      this.bubbleWindow.isDestroyed() ||
+      !this.bubbleWindow.isVisible() ||
+      !this.currentBubbleAnchor ||
+      !this.pickedInfo
+    ) {
       return
     }
 
@@ -349,13 +368,17 @@ export class TextPickerManager {
       y: nextY,
     })
 
-    this.memorizePosition(this.pickedInfo.appId, nextX - this.currentAnchor.x, nextY - this.currentAnchor.topY)
+    this.memorizePosition(
+      this.pickedInfo.appId,
+      nextX - this.currentBubbleAnchor.x,
+      nextY - this.currentBubbleAnchor.topY
+    )
 
     this.bubbleWindow.orderFront()
   }
 
   resizeBubble(requestedWidth: number) {
-    if (this.bubbleWindow.isDestroyed() || !this.currentAnchor || !Number.isFinite(requestedWidth)) {
+    if (this.bubbleWindow.isDestroyed() || !this.currentBubbleAnchor || !Number.isFinite(requestedWidth)) {
       return
     }
 
@@ -375,14 +398,11 @@ export class TextPickerManager {
 
     const bounds = this.bubbleWindow.getBounds()
     const display = screen.getDisplayNearestPoint({
-      x: Math.round(this.currentAnchor.x),
-      y: Math.round(this.currentAnchor.topY),
+      x: Math.round(this.currentBubbleAnchor.x),
+      y: Math.round(this.currentBubbleAnchor.topY),
     })
     const { workArea } = display
-    const memKey = this.pickedInfo.appId || '__default__'
-    const memPos = this.positionMemory.get(memKey)
-
-    let x = memPos ? this.currentAnchor.x + memPos.offsetX : this.currentAnchor.x - nextWidth / 2
+    let x = this.currentBubbleAnchor.x - nextWidth / 2
     x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - nextWidth))
 
     this.setBubbleBounds({
@@ -436,23 +456,55 @@ export class TextPickerManager {
   }
 
   private onActionEvent(event: SelectionActionEvent) {
-    if (event.scene !== SelectionScene.GESTURE_DISMISS) {
-      this.logger.info('[TextPickerManager] action', event)
+    const screenPoint = toElectronScreenPoint(event.x, event.y)
+    const normalizedEvent: SelectionActionEvent = {
+      ...event,
+      x: screenPoint.x,
+      y: screenPoint.y,
+    }
+    const scene = (normalizedEvent.scene || SelectionScene.NONE) as SelectionSceneValue | string
+    const isDismissScene = DISMISS_SCENES.has(scene as SelectionSceneValue)
+    const pointerLocked = this.isBubbleDragging || Date.now() < this.ignorePointerEventsUntil
+
+    if (scene !== SelectionScene.GESTURE_DISMISS) {
+      debugPicker('action', {
+        scene,
+        rawX: event.x,
+        rawY: event.y,
+        x: normalizedEvent.x,
+        y: normalizedEvent.y,
+        pointerLocked,
+        isBubbleDragging: this.isBubbleDragging,
+      })
+      this.logger.info('[TextPickerManager] action', {
+        scene,
+        rawX: event.x,
+        rawY: event.y,
+        x: normalizedEvent.x,
+        y: normalizedEvent.y,
+        pointerLocked,
+        isBubbleDragging: this.isBubbleDragging,
+        ignorePointerMsLeft: Math.max(0, this.ignorePointerEventsUntil - Date.now()),
+        suppressAppActivation: this.shouldSuppressAppActivation(),
+      })
     }
     if (!this.globalEnabled) {
       return
     }
 
-    if (this.isBubbleDragging || Date.now() < this.ignorePointerEventsUntil) {
+    // Drag lock should only swallow pointer noise from the drag itself.
+    // Keyboard / focus / right-click dismiss must still go through.
+    if (pointerLocked && !isDismissScene) {
+      this.logger.info('[TextPickerManager] ignore pointer during drag lock', { scene })
       return
     }
 
-    const scene = (event.scene || SelectionScene.NONE) as SelectionSceneValue | string
     const floatingVisible = this.bubbleWindow.isVisible() || this.isSecondaryFloatingVisible?.() === true
     const insideFloatingSurface =
-      this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event) === true
+      this.isEventInsideBubble(normalizedEvent) || this.isEventInsideSecondaryFloating?.(normalizedEvent) === true
 
     if (scene === SelectionScene.APP_FOCUS_DISMISS && Date.now() < this.ignoreAppFocusDismissUntil) {
+      this.logger.info('[TextPickerManager] ignore app-focus dismiss during show guard')
       return
     }
 
@@ -464,17 +516,25 @@ export class TextPickerManager {
       return
     }
 
-    if (scene === SelectionScene.KEY_DISMISS && floatingVisible && this.shouldSuppressAppActivation()) {
-      return
-    }
-
-    if (DISMISS_SCENES.has(scene as SelectionSceneValue)) {
+    if (isDismissScene) {
       this.cancelPendingSelectionCheck(`dismiss:${scene}`)
       this.noteBubbleInteraction()
+      debugPicker('dismiss-scene', {
+        scene,
+        floatingVisible,
+        insideFloatingSurface,
+      })
+      this.logger.info('[TextPickerManager] dismiss-scene', {
+        scene,
+        floatingVisible,
+        insideFloatingSurface,
+      })
       if (this.dispatchAutoDismiss) {
         this.dispatchAutoDismiss({
           reason: 'dismiss-scene',
           source: 'bubble',
+          x: normalizedEvent.x,
+          y: normalizedEvent.y,
         })
       } else {
         this.hideBubble()
@@ -486,12 +546,12 @@ export class TextPickerManager {
     const isPointerScene =
       scene === SelectionScene.NONE || scene === SelectionScene.BOX_SELECT || scene === SelectionScene.MULTI_CLICK
 
-    if (isPointerScene && (this.isEventInsideBubble(event) || this.isEventInsideSecondaryFloating?.(event))) {
+    if (isPointerScene && insideFloatingSurface) {
       return
     }
 
     if (isPointerScene) {
-      this.hideOnOutsideClickIfNeeded(event)
+      this.hideOnOutsideClickIfNeeded(normalizedEvent)
     }
 
     if (scene === SelectionScene.NONE) {
@@ -542,6 +602,18 @@ export class TextPickerManager {
 
     if (!isInsideBubble && !isInsideSecondary) {
       this.noteBubbleInteraction()
+      debugPicker('outside-pointer', {
+        x,
+        y,
+        bubbleVisible,
+        secondaryVisible,
+      })
+      this.logger.info('[TextPickerManager] outside-pointer dismiss', {
+        x,
+        y,
+        bubbleVisible,
+        secondaryVisible,
+      })
       if (this.dispatchAutoDismiss) {
         this.dispatchAutoDismiss({
           reason: 'outside-pointer',
@@ -703,27 +775,25 @@ export class TextPickerManager {
       return
     }
 
+    const cursorPoint = screen.getCursorScreenPoint()
+    const bubbleAnchor: AnchorPoint = {
+      x: cursorPoint.x,
+      topY: cursorPoint.y,
+      bottomY: cursorPoint.y,
+    }
     const display = screen.getDisplayNearestPoint({
-      x: Math.round(anchor.x),
-      y: Math.round(anchor.topY),
+      x: Math.round(bubbleAnchor.x),
+      y: Math.round(bubbleAnchor.topY),
     })
     const { workArea } = display
 
-    const memKey = pickedInfo.appId || '__default__'
-    const memPos = this.positionMemory.get(memKey)
-
-    let x = anchor.x - this.bubbleWidth / 2
-    let y = anchor.topY - TOOLBAR_HEIGHT - TOOLBAR_GAP
-
-    if (memPos) {
-      x = anchor.x + memPos.offsetX
-      y = anchor.topY + memPos.offsetY
-    }
+    let x = bubbleAnchor.x - this.bubbleWidth / 2
+    let y = bubbleAnchor.topY - TOOLBAR_HEIGHT - TOOLBAR_GAP
 
     x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - this.bubbleWidth))
 
     if (y < workArea.y) {
-      y = Math.min(anchor.bottomY + TOOLBAR_GAP, workArea.y + workArea.height - TOOLBAR_HEIGHT)
+      y = Math.min(bubbleAnchor.bottomY + TOOLBAR_GAP, workArea.y + workArea.height - TOOLBAR_HEIGHT)
     }
 
     this.setBubbleBounds({
@@ -733,7 +803,24 @@ export class TextPickerManager {
       height: TOOLBAR_HEIGHT,
     })
 
+    debugPicker('showToolbar', {
+      cursorX: cursorPoint.x,
+      cursorY: cursorPoint.y,
+      bubbleX: Math.round(x),
+      bubbleY: Math.round(y),
+      selectionX: anchor.x,
+      selectionTopY: anchor.topY,
+    })
+    this.logger.info('[TextPickerManager] showToolbar', {
+      cursorX: cursorPoint.x,
+      cursorY: cursorPoint.y,
+      bubbleX: Math.round(x),
+      bubbleY: Math.round(y),
+      selectionAnchor: anchor,
+    })
+
     this.currentAnchor = anchor
+    this.currentBubbleAnchor = bubbleAnchor
     this.ignoreGestureDismissUntil = Date.now() + POST_SHOW_GESTURE_DISMISS_GUARD_MS
     this.ignoreAppFocusDismissUntil = Date.now() + POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS
 
@@ -831,16 +918,20 @@ export class TextPickerManager {
       Date.now() < this.ignoreBubbleMoveUntil ||
       this.bubbleWindow.isDestroyed() ||
       !this.bubbleWindow.isVisible() ||
-      !this.currentAnchor ||
+      !this.currentBubbleAnchor ||
       !this.pickedInfo
     ) {
       return
     }
 
-    this.markBubbleDragging()
-    this.scheduleBubbleDragRelease(NATIVE_DRAG_RELEASE_DELAY_MS)
-    this.noteBubbleInteraction(1000)
-    this.memorizePosition(this.pickedInfo.appId, bounds.x - this.currentAnchor.x, bounds.y - this.currentAnchor.topY)
+    // Remember the latest offset only. Window `move` events after setBounds /
+    // orderFront used to be treated as a drag, which locked out click and
+    // keyboard dismiss until the fake drag timed out.
+    this.memorizePosition(
+      this.pickedInfo.appId,
+      bounds.x - this.currentBubbleAnchor.x,
+      bounds.y - this.currentBubbleAnchor.topY
+    )
   }
 
   private markBubbleDragging() {

@@ -260,6 +260,16 @@ export class TextPickerFeature {
   }
 
   private dispatchAutoDismiss(context: DismissContext) {
+    this.logger.info('[TextPickerFeature] auto-dismiss', {
+      reason: context.reason,
+      source: context.source,
+      target: context.target,
+      x: context.x,
+      y: context.y,
+      bubbleVisible: this.bubbleWindow?.isVisible() ?? false,
+      translationVisible: this.translationWindowManager?.isVisible() ?? false,
+      selectionChatVisible: this.selectionChatWindowManager?.isVisible() ?? false,
+    })
     autoDismissController.dispatch(context)
   }
 
@@ -428,6 +438,10 @@ export class TextPickerFeature {
 
         if (context.reason === 'surface-opened') {
           return context.target !== 'selection-chat'
+        }
+
+        if (context.reason === 'selection-changed' || context.reason === 'dismiss-scene') {
+          return true
         }
 
         if (context.reason !== 'outside-pointer') {
