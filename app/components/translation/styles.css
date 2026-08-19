@@ -71,10 +71,6 @@ body,
   backdrop-filter: blur(28px) saturate(1.4) brightness(1.01);
 }
 
-.translation-panel.is-word-mode {
-  min-height: 580px;
-}
-
 /* ── Top bar ── */
 .translation-topbar {
   display: flex;

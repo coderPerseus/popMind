@@ -612,6 +612,16 @@ export class TranslationWindowManager {
       ? Math.max(minHeight, Math.min(Math.round(height as number), MAX_WINDOW_HEIGHT))
       : bounds.height
 
+    this.logger.info('[TranslationWindowManager][auto-height]', {
+      source: normalizedPayload.source,
+      requestedHeight: height,
+      minHeight,
+      nextHeight,
+      prevHeight: bounds.height,
+      queryMode: this.state?.queryMode,
+      status: this.state?.status,
+    })
+
     if (Math.abs(bounds.width - nextWidth) < 2 && Math.abs(bounds.height - nextHeight) < 2) {
       return
     }
@@ -639,6 +649,12 @@ export class TranslationWindowManager {
 
     const bounds = this.window.getBounds()
     const nextHeight = getTranslationWindowMinHeight(queryMode)
+
+    this.logger.info('[TranslationWindowManager][default-height]', {
+      queryMode,
+      prevHeight: bounds.height,
+      nextHeight,
+    })
 
     if (bounds.height === nextHeight) {
       return

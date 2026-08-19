@@ -74,6 +74,36 @@ const missingTranslationWindowApi: TranslationWindowPreloadApi = {
   },
 }
 
+const readBoxPadding = (element: Element | null) => {
+  if (!element) {
+    return 0
+  }
+
+  const styles = window.getComputedStyle(element)
+  return (Number.parseFloat(styles.paddingTop) || 0) + (Number.parseFloat(styles.paddingBottom) || 0)
+}
+
+const measureTranslationPanelHeight = (panel: HTMLElement) => {
+  const shell = panel.closest('.translation-shell')
+  const topbar = panel.querySelector<HTMLElement>('.translation-topbar')
+  const footer = panel.querySelector<HTMLElement>('.translation-footer')
+  const body = panel.querySelector<HTMLElement>('.translation-body')
+  const result = panel.querySelector<HTMLElement>('.translation-result')
+  const contentHeight = result?.scrollHeight ?? body?.scrollHeight ?? 0
+  const nextHeight = Math.ceil(
+    (topbar?.offsetHeight ?? 0) + contentHeight + readBoxPadding(body) + (footer?.offsetHeight ?? 0) + readBoxPadding(shell)
+  )
+
+  return {
+    nextHeight,
+    contentHeight,
+    topbarHeight: topbar?.offsetHeight ?? 0,
+    footerHeight: footer?.offsetHeight ?? 0,
+    bodyPadding: readBoxPadding(body),
+    shellPadding: readBoxPadding(shell),
+  }
+}
+
 const resizeHandleConfigs: Array<{ edge: TranslationWindowResizeEdge; label: string }> = [
   { edge: 'top', label: '从顶部调整翻译窗口大小' },
   { edge: 'right', label: '从右侧调整翻译窗口大小' },
@@ -270,21 +300,44 @@ export function TranslationPanel() {
   const isWordMode = state.queryMode === 'word'
 
   useEffect(() => {
-    const measure = () => {
+    const panel = panelRef.current
+    if (!panel) {
+      return
+    }
+
+    const publishHeight = () => {
       if (!panelRef.current || hasManualResizeRef.current) {
         return
       }
 
-      const nextHeight = Math.ceil(panelRef.current.scrollHeight + 20)
+      const measured = measureTranslationPanelHeight(panelRef.current)
+      const minHeight = getTranslationWindowMinHeight(state.queryMode)
+      console.info('[TranslationPanel][auto-height]', {
+        status: state.status,
+        queryMode: state.queryMode,
+        minHeight,
+        ...measured,
+      })
       translationWindowApi.resizeWindow({
-        height: nextHeight,
-        minHeight: getTranslationWindowMinHeight(state.queryMode),
+        height: measured.nextHeight,
+        minHeight,
         source: 'content',
       })
     }
 
-    const frame = requestAnimationFrame(measure)
-    return () => cancelAnimationFrame(frame)
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(publishHeight)
+    })
+    const result = panel.querySelector('.translation-result')
+    const observer = new ResizeObserver(() => {
+      publishHeight()
+    })
+    observer.observe(result ?? panel)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
   }, [
     state.status,
     state.translatedText,

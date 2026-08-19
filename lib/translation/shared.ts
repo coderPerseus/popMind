@@ -122,8 +122,8 @@ export const getVisibleTranslationEngineIds = (settings: TranslationSettings): T
   return translationEngineOrder.filter((engineId) => engineId !== 'gemma' || isLocalGemmaConfigured(settings))
 }
 
-export const DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT = 300
-export const DEFAULT_TRANSLATION_WORD_WINDOW_MIN_HEIGHT = 600
+export const DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT = 220
+export const DEFAULT_TRANSLATION_WORD_WINDOW_MIN_HEIGHT = 220
 
 export const TranslationWindowChannel = {
   State: 'translationWindow:state',
@@ -291,8 +291,8 @@ export const resolveTranslationQueryMode = (
   return isEnglishWord(text) ? 'word' : 'text'
 }
 
-export const getTranslationWindowMinHeight = (queryMode: TranslationQueryMode) => {
-  return queryMode === 'word' ? DEFAULT_TRANSLATION_WORD_WINDOW_MIN_HEIGHT : DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT
+export const getTranslationWindowMinHeight = (_queryMode?: TranslationQueryMode) => {
+  return DEFAULT_TRANSLATION_TEXT_WINDOW_MIN_HEIGHT
 }
 
 export const ensureSelectableLanguage = (code: string) => {
