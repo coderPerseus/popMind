@@ -211,6 +211,7 @@ body,
 }
 
 .input-translation-close {
+  position: relative;
   display: inline-flex;
   width: 22px;
   height: 22px;
@@ -226,6 +227,35 @@ body,
     background-color 130ms ease,
     color 130ms ease,
     transform 100ms ease;
+}
+
+.input-translation-close-tip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 5px);
+  z-index: 3;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgb(32 36 45 / 0.94);
+  color: rgb(248 249 251);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(3px);
+  pointer-events: none;
+  box-shadow: 0 6px 16px rgb(16 20 28 / 0.18);
+  transition:
+    opacity 130ms ease,
+    transform 130ms ease;
+}
+
+.input-translation-close:hover .input-translation-close-tip,
+.input-translation-close:focus-visible .input-translation-close-tip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .input-translation-close:hover {
@@ -290,4 +320,10 @@ body,
 .dark .input-translation-compact-select [data-slot='select']:focus,
 .dark .input-translation-close:hover {
   background: rgb(255 255 255 / 0.07);
+}
+
+.dark .input-translation-close-tip {
+  background: rgb(18 20 26 / 0.96);
+  color: rgb(243 245 249);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.36);
 }

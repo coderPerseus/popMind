@@ -275,7 +275,14 @@ export class InputTranslationWindowManager {
         engineId,
         targetLanguage,
       }
-      this.sendState()
+
+      this.logger.warn('[InputTranslation][diagnostic] options updated, preserve current draft', {
+        engineId,
+        targetLanguage,
+        valueLength: this.state.value.length,
+        sourceLength: this.state.sourceText.length,
+        willRetranslate: Boolean(this.state.sourceText),
+      })
 
       if (this.state.sourceText) {
         return this.runTranslation(this.state.sourceText, { engineId, targetLanguage })

@@ -70,7 +70,13 @@ export class InputTranslationWindow {
     })
 
     inputWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-      this.logger.info('[InputTranslationWindow][console]', { level, message, line, sourceId })
+      const payload = { level, message, line, sourceId }
+      if (typeof message === 'string' && message.includes('[InputTranslation][diagnostic]')) {
+        this.logger.warn('[InputTranslationWindow][console]', payload)
+        return
+      }
+
+      this.logger.info('[InputTranslationWindow][console]', payload)
     })
 
     if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {

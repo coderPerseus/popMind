@@ -790,12 +790,14 @@ export class TextPickerFeature {
       ) {
         if (commandId === SystemCommand.Translate) {
           const anchor = commandContext.anchor
+          this.manager?.noteBubbleInteraction()
           await this.translationWindowManager?.showTranslation({
             text: pickedInfo.text,
             selectionId: pickedInfo.selectionId,
             sourceAppId: pickedInfo.appId,
             anchor,
           })
+          this.manager?.noteBubbleInteraction()
           return { ok: true, commandId }
         }
 

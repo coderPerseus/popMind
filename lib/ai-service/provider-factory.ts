@@ -2,7 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, openai } from '@ai-sdk/openai'
-import type { LanguageModel } from 'ai'
+import { defaultSettingsMiddleware, wrapLanguageModel, type LanguageModel } from 'ai'
 import type { AiProviderId, CapabilitySettings } from '@/lib/capability/types'
 import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
 
@@ -125,7 +125,10 @@ export const supportsImageInput = (providerId: AiProviderId, modelId: string) =>
   return /(vision|vl)/.test(normalized)
 }
 
-export const createLanguageModel = (settings: CapabilitySettings, preferredProviderId?: AiProviderId): {
+export const createLanguageModel = (
+  settings: CapabilitySettings,
+  preferredProviderId?: AiProviderId
+): {
   providerId: AiProviderId
   modelId: string
   contextLimit: number
@@ -141,6 +144,7 @@ export const createLanguageModel = (settings: CapabilitySettings, preferredProvi
 
   if (providerId === 'openai') {
     const normalizedBaseURL = normalizeOpenAIBaseURL(config.baseURL)
+    const useChatApi = shouldUseOpenAIChatApi(normalizedBaseURL)
     const provider = normalizedBaseURL
       ? createOpenAI({
           apiKey: config.apiKey,
@@ -148,7 +152,7 @@ export const createLanguageModel = (settings: CapabilitySettings, preferredProvi
           name: 'openai-compatible',
         })
       : openai
-    const model = shouldUseOpenAIChatApi(normalizedBaseURL) ? provider.chat(modelId) : provider(modelId)
+    const model = useChatApi ? provider.chat(modelId) : provider(modelId)
 
     return {
       providerId,
@@ -239,7 +243,20 @@ export const createLanguageModel = (settings: CapabilitySettings, preferredProvi
     modelId,
     contextLimit,
     supportsImageInput: supportsImageInput(providerId, modelId),
-    model: provider(modelId),
+    model: wrapLanguageModel({
+      model: provider(modelId),
+      middleware: defaultSettingsMiddleware({
+        settings: {
+          providerOptions: {
+            deepseek: {
+              thinking: {
+                type: 'disabled',
+              },
+            },
+          },
+        },
+      }),
+    }),
   }
 }
 

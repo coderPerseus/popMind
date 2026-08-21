@@ -65,6 +65,8 @@ const PROGRAMMATIC_MOVE_GUARD_MS = 80
 const POST_DRAG_IGNORE_POINTER_MS = 260
 const POST_SHOW_GESTURE_DISMISS_GUARD_MS = 300
 const POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS = 2500
+const POST_SELECT_IGNORE_POINTER_NONE_MS = 220
+const POST_SELECT_IGNORE_WINDOW_FRAME_MS = 450
 
 const createDefaultSkills = (language: AppLanguage): SelectionSkill[] => [
   { commandId: SystemCommand.Translate, label: translateMessage(language, 'bubble.translate'), enabled: true },
@@ -117,6 +119,8 @@ export class TextPickerManager {
   private ignoreBubbleMoveUntil = 0
   private ignoreGestureDismissUntil = 0
   private ignoreAppFocusDismissUntil = 0
+  private ignorePointerNoneUntil = 0
+  private ignoreWindowFrameDismissUntil = 0
   private currentAnchor: AnchorPoint | null = null
   private currentBubbleAnchor: AnchorPoint | null = null
   private bubbleWidth = TOOLBAR_MIN_WIDTH
@@ -428,6 +432,7 @@ export class TextPickerManager {
 
   noteBubbleInteraction(durationMs = APP_ACTIVATE_SUPPRESS_MS) {
     this.suppressAppActivationUntil = Math.max(this.suppressAppActivationUntil, Date.now() + durationMs)
+    this.ignoreAppFocusDismissUntil = Math.max(this.ignoreAppFocusDismissUntil, Date.now() + durationMs)
   }
 
   shouldSuppressAppActivation() {
@@ -466,7 +471,7 @@ export class TextPickerManager {
     const isDismissScene = DISMISS_SCENES.has(scene as SelectionSceneValue)
     const pointerLocked = this.isBubbleDragging || Date.now() < this.ignorePointerEventsUntil
 
-    if (scene !== SelectionScene.GESTURE_DISMISS) {
+    if (scene !== SelectionScene.GESTURE_DISMISS && scene !== SelectionScene.NONE) {
       debugPicker('action', {
         scene,
         rawX: event.x,
@@ -504,7 +509,16 @@ export class TextPickerManager {
       this.isEventInsideBubble(normalizedEvent) || this.isEventInsideSecondaryFloating?.(normalizedEvent) === true
 
     if (scene === SelectionScene.APP_FOCUS_DISMISS && Date.now() < this.ignoreAppFocusDismissUntil) {
+      debugPicker('ignore-app-focus', { reason: 'show_guard' })
       this.logger.info('[TextPickerManager] ignore app-focus dismiss during show guard')
+      return
+    }
+
+    if (scene === SelectionScene.APP_FOCUS_DISMISS && (insideFloatingSurface || this.shouldSuppressAppActivation())) {
+      debugPicker('ignore-app-focus', {
+        reason: insideFloatingSurface ? 'inside_surface' : 'interaction_guard',
+      })
+      this.logger.info('[TextPickerManager] ignore app-focus dismiss on floating surface')
       return
     }
 
@@ -513,6 +527,25 @@ export class TextPickerManager {
     }
 
     if (scene === SelectionScene.GESTURE_DISMISS && floatingVisible && insideFloatingSurface) {
+      return
+    }
+
+    if (scene === SelectionScene.WINDOW_FRAME_DISMISS && !floatingVisible) {
+      // Secondary windows emit AX moved/resized/focus-changed noise. That must
+      // not cancel an in-flight selection that has not shown a bubble yet.
+      // A visible bubble must still dismiss when the user switches windows.
+      debugPicker('ignore-window-frame', { reason: 'no_visible_surface' })
+      this.logger.info('[TextPickerManager] ignore window-frame dismiss with no visible surface')
+      return
+    }
+
+    if (
+      scene === SelectionScene.WINDOW_FRAME_DISMISS &&
+      floatingVisible &&
+      Date.now() < this.ignoreWindowFrameDismissUntil &&
+      Date.now() < this.ignoreBubbleMoveUntil
+    ) {
+      debugPicker('ignore-window-frame', { reason: 'programmatic_move' })
       return
     }
 
@@ -555,6 +588,12 @@ export class TextPickerManager {
     }
 
     if (scene === SelectionScene.NONE) {
+      if (Date.now() < this.ignorePointerNoneUntil) {
+        debugPicker('ignore-pointer-none', { reason: 'selection_probe' })
+        this.logger.info('[TextPickerManager] ignore pointer:none during selection probe')
+        return
+      }
+
       this.cancelPendingSelectionCheck('pointer:none')
       return
     }
@@ -630,6 +669,8 @@ export class TextPickerManager {
 
   private scheduleSelectionCheck(scene: SelectionSceneValue | string, delay = CHECK_DELAY_MS) {
     this.logger.info('[TextPickerManager] scheduleSelectionCheck', { scene, delay })
+    this.ignorePointerNoneUntil = Date.now() + POST_SELECT_IGNORE_POINTER_NONE_MS
+    this.ignoreWindowFrameDismissUntil = Date.now() + POST_SELECT_IGNORE_WINDOW_FRAME_MS
     this.refreshToken += 1
     const token = this.refreshToken
 
@@ -661,6 +702,19 @@ export class TextPickerManager {
     }
 
     const snapshot = this.bridge.getSelectionSnapshot(scene)
+    debugPicker('snapshot', {
+      token,
+      scene,
+      attempt,
+      textLength: snapshot.text?.length ?? 0,
+      strategy: snapshot.strategy,
+      hasRect: snapshot.hasRect,
+      needsClipboardFallback: snapshot.needsClipboardFallback,
+      sourceApp: snapshot.sourceApp,
+      sourceBundleId: snapshot.sourceBundleId,
+      targetDebug: snapshot.targetDebug,
+      error: snapshot.error,
+    })
     this.logger.info('[TextPickerManager] selection snapshot', {
       token,
       scene,
@@ -672,6 +726,7 @@ export class TextPickerManager {
       fallbackAppPid: snapshot.fallbackAppPid,
       sourceApp: snapshot.sourceApp,
       sourceBundleId: snapshot.sourceBundleId,
+      targetDebug: snapshot.targetDebug,
       error: snapshot.error,
     })
     if (token !== this.refreshToken) {
@@ -681,34 +736,20 @@ export class TextPickerManager {
     let text = typeof snapshot.text === 'string' ? snapshot.text.trim() : ''
 
     if (!text && snapshot.needsClipboardFallback && snapshot.fallbackAppPid != null) {
-      const menuText = await this.bridge.getTextByClipboardAsync(true, snapshot.fallbackAppPid)
-      this.logger.info('[TextPickerManager] clipboard fallback menu', {
+      const clipboardText = await this.bridge.getTextByClipboardAsync(true, snapshot.fallbackAppPid)
+      this.logger.info('[TextPickerManager] clipboard fallback', {
         token,
         scene,
         attempt,
-        textLength: menuText?.trim().length ?? 0,
+        textLength: clipboardText?.trim().length ?? 0,
       })
       if (token !== this.refreshToken) return
 
-      if (menuText?.trim()) {
-        text = menuText.trim()
-        snapshot.strategy = 'menu_copy'
-      } else {
-        const shortcutText = await this.bridge.getTextByClipboardAsync(false, -1)
-        this.logger.info('[TextPickerManager] clipboard fallback shortcut', {
-          token,
-          scene,
-          attempt,
-          textLength: shortcutText?.trim().length ?? 0,
-        })
-        if (token !== this.refreshToken) return
-
-        if (shortcutText?.trim()) {
-          text = shortcutText.trim()
-          snapshot.strategy = 'shortcut_copy'
-        }
+      if (clipboardText?.trim()) {
+        text = clipboardText.trim()
+        snapshot.strategy = 'clipboard_copy'
+        snapshot.text = text
       }
-      snapshot.text = text
     }
 
     if (!text) {
@@ -823,6 +864,7 @@ export class TextPickerManager {
     this.currentBubbleAnchor = bubbleAnchor
     this.ignoreGestureDismissUntil = Date.now() + POST_SHOW_GESTURE_DISMISS_GUARD_MS
     this.ignoreAppFocusDismissUntil = Date.now() + POST_SHOW_APP_FOCUS_DISMISS_GUARD_MS
+    this.ignoreWindowFrameDismissUntil = Date.now() + POST_SELECT_IGNORE_WINDOW_FRAME_MS
 
     this.bubbleWindow.sendUpdate({
       sourceApp: pickedInfo.appName,

@@ -51,6 +51,7 @@ export function InputTranslationPanel() {
   const compositionRef = useRef(false)
   const resizeFrameRef = useRef<number | null>(null)
   const dragRef = useRef<{ pointerId: number; screenX: number; screenY: number } | null>(null)
+  const requestIdRef = useRef(0)
   const [state, setState] = useState(emptyState)
   const [value, setValue] = useState('')
   const [engineId, setEngineId] = useState<InputTranslationWindowState['engineId']>('deepl')
@@ -91,10 +92,30 @@ export function InputTranslationPanel() {
 
   useEffect(() => {
     const syncState = (nextState: InputTranslationWindowState) => {
+      const isNewSession = nextState.requestId !== requestIdRef.current
+      requestIdRef.current = nextState.requestId
       setState(nextState)
-      setValue(nextState.value)
       setEngineId(nextState.engineId)
       setTargetLanguage(nextState.targetLanguage)
+
+      // Keep the typed draft when only engine / language options change.
+      if (isNewSession || nextState.status !== 'idle') {
+        console.warn('[InputTranslation][diagnostic] apply incoming value', {
+          isNewSession,
+          status: nextState.status,
+          requestId: nextState.requestId,
+          valueLength: nextState.value.length,
+        })
+        setValue(nextState.value)
+      } else {
+        console.warn('[InputTranslation][diagnostic] keep local draft while switching options', {
+          requestId: nextState.requestId,
+          engineId: nextState.engineId,
+          targetLanguage: nextState.targetLanguage,
+          incomingValueLength: nextState.value.length,
+        })
+      }
+
       focusInput()
     }
 
@@ -172,6 +193,11 @@ export function InputTranslationPanel() {
   }
 
   const handleEngineChange = (nextEngineId: InputTranslationWindowState['engineId']) => {
+    console.warn('[InputTranslation][diagnostic] switch engine', {
+      from: engineId,
+      to: nextEngineId,
+      draftLength: value.length,
+    })
     setEngineId(nextEngineId)
     void api.updateOptions({
       engineId: nextEngineId,
@@ -180,6 +206,11 @@ export function InputTranslationPanel() {
   }
 
   const handleTargetLanguageChange = (nextTargetLanguage: string) => {
+    console.warn('[InputTranslation][diagnostic] switch target language', {
+      from: targetLanguage,
+      to: nextTargetLanguage,
+      draftLength: value.length,
+    })
     setTargetLanguage(nextTargetLanguage)
     void api.updateOptions({
       engineId,
@@ -250,7 +281,7 @@ export function InputTranslationPanel() {
             onCompositionEnd={() => {
               compositionRef.current = false
             }}
-            placeholder="输入中文，按回车翻译"
+            placeholder="输入中文，按回车翻译，Esc 退出"
             aria-label="输入要翻译的内容"
             aria-invalid={state.status === 'error'}
             autoComplete="off"
@@ -331,10 +362,12 @@ export function InputTranslationPanel() {
             className="input-translation-close"
             type="button"
             onClick={() => void api.closeWindow()}
-            aria-label="关闭翻译输入框"
-            title="关闭"
+            aria-label="关闭翻译输入框，Esc"
           >
             <X size={13} />
+            <span className="input-translation-close-tip" role="tooltip">
+              Esc
+            </span>
           </button>
         </div>
 
