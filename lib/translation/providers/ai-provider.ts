@@ -18,17 +18,6 @@ export const aiProvider: TranslationProvider = {
   isConfigured(settings) {
     return Boolean(resolveAiProviderConfig(settings))
   },
-  async detectLanguage(text, settings) {
-    const resolved = getActiveModel(settings)
-    const result = await translateWithAi({
-      model: resolved.model,
-      text,
-      sourceLanguage: 'auto',
-      targetLanguage: 'en',
-    })
-
-    return result.detectedSourceLanguage || 'auto'
-  },
   async translate(request: TranslationRequest, settings: TranslationSettings): Promise<TranslationResult> {
     const resolved = getActiveModel(settings)
     const result = await translateWithAi({

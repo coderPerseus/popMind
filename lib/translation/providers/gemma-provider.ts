@@ -18,17 +18,6 @@ export const gemmaProvider: TranslationProvider = {
   isConfigured(settings) {
     return Boolean(resolveAiProviderConfig(settings, 'gemma'))
   },
-  async detectLanguage(text, settings) {
-    const resolved = getGemmaModel(settings)
-    const result = await translateWithAi({
-      model: resolved.model,
-      text,
-      sourceLanguage: 'auto',
-      targetLanguage: 'en',
-    })
-
-    return result.detectedSourceLanguage || 'auto'
-  },
   async translate(request: TranslationRequest, settings: TranslationSettings): Promise<TranslationResult> {
     const resolved = getGemmaModel(settings)
     const result = await translateWithAi({

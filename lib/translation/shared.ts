@@ -187,6 +187,31 @@ export const looksLikeEnglishText = (text: string) => {
   return latinLetterCount >= Math.min(4, normalized.length)
 }
 
+export const guessSourceLanguage = (text: string) => {
+  const normalized = trimTranslationText(text)
+  if (!normalized) {
+    return 'auto'
+  }
+
+  if (/[\uac00-\ud7af]/.test(normalized)) {
+    return 'ko'
+  }
+
+  if (/[\u3040-\u30ff]/.test(normalized)) {
+    return 'ja'
+  }
+
+  if (/[\u4e00-\u9fff]/.test(normalized)) {
+    return 'zh-CN'
+  }
+
+  if (looksLikeEnglishText(normalized)) {
+    return 'en'
+  }
+
+  return 'auto'
+}
+
 export const isEnglishWord = (text: string) => {
   return /^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(text) && text.length <= 48
 }

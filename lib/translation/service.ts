@@ -2,6 +2,7 @@ import { translationProviders } from '@/lib/translation/providers'
 import {
   defaultTranslationSettings,
   getLanguageFamily,
+  guessSourceLanguage,
   isSameLanguage,
   resolvePreferredTranslationEngine,
   resolveTranslationQueryMode,
@@ -114,12 +115,20 @@ export class TranslationService {
     })
 
     let detectedSourceLanguage = requestedSourceLanguage !== 'auto' ? requestedSourceLanguage : undefined
+    let detectSource: 'explicit' | 'remote' | 'local' | 'none' =
+      requestedSourceLanguage !== 'auto' ? 'explicit' : 'none'
 
-    if (!explicitTargetLanguage && requestedSourceLanguage === 'auto' && provider.detectLanguage) {
-      try {
-        detectedSourceLanguage = await provider.detectLanguage(text, settings)
-      } catch (error) {
-        console.warn('[TranslationService] detectLanguage failed, fallback to firstLanguage target', error)
+    if (!explicitTargetLanguage && requestedSourceLanguage === 'auto') {
+      if (provider.detectLanguage) {
+        try {
+          detectedSourceLanguage = await provider.detectLanguage(text, settings)
+          detectSource = 'remote'
+        } catch (error) {
+          console.warn('[TranslationService] detectLanguage failed, fallback to firstLanguage target', error)
+        }
+      } else {
+        detectedSourceLanguage = guessSourceLanguage(text)
+        detectSource = 'local'
       }
     }
 
@@ -146,8 +155,18 @@ export class TranslationService {
       sourceAppId: input.sourceAppId,
     }
 
+    const startedAt = Date.now()
+
     try {
       const result = await provider.translate(request, settings)
+      console.warn('[TranslationService] translate finished', {
+        engineId,
+        detectSource,
+        detectedSourceLanguage: result.detectedSourceLanguage || detectedSourceLanguage,
+        targetLanguage,
+        elapsedMs: Date.now() - startedAt,
+        sourceLength: text.length,
+      })
 
       return {
         ...result,

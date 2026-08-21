@@ -18,6 +18,7 @@ export const translateWithAi = async ({
   sourceLanguage: string
   targetLanguage: string
 }) => {
+  const startedAt = Date.now()
   const { output } = await generateText({
     model,
     temperature: 0.1,
@@ -39,6 +40,12 @@ export const translateWithAi = async ({
       'text:',
       text,
     ].join('\n'),
+  })
+  console.warn('[AiTranslate] completed', {
+    elapsedMs: Date.now() - startedAt,
+    sourceLanguage,
+    targetLanguage,
+    textLength: text.length,
   })
 
   return {

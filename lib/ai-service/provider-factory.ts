@@ -26,6 +26,39 @@ const DEFAULT_CONTEXT_LIMITS: Record<AiProviderId, number> = {
 
 const trimOptional = (value?: string) => value?.trim() || undefined
 const OPENAI_OFFICIAL_HOSTS = new Set(['api.openai.com'])
+const DISABLED_THINKING = { type: 'disabled' as const }
+
+const disableCompatibleThinkingFetch: NonNullable<Parameters<typeof createOpenAI>[0]>['fetch'] = async (input, init) => {
+  if (!init?.body || typeof init.body !== 'string') {
+    return fetch(input, init)
+  }
+
+  try {
+    const payload = JSON.parse(init.body) as Record<string, unknown>
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return fetch(input, init)
+    }
+
+    const nextPayload = {
+      ...payload,
+      enable_thinking: payload.enable_thinking ?? false,
+      thinking: payload.thinking ?? DISABLED_THINKING,
+    }
+
+    console.warn('[AiService] compatible thinking disabled', {
+      model: nextPayload.model,
+      enable_thinking: nextPayload.enable_thinking,
+      thinking: nextPayload.thinking,
+    })
+
+    return fetch(input, {
+      ...init,
+      body: JSON.stringify(nextPayload),
+    })
+  } catch {
+    return fetch(input, init)
+  }
+}
 
 const normalizeOpenAIBaseURL = (value?: string) => {
   const trimmed = trimOptional(value)
@@ -150,9 +183,18 @@ export const createLanguageModel = (
           apiKey: config.apiKey,
           baseURL: normalizedBaseURL,
           name: 'openai-compatible',
+          ...(useChatApi ? { fetch: disableCompatibleThinkingFetch } : {}),
         })
       : openai
     const model = useChatApi ? provider.chat(modelId) : provider(modelId)
+
+    if (useChatApi) {
+      console.warn('[AiService] using compatible chat API with thinking disabled', {
+        providerId,
+        modelId,
+        baseURL: normalizedBaseURL,
+      })
+    }
 
     return {
       providerId,
