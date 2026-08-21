@@ -144,30 +144,6 @@ bool GetAXStringAttr(AXUIElementRef el, CFStringRef attr, std::string* out) {
   return ok;
 }
 
-bool BundleIdEquals(NSString* bundleId, const char* expected) {
-  if (!bundleId || !expected) return false;
-  return [bundleId isEqualToString:@(expected)];
-}
-
-bool IsVSCodeBundleId(NSString* bundleId) {
-  if (!bundleId) return false;
-  return [bundleId hasPrefix:@"com.microsoft.VSCode"];
-}
-
-bool IsObsidianBundleId(NSString* bundleId) {
-  if (!bundleId) return false;
-  return [bundleId isEqualToString:@"md.obsidian"];
-}
-
-bool IsZedBundleId(NSString* bundleId) {
-  if (!bundleId) return false;
-  return [bundleId isEqualToString:@"dev.zed.Zed"];
-}
-
-bool AllowsLooseSelectionFallback(NSString* bundleId) {
-  return IsVSCodeBundleId(bundleId) || IsObsidianBundleId(bundleId) || IsZedBundleId(bundleId);
-}
-
 std::string GetAXRoleDebug(AXUIElementRef el) {
   if (!el) return "";
 
@@ -2162,18 +2138,10 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   double dist = sqrt(dx * dx + dy * dy);
   if (dist <= kDragThreshold) return SelectionScene::kNone;
 
-  // Distinguish text drag-selection from file/icon drag-and-drop using the
-  // same selection signals that the snapshot path understands. Resolve the
-  // element from the window under the pointer so a newly opened / second
-  // window is not ignored just because AX still reports the previous window.
-  AXUIElementRef focusedElem = nullptr;
-  AXUIElementRef focusedApp = nullptr;
-  std::string targetDebug;
-  GetSelectionTarget(loc, &focusedApp, &focusedElem, &targetDebug);
-
-  bool hasFocusedElem = false;
-  bool hasSelection = false;
-  std::string roleDebug;
+  // Keep gesture detection separate from selection retrieval. Some apps do
+  // not publish their AX selection until after mouseUp, so probing AX here can
+  // discard a valid drag before the delayed snapshot and clipboard fallback
+  // get a chance to run.
   const bool nearFocusedWindowEdge = IsPointNearFocusedWindowEdge(loc);
   const NSInteger dragPasteboardChangeCount = GetDragPasteboardChangeCount();
   const bool hasFreshFileDragPayload =
@@ -2181,46 +2149,16 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
       gDragPasteboardChangeCountOnMouseDown >= 0 &&
       dragPasteboardChangeCount != gDragPasteboardChangeCountOnMouseDown &&
       DragPasteboardHasFilePayload();
-  NSRunningApplication* frontApp = NSWorkspace.sharedWorkspace.frontmostApplication;
-  NSString* frontBundleId = frontApp.bundleIdentifier ?: @"";
 
-  if (focusedElem) {
-    hasFocusedElem = true;
-    roleDebug = GetAXRoleDebug(focusedElem);
-    hasSelection = ElementHasSelection(focusedElem);
-  }
+  const SelectionScene scene =
+      !hasFreshFileDragPayload && !nearFocusedWindowEdge
+          ? SelectionScene::kBoxSelect
+          : SelectionScene::kNone;
 
-  SelectionScene scene = SelectionScene::kNone;
-  if (hasSelection) {
-    scene = SelectionScene::kBoxSelect;
-  } else if (AllowsLooseSelectionFallback(frontBundleId) &&
-             !hasFreshFileDragPayload &&
-             !nearFocusedWindowEdge) {
-    // Some editors keep AX focus on an element that exposes no selected-range
-    // metadata on mouseUp. Still allow the later snapshot + clipboard fallback
-    // path to recover the selection text.
-    scene = SelectionScene::kBoxSelect;
-  } else if (BundleIdEquals(frontBundleId, "org.zotero.zotero") &&
-             hasFocusedElem &&
-             IsWindowRoleDebug(roleDebug) &&
-             !hasFreshFileDragPayload &&
-             !nearFocusedWindowEdge) {
-    // Zotero can leave AX focus on the reader window itself on mouseUp even
-    // when text is selected. Let the snapshot path recover the text via
-    // clipboard fallback instead of dropping the gesture here.
-    scene = SelectionScene::kBoxSelect;
-  } else if (!hasFocusedElem && !hasFreshFileDragPayload && !nearFocusedWindowEdge) {
-    // Some Chromium/native editors lose the focused AX element on mouseUp, but
-    // the later snapshot/clipboard fallback can still recover selected text.
-    scene = SelectionScene::kBoxSelect;
-  }
-
-  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f bundle=%@ hasFocusedElem=%d role=%s hasSelection=%d nearFocusedWindowEdge=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld target=[%s] scene=%s",
-        dist, frontBundleId, hasFocusedElem, roleDebug.c_str(), hasSelection, nearFocusedWindowEdge, hasFreshFileDragPayload,
-        (long)dragPasteboardChangeCount, (long)gDragPasteboardChangeCountOnMouseDown, targetDebug.c_str(), SceneToString(scene));
-
-  if (focusedElem) CFRelease(focusedElem);
-  if (focusedApp) CFRelease(focusedApp);
+  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f nearFocusedWindowEdge=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
+        dist, nearFocusedWindowEdge, hasFreshFileDragPayload,
+        (long)dragPasteboardChangeCount, (long)gDragPasteboardChangeCountOnMouseDown,
+        SceneToString(scene));
 
   return scene;
 }
