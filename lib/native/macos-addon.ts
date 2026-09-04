@@ -26,6 +26,7 @@ export interface NativeMacOSAddon {
   getCursorPosition(): { x: number; y: number }
   getFrontmostAppInfo(): { bundleId: string; name: string; pid: number }
   getClipboardChangeCount(): number
+  isClipboardFallbackActive?(): boolean
   getClipboardSnapshot(): ClipboardSnapshotItem[]
   restoreClipboardSnapshot(items: ClipboardSnapshotItem[]): boolean
   activateAppAndPaste(pid: number): boolean

@@ -21,6 +21,7 @@ const createStub = (): SelectionBridge => ({
   getCursorPosition: () => ({ x: 0, y: 0 }),
   getFrontmostAppInfo: () => ({ bundleId: '', name: '', pid: -1 }),
   getClipboardChangeCount: () => -1,
+  isClipboardFallbackActive: () => false,
   getClipboardSnapshot: () => [],
   restoreClipboardSnapshot: () => false,
   activateAppAndPaste: () => false,
@@ -69,6 +70,11 @@ export const selectionBridge: SelectionBridge = nativeModule
       },
       getClipboardChangeCount() {
         return nativeModule.getClipboardChangeCount()
+      },
+      isClipboardFallbackActive() {
+        return typeof nativeModule.isClipboardFallbackActive === 'function'
+          ? Boolean(nativeModule.isClipboardFallbackActive())
+          : false
       },
       getClipboardSnapshot() {
         return nativeModule.getClipboardSnapshot()

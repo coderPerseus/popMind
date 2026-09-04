@@ -130,6 +130,7 @@ export interface SelectionBridge {
   getCursorPosition(): { x: number; y: number }
   getFrontmostAppInfo(): { bundleId: string; name: string; pid: number }
   getClipboardChangeCount(): number
+  isClipboardFallbackActive(): boolean
   getClipboardSnapshot(): Array<{ types: Array<{ type: string; data: Buffer }> }>
   restoreClipboardSnapshot(items: Array<{ types: Array<{ type: string; data: Buffer }> }>): boolean
   activateAppAndPaste(pid: number): boolean
