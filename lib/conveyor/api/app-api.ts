@@ -13,4 +13,6 @@ export class AppApi extends ConveyorApi {
   setThemeMode = (mode: 'light' | 'dark' | 'system') => this.invoke('setThemeMode', mode)
   searchInstalledApps = (query: string, limit = 8) => this.invoke('searchInstalledApps', query, limit)
   openInstalledApp = (appPath: string) => this.invoke('openInstalledApp', appPath)
+  getBlockedSelectionApps = () => this.invoke('getBlockedSelectionApps')
+  removeBlockedSelectionApp = (bundleId: string) => this.invoke('removeBlockedSelectionApp', bundleId)
 }

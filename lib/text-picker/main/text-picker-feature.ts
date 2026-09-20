@@ -734,6 +734,16 @@ export class TextPickerFeature {
         return { ok: false, reason: 'stale_selection' }
       }
 
+      if (commandId === SystemCommand.BlockCurrentApp) {
+        this.manager?.addBlockedApp(pickedInfo.appId)
+        this.manager?.hideBubble()
+        this.logger.info('[TextPickerFeature] current app blocked', {
+          appId: pickedInfo.appId,
+          appName: pickedInfo.appName,
+        })
+        return { ok: true, commandId }
+      }
+
       if (commandId === SystemCommand.Copy) {
         this.manager?.hideBubble()
 

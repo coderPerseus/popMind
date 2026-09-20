@@ -167,6 +167,7 @@ export function SettingsPage() {
     detectedModelId: null,
   })
   const [testingWebSearchProviderId, setTestingWebSearchProviderId] = useState<WebSearchProviderId | null>(null)
+  const [blockedSelectionApps, setBlockedSelectionApps] = useState<string[]>([])
   const [webSearchTestMessages, setWebSearchTestMessages] = useState<Partial<Record<WebSearchProviderId, { tone: StatusTone; message: string }>>>({})
   const saveTimerRef = useRef<number | null>(null)
 
@@ -221,6 +222,10 @@ export function SettingsPage() {
     setSettings(result)
   }, [capability])
 
+  const refreshBlockedSelectionApps = useCallback(async () => {
+    setBlockedSelectionApps(await app.getBlockedSelectionApps())
+  }, [app])
+
   const refreshHistory = useCallback(
     async (type: HistoryTab) => {
       const [summary, items] = await Promise.all([search.getHistorySummary(type), search.listHistory(type, 80)])
@@ -234,6 +239,7 @@ export function SettingsPage() {
     void app.getThemeMode().then(setThemeMode)
     void refreshPermissions()
     void refreshSettings()
+    void refreshBlockedSelectionApps()
     void refreshHistory('search')
     void refreshHistory('explain')
 
@@ -249,7 +255,7 @@ export function SettingsPage() {
       unsubscribe()
       window.clearInterval(timer)
     }
-  }, [app, capability, refreshHistory, refreshPermissions, refreshSettings])
+  }, [app, capability, refreshBlockedSelectionApps, refreshHistory, refreshPermissions, refreshSettings])
 
   useEffect(() => {
     return () => {
@@ -1219,6 +1225,35 @@ export function SettingsPage() {
 
           {activeSection === 'privacy' && settings && (
             <div className="settings-content-stack">
+              <section className="settings-surface">
+                <div className="settings-surface-heading">
+                  <div>
+                    <div className="settings-item-title">划词气泡 APP 黑名单</div>
+                    <div className="settings-item-desc">名单内的应用不会触发展示划词气泡，可随时恢复。</div>
+                  </div>
+                </div>
+                {blockedSelectionApps.length ? (
+                  <div className="settings-action-row">
+                    {blockedSelectionApps.map((bundleId) => (
+                      <Badge key={bundleId} variant="outline">
+                        {bundleId}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            void app.removeBlockedSelectionApp(bundleId).then(() => refreshBlockedSelectionApps())
+                          }
+                        >
+                          恢复
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="settings-item-desc">暂无屏蔽应用</div>
+                )}
+              </section>
+
               <section className="settings-surface">
                 <div className="settings-surface-heading">
                   <div>

@@ -29,6 +29,7 @@ import {
 import { toElectronScreenPoint } from '@/lib/text-picker/screen-point'
 import type { BubbleWindowPort } from './bubble-window'
 import type { DismissContext } from '@/lib/windowing/auto-dismiss-controller'
+import { textPickerAppBlockStore } from '@/lib/text-picker/app-block-store'
 
 interface ToolbarPositionMemory {
   offsetX: number
@@ -75,6 +76,12 @@ const createDefaultSkills = (language: AppLanguage): SelectionSkill[] => [
   { commandId: SystemCommand.AskAI, label: translateMessage(language, 'bubble.ask'), enabled: true },
 ]
 
+const createBlockAppSkill = (language: AppLanguage): SelectionSkill => ({
+  commandId: SystemCommand.BlockCurrentApp,
+  label: translateMessage(language, 'bubble.blockCurrentApp'),
+  enabled: true,
+})
+
 const createOpenLinkSkill = (language: AppLanguage): SelectionSkill => ({
   commandId: SystemCommand.OpenLink,
   label: translateMessage(language, 'bubble.open'),
@@ -101,7 +108,7 @@ export class TextPickerManager {
   private readonly isEventInsideSecondaryFloating?: (event: SelectionActionEvent) => boolean
   private readonly hideSecondaryFloating?: () => void
   private readonly dispatchAutoDismiss?: (context: DismissContext) => void
-  private readonly blockedApps = new Set<string>()
+  private readonly blockedApps = new Set(textPickerAppBlockStore.getAll())
   private readonly blockedUrls = new Set<string>()
   private readonly positionMemory = new Map<string, ToolbarPositionMemory>()
   private readonly sceneEnable: SceneEnableMap = { ...DEFAULT_SCENE_ENABLE }
@@ -233,11 +240,15 @@ export class TextPickerManager {
   }
 
   addBlockedApp(bundleId: string) {
-    this.blockedApps.add(bundleId)
+    const value = bundleId.trim()
+    if (!value) return
+    this.blockedApps.add(value)
+    textPickerAppBlockStore.add(value)
   }
 
   removeBlockedApp(bundleId: string) {
     this.blockedApps.delete(bundleId)
+    textPickerAppBlockStore.remove(bundleId)
   }
 
   getBlockedApps() {
@@ -245,7 +256,7 @@ export class TextPickerManager {
   }
 
   isAppBlocked(bundleId: string) {
-    return this.blockedApps.has(bundleId)
+    return textPickerAppBlockStore.getAll().includes(bundleId)
   }
 
   addBlockedUrl(url: string) {
@@ -262,10 +273,10 @@ export class TextPickerManager {
 
   getSkills() {
     if (normalizeSelectedLink(this.pickedInfo?.text ?? '')) {
-      return [createOpenLinkSkill(this.language)]
+      return [createOpenLinkSkill(this.language), createBlockAppSkill(this.language)]
     }
 
-    return this.skills.filter((skill) => skill.enabled)
+    return [...this.skills.filter((skill) => skill.enabled), createBlockAppSkill(this.language)]
   }
 
   setSkills(skills: SelectionSkill[]) {

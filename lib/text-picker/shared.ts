@@ -10,6 +10,7 @@ export const SystemCommand = {
   AskAI: '8',
   OpenLink: '9',
   TextToSpeech: 'TextToSpeech',
+  BlockCurrentApp: 'BlockCurrentApp',
 } as const
 
 export type SystemCommandId = (typeof SystemCommand)[keyof typeof SystemCommand]
