@@ -9,6 +9,7 @@ import { mainLogger } from '@/lib/main/logger'
 import { handle } from '@/lib/main/shared'
 import { themeStore } from '@/lib/main/theme-store'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
+import { textPickerAppBlockStore } from '@/lib/text-picker/app-block-store'
 
 const execFileAsync = promisify(execFile)
 
@@ -138,6 +139,13 @@ export const registerAppHandlers = (app: App) => {
 
   handle('searchInstalledApps', async (query, limit) => {
     return installedAppService.search(query, limit)
+  })
+
+  handle('getBlockedSelectionApps', () => textPickerAppBlockStore.getAll())
+
+  handle('removeBlockedSelectionApp', (bundleId) => {
+    textPickerAppBlockStore.remove(bundleId)
+    return true
   })
 
   handle('openInstalledApp', async (appPath) => {

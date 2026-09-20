@@ -79,4 +79,12 @@ export const appIpcSchema = {
     args: z.tuple([z.string()]),
     return: z.boolean(),
   },
+  getBlockedSelectionApps: {
+    args: z.tuple([]),
+    return: z.array(z.string()),
+  },
+  removeBlockedSelectionApp: {
+    args: z.tuple([z.string()]),
+    return: z.boolean(),
+  },
 }
