@@ -39,6 +39,8 @@ jobs:
       CSC_LINK: ${{ secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      MAC_SELF_SIGN_P12_BASE64: ${{ secrets.MAC_SELF_SIGN_P12_BASE64 }}
+      MAC_SELF_SIGN_P12_PASSWORD: ${{ secrets.MAC_SELF_SIGN_P12_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -71,6 +73,15 @@ jobs:
             exit 0
           fi
 
+          # A self-signed certificate is enough to keep Accessibility / Screen
+          # Recording grants across updates (see scripts/create-mac-signing-cert.sh).
+          if [ -n "${MAC_SELF_SIGN_P12_BASE64:-}" ] && [ -n "${MAC_SELF_SIGN_P12_PASSWORD:-}" ]; then
+            echo "mode=self-signed" >> "$GITHUB_OUTPUT"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "Using the self-signed popMind certificate."
+            exit 0
+          fi
+
           if [ "${ALLOW_UNSIGNED_MAC}" = "true" ]; then
             echo "mode=unsigned" >> "$GITHUB_OUTPUT"
             echo "signed=false" >> "$GITHUB_OUTPUT"
@@ -80,6 +91,29 @@ jobs:
 
           echo "Missing macOS signing secrets. Configure CSC_LINK and CSC_KEY_PASSWORD, or run workflow_dispatch with allow_unsigned_mac=true." >&2
           exit 1
+
+      - name: Import self-signed certificate
+        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.mode == 'self-signed'
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/popmind-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$MAC_SELF_SIGN_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/popmind-signing.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/popmind-signing.p12" -k "$KEYCHAIN" -P "$MAC_SELF_SIGN_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          # codesign only finds untrusted (self-signed) identities by hash and
+          # only in keychains on the search list.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/popmind-signing.p12"
+          IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | awk '/popMind Self Signed/ { print $2; exit }')"
+          if [ -z "$IDENTITY" ]; then
+            echo "Self-signed identity not found in keychain" >&2
+            exit 1
+          fi
+          echo "POPMIND_MAC_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "POPMIND_MAC_SIGN_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
 
       - name: Build installer package
         run: |
@@ -103,8 +137,17 @@ jobs:
             sleep 5
           done
 
+      - name: Verify self-signed macOS app signature
+        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.mode == 'self-signed'
+        run: |
+          codesign --verify --deep --strict --verbose=4 dist/mac-arm64/popMind.app
+          codesign -d -r- dist/mac-arm64/popMind.app 2>&1 | tee /tmp/popmind-app-requirement.txt
+          # A stable designated requirement is what keeps permissions across updates.
+          grep -q 'identifier "com.popmind.app" and certificate leaf = H"' /tmp/popmind-app-requirement.txt
+          codesign -d --entitlements :- "dist/mac-arm64/popMind.app/Contents/MacOS/popMind" 2>&1 | grep 'com.apple.security.cs.disable-library-validation'
+
       - name: Warn about unsigned macOS package
-        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.signed != 'true'
+        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.mode == 'unsigned'
         run: |
           echo "Unsigned macOS package built."
           echo "This artifact is for local testing only and may lose Accessibility / Screen Recording permission trust after reinstall."
@@ -126,7 +169,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.signing_mode.outputs.signed == 'true' && matrix.artifact_name || format('{0}-unsigned', matrix.artifact_name) }}
+          name: ${{ steps.signing_mode.outputs.mode == 'unsigned' && format('{0}-unsigned', matrix.artifact_name) || matrix.artifact_name }}
           if-no-files-found: error
           path: |
             dist/*.pkg

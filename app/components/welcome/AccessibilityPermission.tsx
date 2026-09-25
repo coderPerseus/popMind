@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useI18n } from '@/app/i18n'
-import { MacPermissionIdentityNotice, type PermissionDiagnostics } from '@/app/components/permission/MacPermissionIdentityNotice'
 import { Button } from '../ui/button'
 
 type PermissionStatus = { granted: boolean; supported: boolean } | null
@@ -20,17 +19,14 @@ export function AccessibilityPermission({ showGrantedState = false }: { showGran
   const { t } = useI18n()
   const [accessibilityStatus, setAccessibilityStatus] = useState<PermissionStatus>(null)
   const [screenRecordingStatus, setScreenRecordingStatus] = useState<PermissionStatus>(null)
-  const [diagnostics, setDiagnostics] = useState<PermissionDiagnostics>(null)
 
   const check = useCallback(async () => {
-    const [nextAccessibilityStatus, nextScreenRecordingStatus, nextDiagnostics] = await Promise.all([
+    const [nextAccessibilityStatus, nextScreenRecordingStatus] = await Promise.all([
       app.checkAccessibility(),
       app.checkScreenRecording(),
-      app.getPermissionDiagnostics(),
     ])
     setAccessibilityStatus(nextAccessibilityStatus)
     setScreenRecordingStatus(nextScreenRecordingStatus)
-    setDiagnostics(nextDiagnostics)
   }, [app])
 
   useEffect(() => {
@@ -86,7 +82,6 @@ export function AccessibilityPermission({ showGrantedState = false }: { showGran
           title={t('permissionGuide.title')}
           description={t('permissionGuide.desc')}
           items={pendingItems}
-          diagnostics={diagnostics}
           onRecheck={check}
         />
       )}
@@ -118,13 +113,11 @@ function NotGranted({
   title,
   description,
   items,
-  diagnostics,
   onRecheck,
 }: {
   title: string
   description: string
   items: PermissionItem[]
-  diagnostics: PermissionDiagnostics
   onRecheck: () => void
 }) {
   const { t } = useI18n()
@@ -160,8 +153,6 @@ function NotGranted({
       </div>
 
       <div className="mt-4 space-y-3">
-        <MacPermissionIdentityNotice diagnostics={diagnostics} onResetDone={onRecheck} />
-
         {items.map((item) => (
           <div key={item.id} className="rounded-2xl border border-border/60 bg-background/70 px-4 py-3">
             <div className="flex items-start justify-between gap-3">

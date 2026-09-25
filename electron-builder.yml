@@ -24,10 +24,10 @@ mac:
   target:
     - pkg
     - zip
-  # Do not force ad-hoc signing here. Accessibility/TCC permissions are matched
-  # against the app's signing identity, and ad-hoc builds are treated as a new
-  # app after rebuild/reinstall so the existing permission entry no longer
-  # applies.
+  # Accessibility/TCC permissions are matched against the app's signing
+  # identity; ad-hoc builds look like a new app after every update. The custom
+  # hook signs with a stable certificate so grants survive updates.
+  sign: scripts/mac-sign.cjs
   entitlements: resources/build/entitlements.mac.plist
   entitlementsInherit: resources/build/entitlements.mac.plist
   extendInfo:
@@ -39,6 +39,13 @@ mac:
 pkg:
   artifactName: ${name}-${version}.${ext}
   installLocation: /Applications
+  # Always install to /Applications/popMind.app and replace the existing copy.
+  # With relocation enabled the installer follows any other bundle that has the
+  # same id (e.g. an unzipped "popMind 2.app" in Downloads) and installs there.
+  isRelocatable: false
+  overwriteAction: upgrade
+  # preinstall quits a running popMind, postinstall removes duplicate copies and relaunches it
+  scripts: pkg-scripts
   allowAnywhere: false
   allowCurrentUserHome: false
   allowRootDirectory: false

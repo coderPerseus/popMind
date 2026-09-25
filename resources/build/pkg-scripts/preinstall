@@ -1,0 +1,39 @@
+#!/bin/bash
+# Runs as root before the new popMind.app is written to /Applications.
+# Quit a running popMind so the bundle can be replaced in place.
+
+BUNDLE_ID="com.popmind.app"
+PROCESS_NAME="popMind"
+LOG_TAG="popmind-preinstall"
+
+log() {
+  /usr/bin/logger -t "$LOG_TAG" "$*"
+  echo "[$LOG_TAG] $*"
+}
+
+if ! /usr/bin/pgrep -x "$PROCESS_NAME" >/dev/null 2>&1; then
+  log "popMind is not running"
+  exit 0
+fi
+
+CONSOLE_USER="$(/usr/bin/stat -f%Su /dev/console)"
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ] && [ "$CONSOLE_USER" != "loginwindow" ]; then
+  CONSOLE_UID="$(/usr/bin/id -u "$CONSOLE_USER")"
+  log "asking popMind to quit for user $CONSOLE_USER"
+  /bin/launchctl asuser "$CONSOLE_UID" /usr/bin/sudo -u "$CONSOLE_USER" \
+    /usr/bin/osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+fi
+
+for _ in $(seq 1 20); do
+  /usr/bin/pgrep -x "$PROCESS_NAME" >/dev/null 2>&1 || break
+  sleep 0.5
+done
+
+if /usr/bin/pgrep -x "$PROCESS_NAME" >/dev/null 2>&1; then
+  log "popMind did not quit in time, terminating it"
+  /usr/bin/pkill -x "$PROCESS_NAME" || true
+  sleep 1
+  /usr/bin/pkill -9 -x "$PROCESS_NAME" || true
+fi
+
+exit 0

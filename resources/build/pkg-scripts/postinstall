@@ -1,0 +1,42 @@
+#!/bin/bash
+# Runs as root after popMind.app has been written to /Applications.
+# 1. Remove leftover copies such as "popMind 2.app" created by older installers,
+#    so only one popMind (and one permission entry) exists.
+# 2. Launch the freshly installed app for the logged-in user.
+
+APP_PATH="/Applications/popMind.app"
+BUNDLE_ID="com.popmind.app"
+LOG_TAG="popmind-postinstall"
+
+log() {
+  /usr/bin/logger -t "$LOG_TAG" "$*"
+  echo "[$LOG_TAG] $*"
+}
+
+bundle_id_of() {
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$1/Contents/Info.plist" 2>/dev/null
+}
+
+if [ "$(bundle_id_of "$APP_PATH")" != "$BUNDLE_ID" ]; then
+  log "unexpected install result, $APP_PATH is missing"
+  exit 0
+fi
+
+shopt -s nullglob
+for candidate in /Applications/popMind*.app; do
+  [ "$candidate" = "$APP_PATH" ] && continue
+  if [ "$(bundle_id_of "$candidate")" = "$BUNDLE_ID" ]; then
+    log "removing duplicate copy $candidate"
+    /bin/rm -rf "$candidate"
+  fi
+done
+shopt -u nullglob
+
+CONSOLE_USER="$(/usr/bin/stat -f%Su /dev/console)"
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ] && [ "$CONSOLE_USER" != "loginwindow" ]; then
+  CONSOLE_UID="$(/usr/bin/id -u "$CONSOLE_USER")"
+  log "launching popMind for user $CONSOLE_USER"
+  /bin/launchctl asuser "$CONSOLE_UID" /usr/bin/sudo -u "$CONSOLE_USER" /usr/bin/open "$APP_PATH" || true
+fi
+
+exit 0

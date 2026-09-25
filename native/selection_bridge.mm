@@ -84,14 +84,22 @@ std::unordered_set<NSInteger> gBubbleWindowNumbers;
 bool gIsLeftMouseDown = false;
 bool gLeftMouseDownOnBubble = false;
 bool gLeftMouseDownNearFocusedWindowEdge = false;
+// Window under (or right next to) the pointer at mouseDown. If its frame
+// changes before mouseUp, the drag moved/resized a window instead of
+// selecting text.
+CGWindowID gMouseDownWindowId = 0;
+CGRect gMouseDownWindowBounds = CGRectNull;
 NSPoint gMouseDownPoint = NSZeroPoint;
 NSPoint gLastActionPoint = NSZeroPoint;
+CFAbsoluteTime gLastMouseUpAt = 0;
+CFAbsoluteTime gLastMouseDownAt = 0;
 NSInteger gDragPasteboardChangeCountOnMouseDown = -1;
 NSInteger gClipboardChangeCountOnMouseDown = -1;
 
 
 static constexpr double kScrollGestureDeltaThreshold = 4.0;
 static constexpr double kDragThreshold = 3.0;
+static constexpr double kWindowResizeHandleMargin = 14.0;
 static constexpr int64_t kSimulatedKeyboardEventTag = 0x504F504D494E44;
 
 void HandleKeyEvent(NSEvent* event);
@@ -1317,8 +1325,6 @@ bool IsCopyMenuItem(AXUIElementRef item) {
     return false;
   }
 
-  if (!GetAXBoolAttr(item, kAXEnabledAttribute, true)) return false;
-
   std::string ident;
   if (GetAXStringAttr(item, kAXIdentifierAttribute, &ident)) {
     if ([[@(ident.c_str()) lowercaseString] hasSuffix:@"copy:"]) return true;
@@ -1374,25 +1380,58 @@ bool FindCopyDFS(AXUIElementRef root, int depth, AXUIElementRef* out) {
   return found;
 }
 
-bool TriggerMenuCopy(AXUIElementRef app) {
-  if (!app) return false;
+enum class MenuCopyResult {
+  kTriggered,
+  // The app has a Copy menu item but it is disabled: nothing is selected, so
+  // neither the menu action nor a simulated Cmd+C would copy anything.
+  kDisabled,
+  // No usable Copy menu item (no menu bar, custom menus, press failed).
+  kUnavailable,
+};
+
+const char* MenuCopyResultToString(MenuCopyResult r) {
+  switch (r) {
+    case MenuCopyResult::kTriggered: return "triggered";
+    case MenuCopyResult::kDisabled: return "disabled";
+    default: return "unavailable";
+  }
+}
+
+MenuCopyResult TriggerMenuCopyWithResult(AXUIElementRef app) {
+  if (!app) return MenuCopyResult::kUnavailable;
 
   CFTypeRef mb = nullptr;
   if (AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute, &mb) != kAXErrorSuccess || !mb) {
-    return false;
+    return MenuCopyResult::kUnavailable;
   }
 
-  bool ok = false;
+  MenuCopyResult result = MenuCopyResult::kUnavailable;
   if (CFGetTypeID(mb) == AXUIElementGetTypeID()) {
     AXUIElementRef item = nullptr;
     if (FindCopyDFS((AXUIElementRef)mb, 0, &item) && item) {
-      ok = AXUIElementPerformAction(item, kAXPressAction) == kAXErrorSuccess;
+      if (!GetAXBoolAttr(item, kAXEnabledAttribute, true)) {
+        result = MenuCopyResult::kDisabled;
+      } else if (AXUIElementPerformAction(item, kAXPressAction) == kAXErrorSuccess) {
+        result = MenuCopyResult::kTriggered;
+      }
       CFRelease(item);
     }
   }
 
   CFRelease(mb);
-  return ok;
+  return result;
+}
+
+bool TriggerMenuCopy(AXUIElementRef app) {
+  return TriggerMenuCopyWithResult(app) == MenuCopyResult::kTriggered;
+}
+
+// Seconds since the last real (HID) key press. Unlike the NSEvent monitor this
+// is updated by the window server immediately, so it cannot lag behind a Cmd+C
+// the user presses while the clipboard fallback is running. Events we post
+// with CGEventPostToPid do not go through the HID system and are not counted.
+double SecondsSinceLastHardwareKeyDown() {
+  return CGEventSourceSecondsSinceLastEventType(kCGEventSourceStateHIDSystemState, kCGEventKeyDown);
 }
 
 std::string GetSelectedTextByClipboardFallback(AXUIElementRef app) {
@@ -1408,6 +1447,16 @@ std::string GetSelectedTextByClipboardFallback(AXUIElementRef app) {
     __block pid_t pid = -1;
     __block uint64_t inputGenerationBeforeCopy = 0;
     __block bool ready = false;
+    __block double fallbackStartedAt = 0;
+    // True once the user pressed any key after the fallback started, e.g. a
+    // quick Cmd+C followed by switching Spaces. From then on the clipboard
+    // belongs to the user: never simulate a copy or restore the old content.
+    std::string copiedOnSelect;
+    std::string* copiedOnSelectOut = &copiedOnSelect;
+    bool (^userTypedSinceStart)(void) = ^bool {
+      if (gUserInputGeneration.load(std::memory_order_relaxed) != inputGenerationBeforeCopy) return true;
+      return SecondsSinceLastHardwareKeyDown() < CFAbsoluteTimeGetCurrent() - fallbackStartedAt;
+    };
 
     RunOnMainThreadSync(^{
       NSPasteboard* pb = [NSPasteboard generalPasteboard];
@@ -1420,8 +1469,43 @@ std::string GetSelectedTextByClipboardFallback(AXUIElementRef app) {
       changeCountBefore = [pb changeCount];
       if (gClipboardChangeCountOnMouseDown >= 0 &&
           changeCountBefore != gClipboardChangeCountOnMouseDown) {
+        // The clipboard changed during the selection gesture without any key
+        // press: the app copies on select by itself (iTerm2, some terminals
+        // and X11 apps). Its clipboard already holds the selection, so use it
+        // as-is instead of simulating another copy.
+        const double lastKeyDownAgo = SecondsSinceLastHardwareKeyDown();
+        const double mouseDownAgo = CFAbsoluteTimeGetCurrent() - gLastMouseDownAt;
+        if (gLastMouseDownAt > 0 && lastKeyDownAgo > mouseDownAgo) {
+          *copiedOnSelectOut = ToStdString([pb stringForType:NSPasteboardTypeString]);
+          NSLog(@"[selection_bridge] app copied on select, reuse clipboard len=%lu pre=%ld now=%ld",
+                (unsigned long)copiedOnSelectOut->size(), (long)gClipboardChangeCountOnMouseDown,
+                (long)changeCountBefore);
+          return;
+        }
         NSLog(@"[selection_bridge] clipboard text changed, skip simulated key pre=%ld now=%ld",
               (long)gClipboardChangeCountOnMouseDown, (long)changeCountBefore);
+        return;
+      }
+
+      if (app) {
+        AXUIElementGetPid(app, &pid);
+      }
+
+      // The selection was made in the frontmost app. If it is no longer
+      // frontmost the user already moved on (another app or Space); copying
+      // from it now would need to re-activate it and yank the user back.
+      NSRunningApplication* frontApp = NSWorkspace.sharedWorkspace.frontmostApplication;
+      if (pid <= 0 || !frontApp || frontApp.processIdentifier != pid) {
+        NSLog(@"[selection_bridge] clipboard fallback blocked: pid=%d is no longer frontmost (front=%d)", pid,
+              frontApp ? frontApp.processIdentifier : -1);
+        return;
+      }
+
+      const double lastKeyDownAgo = SecondsSinceLastHardwareKeyDown();
+      const double mouseUpAgo = CFAbsoluteTimeGetCurrent() - gLastMouseUpAt;
+      if (gLastMouseUpAt > 0 && lastKeyDownAgo < mouseUpAgo) {
+        NSLog(@"[selection_bridge] clipboard fallback blocked: key pressed after selection (%.3fs ago)",
+              lastKeyDownAgo);
         return;
       }
 
@@ -1429,40 +1513,44 @@ std::string GetSelectedTextByClipboardFallback(AXUIElementRef app) {
       // user-triggered selection. Sensitive pasteboards are filtered from
       // clipboard history by the main process.
       savedItems = SavePasteboardItems();
-      if (app) {
-        AXUIElementGetPid(app, &pid);
-      }
-
-      NSPoint point = NSEqualPoints(gLastActionPoint, NSZeroPoint) ? [NSEvent mouseLocation]
-                                                                   : gLastActionPoint;
-      RaiseWindowAtPoint(pid, point);
       inputGenerationBeforeCopy = gUserInputGeneration.load(std::memory_order_relaxed);
+      fallbackStartedAt = CFAbsoluteTimeGetCurrent();
       ready = true;
     });
 
-    if (!ready) return "";
+    if (!ready) return copiedOnSelect;
 
     const NSInteger expectedChangeCount = changeCountBefore;
-    const uint64_t expectedInputGeneration = inputGenerationBeforeCopy;
-    [NSThread sleepForTimeInterval:0.05];
 
     NSLog(@"[selection_bridge] Copy pasteboard item start pid=%d", pid);
 
     NSInteger changeCountAfterCopy = changeCountBefore;
-    __block bool menuCopyTriggered = false;
+    __block MenuCopyResult menuCopyResult = MenuCopyResult::kUnavailable;
+    __block bool userTypedBeforeCopy = false;
     RunOnMainThreadSync(^{
-      if (gUserInputGeneration.load(std::memory_order_relaxed) == expectedInputGeneration) {
-        menuCopyTriggered = app && TriggerMenuCopy(app);
+      if (userTypedSinceStart()) {
+        userTypedBeforeCopy = true;
+        return;
       }
+      menuCopyResult = app ? TriggerMenuCopyWithResult(app) : MenuCopyResult::kUnavailable;
     });
+    const bool menuCopyTriggered = menuCopyResult == MenuCopyResult::kTriggered;
+    NSLog(@"[selection_bridge] menu copy result=%s userTyped=%d", MenuCopyResultToString(menuCopyResult),
+          userTypedBeforeCopy);
+
+    if (userTypedBeforeCopy || menuCopyResult == MenuCopyResult::kDisabled) {
+      // Disabled Copy menu: the app itself reports there is no selection.
+      // Skip the simulated Cmd+C entirely (same approach as Easydict).
+      return "";
+    }
 
     auto waitForPasteboardChange = [&](int tries, NSInteger* after) {
       for (int i = 0; i < tries; i++) {
-        if (gUserInputGeneration.load(std::memory_order_relaxed) != expectedInputGeneration) {
+        if (userTypedSinceStart()) {
           return false;
         }
         [NSThread sleepForTimeInterval:0.02];
-        if (gUserInputGeneration.load(std::memory_order_relaxed) != expectedInputGeneration) {
+        if (userTypedSinceStart()) {
           return false;
         }
         __block NSInteger now = expectedChangeCount;
@@ -1478,13 +1566,15 @@ std::string GetSelectedTextByClipboardFallback(AXUIElementRef app) {
       return false;
     };
 
+    // A pressed Copy menu item copies on its own; give slow apps time instead
+    // of stacking a second, simulated Cmd+C on top of it.
     bool copied =
-        menuCopyTriggered && waitForPasteboardChange(6, &changeCountAfterCopy);
+        menuCopyTriggered && waitForPasteboardChange(16, &changeCountAfterCopy);
 
-    if (!copied &&
-        gUserInputGeneration.load(std::memory_order_relaxed) == expectedInputGeneration) {
+    if (!copied && !menuCopyTriggered && !userTypedSinceStart()) {
       RunOnMainThreadSync(^{
-        if (gUserInputGeneration.load(std::memory_order_relaxed) == expectedInputGeneration) {
+        if (!userTypedSinceStart()) {
+          NSLog(@"[selection_bridge] no usable Copy menu item, simulate Cmd+C pid=%d", pid);
           PostCmdCToPid(pid);
         }
       });
@@ -1497,7 +1587,7 @@ std::string GetSelectedTextByClipboardFallback(AXUIElementRef app) {
       NSPasteboard* pb = [NSPasteboard generalPasteboard];
       if (!pb) return;
 
-      if (gUserInputGeneration.load(std::memory_order_relaxed) != expectedInputGeneration) {
+      if (userTypedSinceStart()) {
         NSLog(@"[selection_bridge] user input changed during clipboard fallback, skip result");
         return;
       }
@@ -1711,7 +1801,7 @@ struct ScreenWindowHit {
   std::string owner;
 };
 
-bool CopyTopmostWindowAtPoint(NSPoint cocoaPoint, ScreenWindowHit* out) {
+bool CopyTopmostWindowAtPoint(NSPoint cocoaPoint, ScreenWindowHit* out, double margin = 0) {
   if (!out) return false;
 
   CFArrayRef infoList =
@@ -1747,8 +1837,11 @@ bool CopyTopmostWindowAtPoint(NSPoint cocoaPoint, ScreenWindowHit* out) {
       continue;
     }
 
-    if (!CGRectContainsPoint(bounds, quartzPoint) &&
-        !CGRectContainsPoint(bounds, CGPointMake(cocoaPoint.x, cocoaPoint.y))) {
+    // Resize handles sit slightly outside the visible frame, so callers can
+    // widen the hit area to catch drags that start on a window border.
+    const CGRect hitBounds = margin > 0 ? CGRectInset(bounds, -margin, -margin) : bounds;
+    if (!CGRectContainsPoint(hitBounds, quartzPoint) &&
+        !CGRectContainsPoint(hitBounds, CGPointMake(cocoaPoint.x, cocoaPoint.y))) {
       continue;
     }
 
@@ -1763,6 +1856,44 @@ bool CopyTopmostWindowAtPoint(NSPoint cocoaPoint, ScreenWindowHit* out) {
 
   CFRelease(infoList);
   return found;
+}
+
+bool CopyWindowBounds(CGWindowID windowId, CGRect* outBounds) {
+  if (!windowId || !outBounds) return false;
+
+  CFArrayRef infoList = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, windowId);
+  if (!infoList) return false;
+
+  bool ok = false;
+  NSArray* windows = (__bridge NSArray*)infoList;
+  for (id rawWindow in windows) {
+    if (![rawWindow isKindOfClass:[NSDictionary class]]) continue;
+    NSDictionary* window = (NSDictionary*)rawWindow;
+    NSNumber* windowNumber = window[(id)kCGWindowNumber];
+    NSDictionary* boundsDict = window[(id)kCGWindowBounds];
+    if (![windowNumber isKindOfClass:[NSNumber class]] ||
+        (CGWindowID)windowNumber.unsignedIntValue != windowId ||
+        ![boundsDict isKindOfClass:[NSDictionary class]]) {
+      continue;
+    }
+    ok = CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)boundsDict, outBounds);
+    break;
+  }
+
+  CFRelease(infoList);
+  return ok;
+}
+
+bool DidMouseDownWindowFrameChange() {
+  if (!gMouseDownWindowId || CGRectIsNull(gMouseDownWindowBounds)) return false;
+
+  CGRect now = CGRectNull;
+  if (!CopyWindowBounds(gMouseDownWindowId, &now)) return false;
+
+  return std::abs(now.origin.x - gMouseDownWindowBounds.origin.x) >= 1.0 ||
+         std::abs(now.origin.y - gMouseDownWindowBounds.origin.y) >= 1.0 ||
+         std::abs(now.size.width - gMouseDownWindowBounds.size.width) >= 1.0 ||
+         std::abs(now.size.height - gMouseDownWindowBounds.size.height) >= 1.0;
 }
 
 AXUIElementRef CopyWindowContainingPoint(AXUIElementRef app, NSPoint cocoaPoint) {
@@ -2152,6 +2283,10 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
   const bool mouseUpNearFocusedWindowEdge = IsPointNearFocusedWindowEdge(loc);
   const bool nearFocusedWindowEdge =
       gLeftMouseDownNearFocusedWindowEdge || mouseUpNearFocusedWindowEdge;
+  // The focused-window edge check misses drags on a background window's
+  // border (the app is only activated after mouseDown). A window whose frame
+  // changed during the drag was moved or resized, never text-selected.
+  const bool mouseDownWindowFrameChanged = DidMouseDownWindowFrameChange();
   const NSInteger dragPasteboardChangeCount = GetDragPasteboardChangeCount();
   const bool hasFreshFileDragPayload =
       dragPasteboardChangeCount >= 0 &&
@@ -2160,12 +2295,13 @@ SelectionScene DetectMouseUpScene(NSEvent* event, NSPoint loc) {
       DragPasteboardHasFilePayload();
 
   const SelectionScene scene =
-      !hasFreshFileDragPayload && !nearFocusedWindowEdge
+      !hasFreshFileDragPayload && !nearFocusedWindowEdge && !mouseDownWindowFrameChanged
           ? SelectionScene::kBoxSelect
           : SelectionScene::kNone;
 
-  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f mouseDownNearFocusedWindowEdge=%d mouseUpNearFocusedWindowEdge=%d hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
-        dist, gLeftMouseDownNearFocusedWindowEdge, mouseUpNearFocusedWindowEdge, hasFreshFileDragPayload,
+  NSLog(@"[selection_bridge] drag mouseUp dist=%.2f mouseDownNearFocusedWindowEdge=%d mouseUpNearFocusedWindowEdge=%d mouseDownWindowFrameChanged=%d mouseDownWindowId=%u hasFreshFileDragPayload=%d dragPasteboardChangeCount=%ld mouseDownDragPasteboardChangeCount=%ld scene=%s",
+        dist, gLeftMouseDownNearFocusedWindowEdge, mouseUpNearFocusedWindowEdge, mouseDownWindowFrameChanged,
+        gMouseDownWindowId, hasFreshFileDragPayload,
         (long)dragPasteboardChangeCount, (long)gDragPasteboardChangeCountOnMouseDown,
         SceneToString(scene));
 
@@ -2565,12 +2701,26 @@ Napi::Value GetSelectionSnapshot(const Napi::CallbackInfo& info) {
 
   if (text.empty() &&
       ShouldClipboardFallback(bundleId, scene, gotFocusedElement, hasNonEmpty)) {
-    result.Set("needsClipboardFallback", true);
     pid_t pid = -1;
     if (focusedApp) {
       AXUIElementGetPid(focusedApp, &pid);
     }
-    result.Set("fallbackAppPid", (double)pid);
+    // The clipboard fallback raises and activates the target app before
+    // sending Cmd+C. Selecting text with the mouse always activates the app
+    // being selected in, so a target that is not frontmost means the pointer
+    // ended up over some other window (e.g. after dragging a window border).
+    // Activating it would push the user's current app behind it.
+    NSRunningApplication* currentFrontApp = NSWorkspace.sharedWorkspace.frontmostApplication;
+    const pid_t frontPid = currentFrontApp ? currentFrontApp.processIdentifier : -1;
+    if (pid > 0 && pid == frontPid) {
+      result.Set("needsClipboardFallback", true);
+      result.Set("fallbackAppPid", (double)pid);
+    } else {
+      NSLog(@"[selection_bridge] skip clipboard fallback: target pid=%d is not frontmost pid=%d", pid,
+            frontPid);
+      targetDebug += "fallbackSkipped=notFrontmost ";
+      result.Set("targetDebug", targetDebug);
+    }
   }
 
   std::string strategy = "none";
@@ -2830,7 +2980,16 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
         gLeftMouseDownOnBubble = false;
         gIsLeftMouseDown = true;
         gMouseDownPoint = loc;
+        gLastMouseDownAt = CFAbsoluteTimeGetCurrent();
         gLeftMouseDownNearFocusedWindowEdge = IsPointNearFocusedWindowEdge(loc);
+        ScreenWindowHit downHit;
+        if (CopyTopmostWindowAtPoint(loc, &downHit, kWindowResizeHandleMargin)) {
+          gMouseDownWindowId = downHit.windowId;
+          gMouseDownWindowBounds = downHit.bounds;
+        } else {
+          gMouseDownWindowId = 0;
+          gMouseDownWindowBounds = CGRectNull;
+        }
         gDragPasteboardChangeCountOnMouseDown = GetDragPasteboardChangeCount();
         NSPasteboard* generalPasteboard = [NSPasteboard generalPasteboard];
         gClipboardChangeCountOnMouseDown = generalPasteboard ? generalPasteboard.changeCount : -1;
@@ -2850,9 +3009,12 @@ Napi::Value StartActionMonitor(const Napi::CallbackInfo& info) {
 
         NSPoint loc = [NSEvent mouseLocation];
         gLastActionPoint = loc;
+        gLastMouseUpAt = CFAbsoluteTimeGetCurrent();
         SelectionScene scene = DetectMouseUpScene(event, loc);
         gIsLeftMouseDown = false;
         gLeftMouseDownNearFocusedWindowEdge = false;
+        gMouseDownWindowId = 0;
+        gMouseDownWindowBounds = CGRectNull;
         gDragPasteboardChangeCountOnMouseDown = -1;
         EmitAction(scene, loc);
 

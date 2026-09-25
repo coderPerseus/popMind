@@ -14,17 +14,6 @@ const permissionStatusSchema = z.object({
   supported: z.boolean(),
 })
 
-const permissionDiagnosticsSchema = z.object({
-  supported: z.boolean(),
-  isPackaged: z.boolean(),
-  issue: z.enum(['adhoc_signature']).nullable(),
-  isAdhocSigned: z.boolean().nullable(),
-  appPath: z.string().nullable(),
-  identifier: z.string().nullable(),
-  signature: z.string().nullable(),
-  teamIdentifier: z.string().nullable(),
-})
-
 export const appIpcSchema = {
   version: {
     args: z.tuple([]),
@@ -54,14 +43,6 @@ export const appIpcSchema = {
   openScreenRecordingSettings: {
     args: z.tuple([]),
     return: z.boolean(),
-  },
-  resetMacPermissionHistory: {
-    args: z.tuple([]),
-    return: z.boolean(),
-  },
-  getPermissionDiagnostics: {
-    args: z.tuple([]),
-    return: permissionDiagnosticsSchema,
   },
   getThemeMode: {
     args: z.tuple([]),

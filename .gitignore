@@ -5,3 +5,5 @@ build
 .DS_Store
 *.log*
 temp
+popmind-signing
+*.p12
