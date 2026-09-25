@@ -3,6 +3,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerExplainHandlers } from '@/lib/conveyor/handlers/explain-handler'
 import { resolveAppLanguage, translateMessage } from '@/lib/i18n/shared'
 import { initializeAppLogging, mainLogger } from '@/lib/main/logger'
+import { normalizeMacInstallLocation } from '@/lib/main/mac-install-location'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
 import { clipboardHistoryService } from '@/lib/clipboard/service'
@@ -112,6 +113,10 @@ app.whenReady().then(async () => {
 
   const shouldContinue = await ensureMacAppInstalledInApplications()
   if (!shouldContinue) {
+    return
+  }
+
+  if (!(await normalizeMacInstallLocation())) {
     return
   }
 
