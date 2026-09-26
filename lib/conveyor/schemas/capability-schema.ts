@@ -35,8 +35,13 @@ const openAiSpeechProviderConfigSchema = z.object({
   model: z.string(),
 })
 
+const selectionDefaultActionSchema = z.enum(['bubble', 'translate', 'explain'])
+
 const capabilitySettingsSchema = z.object({
   appLanguage: appLanguageSchema,
+  selection: z.object({
+    defaultAction: selectionDefaultActionSchema,
+  }),
   enabledEngines: z.object({
     google: z.boolean(),
     deepl: z.boolean(),
@@ -82,18 +87,22 @@ const capabilitySettingsSchema = z.object({
 
 const capabilitySettingsPatchSchema = z.object({
   appLanguage: appLanguageSchema.optional(),
-  enabledEngines:
-    z
-      .object({
-        google: z.boolean(),
-        deepl: z.boolean(),
-        bing: z.boolean(),
-        youdao: z.boolean(),
-        ai: z.boolean(),
-        gemma: z.boolean(),
-      })
-      .partial()
-      .optional(),
+  selection: z
+    .object({
+      defaultAction: selectionDefaultActionSchema.optional(),
+    })
+    .optional(),
+  enabledEngines: z
+    .object({
+      google: z.boolean(),
+      deepl: z.boolean(),
+      bing: z.boolean(),
+      youdao: z.boolean(),
+      ai: z.boolean(),
+      gemma: z.boolean(),
+    })
+    .partial()
+    .optional(),
   firstLanguage: z.string().optional(),
   secondLanguage: z.string().optional(),
   defaultSourceLanguage: z.string().optional(),

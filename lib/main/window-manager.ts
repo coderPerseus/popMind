@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, nativeTheme } from 'electron'
 import {
   createAppWindow,
   getMainWindowRouteHash,
@@ -218,7 +218,9 @@ const applyWindowRouteConfig = (window: BrowserWindow, route: MainWindowRoute) =
   // Home route: transparent + no shadow (frosted glass effect via CSS)
   // Settings route: opaque with system shadow
   const isHome = route === 'home'
-  window.setBackgroundColor(isHome ? '#00000000' : config.backgroundColor)
+  // Match the settings page background so opening it never flashes the wrong colour.
+  const settingsBackground = nativeTheme.shouldUseDarkColors ? '#1e1e1f' : config.backgroundColor
+  window.setBackgroundColor(isHome ? '#00000000' : settingsBackground)
   window.setHasShadow(!isHome)
   window.setAlwaysOnTop(isHome, isHome ? 'floating' : 'normal')
   window.setVisibleOnAllWorkspaces(isHome, isHome ? { visibleOnFullScreen: true } : undefined)

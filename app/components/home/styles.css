@@ -5,19 +5,14 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* Rounded window with real macOS shadow */
-  border-radius: 14px;
+  border-radius: var(--mac-radius-window);
   overflow: hidden;
-  /* Frosted glass */
-  background: rgba(247, 247, 247, 0.96);
-  backdrop-filter: blur(28px) saturate(1.45);
-  -webkit-backdrop-filter: blur(28px) saturate(1.45);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: var(--mac-window-translucent);
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.06),
-    0 4px 6px rgba(0, 0, 0, 0.04),
-    0 12px 36px rgba(0, 0, 0, 0.14),
-    0 32px 80px rgba(0, 0, 0, 0.18);
+    inset 0 0 0 0.5px var(--mac-border),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--mac-label);
+  font-size: 13px;
 }
 
 /* =============================================
@@ -27,10 +22,9 @@
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 0 18px;
-  height: 58px;
+  padding: 0 16px;
+  height: 56px;
   flex-shrink: 0;
-  /* Make this area draggable so user can move the window */
   -webkit-app-region: drag;
 }
 
@@ -38,8 +32,8 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  color: rgba(60, 60, 67, 0.45);
-  margin-right: 11px;
+  color: var(--mac-tertiary-label);
+  margin-right: 10px;
   -webkit-app-region: no-drag;
 }
 
@@ -48,50 +42,51 @@
   border: none;
   outline: none;
   background: transparent;
-  font-size: 19px;
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.85);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--mac-label);
   letter-spacing: -0.01em;
-  caret-color: #007aff;
+  caret-color: var(--mac-accent);
   -webkit-app-region: no-drag;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  font-family: var(--font-ui);
 }
 
 .ms-input::placeholder {
-  color: rgba(60, 60, 67, 0.3);
+  color: var(--mac-tertiary-label);
   font-weight: 400;
 }
 
 .ms-clear {
   -webkit-app-region: no-drag;
   border: none;
-  background: rgba(0, 0, 0, 0.11);
+  background: var(--mac-fill-strong);
   border-radius: 50%;
   width: 18px;
   height: 18px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 18px;
   text-align: center;
-  cursor: pointer;
-  color: rgba(60, 60, 67, 0.5);
+  cursor: default;
+  color: var(--mac-secondary-label);
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
+  transition: background 0.12s;
   flex-shrink: 0;
 }
 
 .ms-clear:hover {
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--mac-selected);
+  color: var(--mac-label);
 }
 
 /* =============================================
    Divider
    ============================================= */
 .ms-divider {
-  height: 1px;
-  background: rgba(0, 0, 0, 0.12);
+  height: 0.5px;
+  background: var(--mac-separator);
   flex-shrink: 0;
   margin: 0;
 }
@@ -120,51 +115,50 @@
 .ms-launcher-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 0 12px;
+  gap: 2px;
+  padding: 6px 0 10px;
 }
 
 .ms-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
 
 .ms-section-title {
-  padding: 8px 16px 4px;
-  color: rgba(60, 60, 67, 0.52);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  padding: 8px 18px 4px;
+  color: var(--mac-secondary-label);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .ms-result-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px;
+  gap: 1px;
+  padding: 2px 8px;
 }
 
 .ms-result-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 56px;
-  padding: 11px 12px;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 10px;
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   background: transparent;
+  color: var(--mac-label);
   text-align: left;
-  cursor: pointer;
-  transition:
-    background 0.16s ease,
-    transform 0.16s ease;
+  cursor: default;
+  transition: background 0.08s ease;
 }
 
 .ms-result-item:hover,
 .ms-result-item.is-active {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--mac-selected);
 }
 
 .ms-result-item:disabled {
@@ -172,24 +166,24 @@
 }
 
 .ms-result-logo {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--ms-logo-bg);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 8px 16px rgba(15, 23, 42, 0.12);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .ms-result-item.is-app-result .ms-result-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .ms-result-logo-img {
@@ -206,7 +200,7 @@
   height: 18px;
   font-size: 11px;
   font-weight: 700;
-  color: rgba(15, 23, 42, 0.72);
+  color: var(--mac-label);
 }
 
 .ms-result-copy {
@@ -215,40 +209,41 @@
 }
 
 .ms-command-result-logo {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #e11d48 0%, #f97316 100%);
   color: #fff7ed;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 8px 16px rgba(249, 115, 22, 0.16);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
 }
 
 .ms-result-title-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
 }
 
 .ms-result-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.84);
-  letter-spacing: -0.015em;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--mac-label);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ms-result-title.is-app {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 500;
 }
 
 .ms-calculator-stack {
@@ -259,7 +254,7 @@
 
 .ms-calculator-expression {
   font-size: 13px;
-  color: rgba(71, 85, 105, 0.86);
+  color: var(--mac-label);
   word-break: break-word;
 }
 
@@ -271,7 +266,7 @@
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.03em;
-  color: rgba(15, 23, 42, 0.96);
+  color: var(--mac-label);
   cursor: pointer;
 }
 
@@ -280,19 +275,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  color: rgba(60, 60, 67, 0.5);
+  font-size: 12.5px;
+  color: var(--mac-secondary-label);
 }
 
 .ms-result-type {
   flex-shrink: 0;
-  border-radius: 999px;
-  padding: 5px 10px;
-  background: rgba(0, 0, 0, 0.06);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: rgba(60, 60, 67, 0.58);
+  border-radius: 5px;
+  padding: 2px 7px;
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--mac-tertiary-label);
 }
 
 .ms-command-stack {
@@ -309,14 +304,14 @@
   align-self: flex-start;
   border-radius: 999px;
   padding: 6px 10px;
-  background: rgba(15, 23, 42, 0.06);
-  color: rgba(15, 23, 42, 0.78);
+  background: var(--mac-hover);
+  color: var(--mac-label);
   font-size: 12px;
   font-weight: 700;
 }
 
 .ms-command-chip-muted {
-  color: rgba(60, 60, 67, 0.5);
+  color: var(--mac-secondary-label);
   font-weight: 500;
 }
 
@@ -327,33 +322,29 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--ms-logo-bg, rgba(255, 255, 255, 0.92));
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: var(--ms-logo-bg, var(--mac-elevated));
+  border: 1px solid var(--mac-separator);
 }
 
 .ms-translate-command-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px;
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(242, 246, 251, 0.94) 100%), rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.72) inset,
-    0 22px 40px rgba(15, 23, 42, 0.08);
+  gap: 12px;
+  padding: 4px 6px;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .ms-translate-command-card.is-error {
-  background:
-    linear-gradient(180deg, rgba(255, 245, 245, 0.98) 0%, rgba(255, 235, 235, 0.94) 100%), rgba(255, 255, 255, 0.82);
+  background: transparent;
 }
 
 .ms-translate-command-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .ms-translate-command-select-wrap {
@@ -362,20 +353,19 @@
 }
 
 .ms-translate-command-select-wrap [data-slot='select'] {
-  height: 38px;
-  border-radius: 12px;
-  border-color: rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.72);
+  height: 28px;
+  border-radius: 6px;
+  background-color: var(--mac-control);
   font-size: 13px;
-  color: rgba(15, 23, 42, 0.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  color: var(--mac-label);
+  box-shadow: var(--mac-shadow-control);
 }
 
 .ms-translate-command-arrow {
   flex-shrink: 0;
-  color: rgba(71, 85, 105, 0.72);
-  font-size: 14px;
-  font-weight: 700;
+  color: var(--mac-tertiary-label);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .ms-translate-command-panels {
@@ -398,47 +388,51 @@
 }
 
 .ms-translate-command-panel-label {
-  color: rgba(15, 23, 42, 0.78);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  color: var(--mac-secondary-label);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .ms-translate-command-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: rgba(71, 85, 105, 0.76);
-  font-size: 12px;
+  color: var(--mac-tertiary-label);
+  font-size: 11.5px;
 }
 
 .ms-translate-command-panel-body {
   min-height: 92px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(219, 234, 254, 0.88) 0%, rgba(239, 246, 255, 0.98) 100%);
-  color: rgba(15, 23, 42, 0.9);
+  padding: 12px 14px;
+  border-radius: var(--mac-radius-group);
+  background: var(--mac-group);
+  box-shadow: var(--mac-shadow-group);
+  color: var(--mac-label);
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.68;
+  line-height: 1.6;
   font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  user-select: text;
 }
 
 .ms-translate-command-panel-body.is-placeholder {
-  background: rgba(15, 23, 42, 0.04);
-  color: rgba(71, 85, 105, 0.76);
-  font-weight: 500;
+  background: var(--mac-fill);
+  box-shadow: none;
+  color: var(--mac-tertiary-label);
+  font-weight: 400;
 }
 
 .ms-translate-command-panel-body.is-error {
-  background: rgba(239, 68, 68, 0.08);
-  color: rgba(153, 27, 27, 0.9);
+  background: color-mix(in srgb, var(--mac-red) 10%, transparent);
+  box-shadow: none;
+  color: var(--mac-red);
 }
 
 .ms-translate-command-markdown {
-  color: rgba(15, 23, 42, 0.9);
+  color: var(--mac-label);
   white-space: normal;
   word-break: break-word;
   line-height: 1.66;
@@ -481,12 +475,12 @@
 .ms-translate-command-markdown :where(blockquote) {
   padding-left: 12px;
   border-left: 2px solid rgb(191 219 254);
-  color: rgb(71 85 105);
+  color: var(--mac-label);
 }
 
 .ms-translate-command-markdown :where(code) {
   border-radius: 6px;
-  background: rgb(241 245 249);
+  background: var(--mac-elevated);
   padding: 0.14em 0.4em;
   font-size: 0.92em;
 }
@@ -512,13 +506,13 @@
 }
 
 .ms-translate-command-markdown :where(th, td) {
-  border: 1px solid rgb(226 232 240);
+  border: 1px solid var(--mac-separator);
   padding: 8px 10px;
   text-align: left;
 }
 
 .ms-translate-command-markdown :where(a) {
-  color: rgb(37 99 235);
+  color: var(--mac-accent);
   text-decoration: none;
 }
 
@@ -563,22 +557,22 @@
 .ms-translate-word-speak-btn {
   flex-shrink: 0;
   border-radius: 999px;
-  border: 1px solid rgba(59, 91, 168, 0.18);
-  background: rgba(255, 255, 255, 0.72);
-  color: rgba(59, 91, 168, 0.9);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--mac-accent-soft);
+  background: var(--mac-group);
+  color: var(--mac-accent);
+  box-shadow: var(--mac-shadow-control);
 }
 
 .ms-translate-word-speak-btn:hover:not(:disabled),
 .ms-translate-command-action-btn.is-speaking:hover:not(:disabled) {
-  background: rgba(59, 91, 168, 0.14);
-  color: rgba(37, 99, 235, 0.96);
+  background: var(--mac-accent-soft);
+  color: var(--mac-accent);
 }
 
 .ms-translate-word-speak-btn.is-speaking,
 .ms-translate-command-action-btn.is-speaking {
-  background: rgba(59, 91, 168, 0.14);
-  color: rgba(37, 99, 235, 0.96);
+  background: var(--mac-accent-soft);
+  color: var(--mac-accent);
 }
 
 .ms-translate-word-phonetics {
@@ -593,15 +587,15 @@
   gap: 6px;
   padding: 5px 9px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
-  color: rgba(30, 41, 59, 0.82);
+  background: var(--mac-group);
+  color: var(--mac-label);
   font-size: 12px;
   font-weight: 500;
 }
 
 .ms-translate-word-phonetic-label {
   font-weight: 700;
-  color: rgba(59, 91, 168, 0.88);
+  color: var(--mac-accent);
 }
 
 .ms-translate-word-section {
@@ -614,7 +608,7 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.03em;
-  color: rgba(71, 85, 105, 0.86);
+  color: var(--mac-label);
 }
 
 .ms-translate-word-definition {
@@ -627,7 +621,7 @@
 
 .ms-translate-word-part {
   min-width: 42px;
-  color: rgba(59, 91, 168, 0.92);
+  color: var(--mac-accent);
   font-weight: 700;
 }
 
@@ -642,8 +636,8 @@
   align-items: center;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.56);
-  color: rgba(30, 41, 59, 0.82);
+  background: var(--mac-group);
+  color: var(--mac-label);
   font-size: 12px;
   font-weight: 500;
 }
@@ -659,22 +653,22 @@
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.48);
+  border-radius: 10px;
+  background: var(--mac-fill);
 }
 
 .ms-translate-word-list-title,
 .ms-translate-word-example-source {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(15, 23, 42, 0.9);
+  color: var(--mac-label);
 }
 
 .ms-translate-word-list-desc,
 .ms-translate-word-example-target {
   font-size: 12.5px;
   font-weight: 500;
-  color: rgba(71, 85, 105, 0.84);
+  color: var(--mac-label);
   line-height: 1.6;
 }
 
@@ -683,8 +677,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding-top: 2px;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  padding-top: 0;
+  border-top: 0;
 }
 
 .ms-translate-command-engine-select-wrap {
@@ -692,14 +686,14 @@
 }
 
 .ms-translate-command-engine-select-wrap [data-slot='select'] {
-  height: 28px;
-  padding: 3px 24px 3px 10px;
-  border-radius: 8px;
-  border-color: rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.76);
-  color: rgba(71, 85, 105, 0.9);
-  font-size: 11.5px;
-  font-weight: 500;
+  height: 26px;
+  padding: 0 26px 0 9px;
+  border-radius: 6px;
+  background-color: var(--mac-control);
+  box-shadow: var(--mac-shadow-control);
+  color: var(--mac-label);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .ms-translate-command-footer-actions {
@@ -710,27 +704,28 @@
 
 .ms-translate-command-action-btn {
   gap: 5px;
-  height: 30px !important;
-  padding: 5px 11px !important;
-  border-radius: 9px;
-  color: rgba(71, 85, 105, 0.88);
+  height: 26px !important;
+  padding: 0 9px !important;
+  border-radius: 6px;
+  color: var(--mac-label);
   font-size: 12px;
   font-weight: 500;
 }
 
 .ms-translate-command-action-btn:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.06);
-  color: rgba(15, 23, 42, 0.92);
+  background: var(--mac-hover);
+  color: var(--mac-label);
 }
 
 .ms-translate-command-action-btn.is-primary {
-  background: rgba(59, 91, 168, 0.1);
-  color: rgb(59 91 168);
-  font-weight: 600;
+  background: var(--mac-accent);
+  color: #fff;
+  font-weight: 500;
 }
 
 .ms-translate-command-action-btn.is-primary:hover:not(:disabled) {
-  background: rgba(59, 91, 168, 0.16);
+  background: var(--mac-accent-hover);
+  color: #fff;
 }
 
 .ms-translate-command-spin {
@@ -756,8 +751,8 @@
   flex-shrink: 0;
   margin: 0;
   padding: 8px 12px;
-  background: rgb(255 255 255 / 0.78);
-  border-bottom: 1px solid rgb(0 0 0 / 0.06);
+  background: var(--mac-group);
+  border-bottom: 1px solid var(--mac-separator);
   backdrop-filter: blur(16px);
 }
 
@@ -776,9 +771,9 @@
   padding: 0 6px 0 8px;
   min-height: 28px;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.7);
-  border: 1px solid rgb(0 0 0 / 0.05);
-  color: rgb(88 96 110);
+  background: var(--mac-group);
+  border: 1px solid var(--mac-separator);
+  color: var(--mac-secondary-label);
   user-select: none;
   font-size: 11px;
   font-weight: 600;
@@ -790,16 +785,16 @@
   height: 28px !important;
   padding: 0 28px 0 10px;
   border-radius: 999px;
-  border-color: rgb(0 0 0 / 0.06);
-  background: rgb(255 255 255 / 0.76);
+  border-color: var(--mac-separator);
+  background: var(--mac-group);
   font-size: 12px;
   font-weight: 600;
-  color: rgb(52 61 75);
+  color: var(--mac-label);
 }
 
 .ms-explain-command-query {
   min-width: 0;
-  color: rgba(15, 23, 42, 0.92);
+  color: var(--mac-label);
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -814,7 +809,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: rgba(71, 85, 105, 0.78);
+  color: var(--mac-label);
   font-size: 12px;
   flex-wrap: wrap;
 }
@@ -825,7 +820,7 @@
   min-height: 24px;
   padding: 0 9px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.05);
+  background: var(--mac-fill);
 }
 
 .ms-explain-command-plain {
@@ -837,7 +832,7 @@
 }
 
 .ms-explain-command-plain.is-placeholder {
-  color: rgba(100, 116, 139, 0.78);
+  color: var(--mac-label);
 }
 
 .ms-explain-thread {
@@ -865,8 +860,8 @@
   align-self: flex-end;
   max-width: 82%;
   padding: 8px 12px;
-  border-radius: 14px;
-  background: rgb(243 244 246 / 0.9);
+  border-radius: 10px;
+  background: var(--mac-elevated);
 }
 
 .ms-explain-message.is-assistant {
@@ -878,7 +873,7 @@
 }
 
 .ms-explain-markdown {
-  color: rgb(15 23 42 / 0.92);
+  color: var(--mac-label);
   font-size: 14px;
   line-height: 1.72;
 }
@@ -889,7 +884,7 @@
 
 .ms-explain-markdown :where(h1, h2, h3, h4) {
   margin: 0 0 0.55em;
-  color: rgba(120, 53, 15, 0.9);
+  color: var(--mac-label);
   letter-spacing: -0.02em;
 }
 
@@ -916,13 +911,13 @@
 .ms-explain-markdown :where(blockquote) {
   padding-left: 0.85rem;
   border-left: 2px solid rgba(245, 158, 11, 0.35);
-  color: rgba(120, 53, 15, 0.82);
+  color: var(--mac-label);
 }
 
 .ms-explain-markdown :where(code) {
   padding: 0.14em 0.38em;
   border-radius: 0.45rem;
-  background: rgba(120, 53, 15, 0.08);
+  background: var(--mac-fill-strong);
   font-size: 0.92em;
 }
 
@@ -930,7 +925,7 @@
   overflow-x: auto;
   padding: 0.9rem;
   border-radius: 0.9rem;
-  background: rgba(120, 53, 15, 0.08);
+  background: var(--mac-fill-strong);
 }
 
 .ms-explain-markdown :where(pre code) {
@@ -939,7 +934,7 @@
 }
 
 .ms-explain-markdown :where(th, td) {
-  border: 1px solid rgba(120, 53, 15, 0.12);
+  border: 1px solid var(--mac-border);
   padding: 0.48rem 0.6rem;
 }
 
@@ -993,9 +988,9 @@
   width: 100%;
   padding: 10px 12px;
   border: none;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.68);
-  color: rgba(15, 23, 42, 0.86);
+  border-radius: 10px;
+  background: var(--mac-group);
+  color: var(--mac-label);
   cursor: pointer;
 }
 
@@ -1015,7 +1010,7 @@
 .ms-explain-source-head,
 .ms-explain-sources a span {
   font-size: 12px;
-  color: rgba(71, 85, 105, 0.76);
+  color: var(--mac-label);
 }
 
 .ms-explain-sources-toggle-icon {
@@ -1038,8 +1033,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: 10px;
+  background: var(--mac-group);
   text-decoration: none;
 }
 
@@ -1048,11 +1043,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: rgba(15, 23, 42, 0.88);
+  color: var(--mac-label);
 }
 
 .ms-explain-source-head strong {
-  color: rgba(15, 23, 42, 0.9);
+  color: var(--mac-label);
 }
 
 .ms-explain-message-actions {
@@ -1061,7 +1056,7 @@
   gap: 6px;
   margin-top: 6px;
   padding-top: 8px;
-  border-top: 1px solid rgb(226 231 239 / 0.88);
+  border-top: 1px solid var(--mac-separator);
 }
 
 .ms-explain-inline-btn,
@@ -1070,7 +1065,7 @@
 }
 
 .ms-explain-command-markdown {
-  color: rgba(15, 23, 42, 0.92);
+  color: var(--mac-label);
   line-height: 1.72;
   font-size: 14px;
 }
@@ -1081,7 +1076,7 @@
 
 .ms-explain-command-markdown :where(h1, h2, h3, h4) {
   margin: 0 0 0.55em;
-  color: rgba(120, 53, 15, 0.9);
+  color: var(--mac-label);
   letter-spacing: -0.02em;
 }
 
@@ -1108,13 +1103,13 @@
 .ms-explain-command-markdown :where(blockquote) {
   padding-left: 0.85rem;
   border-left: 2px solid rgba(245, 158, 11, 0.35);
-  color: rgba(120, 53, 15, 0.82);
+  color: var(--mac-label);
 }
 
 .ms-explain-command-markdown :where(code) {
   padding: 0.14em 0.38em;
   border-radius: 0.45rem;
-  background: rgba(120, 53, 15, 0.08);
+  background: var(--mac-fill-strong);
   font-size: 0.92em;
 }
 
@@ -1122,7 +1117,7 @@
   overflow-x: auto;
   padding: 0.9rem;
   border-radius: 0.9rem;
-  background: rgba(120, 53, 15, 0.08);
+  background: var(--mac-fill-strong);
 }
 
 .ms-explain-command-markdown :where(pre code) {
@@ -1131,7 +1126,7 @@
 }
 
 .ms-explain-command-markdown :where(th, td) {
-  border: 1px solid rgba(120, 53, 15, 0.12);
+  border: 1px solid var(--mac-border);
   padding: 0.48rem 0.6rem;
 }
 
@@ -1166,9 +1161,9 @@
   width: 100%;
   padding: 10px 12px;
   border: none;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.68);
-  color: rgba(15, 23, 42, 0.86);
+  border-radius: 10px;
+  background: var(--mac-group);
+  color: var(--mac-label);
   cursor: pointer;
 }
 
@@ -1188,7 +1183,7 @@
 .ms-explain-command-source-head,
 .ms-explain-command-sources a span {
   font-size: 12px;
-  color: rgba(71, 85, 105, 0.76);
+  color: var(--mac-label);
 }
 
 .ms-explain-command-sources-icon {
@@ -1211,8 +1206,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: 10px;
+  background: var(--mac-group);
   text-decoration: none;
 }
 
@@ -1221,11 +1216,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: rgba(15, 23, 42, 0.88);
+  color: var(--mac-label);
 }
 
 .ms-explain-command-source-head strong {
-  color: rgba(15, 23, 42, 0.9);
+  color: var(--mac-label);
 }
 
 .ms-explain-dock {
@@ -1241,9 +1236,9 @@
   align-items: center;
   gap: 8px;
   min-height: 36px;
-  border: 1px solid rgb(226 231 239 / 0.92);
+  border: 1px solid var(--mac-separator);
   border-radius: 12px;
-  background: rgb(255 255 255 / 0.96);
+  background: var(--mac-elevated);
   padding: 2px 4px 2px 8px;
 }
 
@@ -1263,7 +1258,7 @@
   gap: 5px;
   height: 28px;
   padding: 0 8px;
-  color: rgb(82 91 108);
+  color: var(--mac-secondary-label);
   font-size: 12px;
   background: transparent;
 }
@@ -1295,13 +1290,10 @@
   flex-direction: column;
   gap: 14px;
   padding: 16px;
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 247, 250, 0.88) 100%), rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.6) inset,
-    0 18px 38px rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: var(--mac-group);
+  border: 1px solid var(--mac-separator);
+  box-shadow: var(--mac-shadow-group);
 }
 
 .ms-translate-card.is-placeholder {
@@ -1309,8 +1301,7 @@
 }
 
 .ms-translate-card.is-error {
-  background:
-    linear-gradient(180deg, rgba(255, 244, 244, 0.96) 0%, rgba(255, 235, 235, 0.88) 100%), rgba(255, 255, 255, 0.8);
+  background: var(--mac-group);
 }
 
 .ms-translate-card-header {
@@ -1340,7 +1331,7 @@
 }
 
 .ms-translate-card-title {
-  color: rgba(15, 23, 42, 0.9);
+  color: var(--mac-label);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1348,7 +1339,7 @@
 
 .ms-translate-card-subtitle {
   margin-top: 3px;
-  color: rgba(71, 85, 105, 0.76);
+  color: var(--mac-label);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -1363,24 +1354,24 @@
 
 .ms-translate-source {
   padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.04);
-  color: rgba(15, 23, 42, 0.72);
+  border-radius: 10px;
+  background: var(--mac-fill);
+  color: var(--mac-label);
   font-size: 13px;
 }
 
 .ms-translate-output {
   padding: 14px 16px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(219, 234, 254, 0.9) 0%, rgba(237, 233, 254, 0.92) 100%);
-  color: rgba(15, 23, 42, 0.9);
+  border-radius: 10px;
+  background: var(--mac-group);
+  color: var(--mac-label);
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
 .ms-translate-meta {
-  color: rgba(71, 85, 105, 0.72);
+  color: var(--mac-label);
   font-size: 12px;
 }
 
@@ -1401,9 +1392,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   padding: 32px 24px;
   text-align: center;
-  gap: 10px;
 }
 
 .ms-empty-emoji {
@@ -1414,17 +1405,16 @@
 }
 
 .ms-empty-title {
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.5);
-  letter-spacing: -0.01em;
+  color: var(--mac-secondary-label);
 }
 
 .ms-empty-desc {
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.42);
+  font-size: 12.5px;
   line-height: 1.5;
-  max-width: 260px;
+  color: var(--mac-tertiary-label);
+  max-width: 420px;
 }
 
 /* =============================================
@@ -1434,49 +1424,48 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  height: 38px;
+  gap: 12px;
+  height: 40px;
+  padding: 0 10px 0 8px;
   flex-shrink: 0;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.52);
+  border-top: 0.5px solid var(--mac-separator);
+  background: var(--mac-fill);
 }
 
 .ms-footer-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .ms-footer-logo {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 8px 4px 4px;
-  border-radius: 7px;
-  transition: background 0.15s;
-  color: rgba(0, 0, 0, 0.45);
-  -webkit-app-region: no-drag;
+  gap: 5px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mac-secondary-label);
+  cursor: default;
+  transition: background 0.1s ease;
 }
 
 .ms-footer-logo:hover {
-  background: rgba(0, 0, 0, 0.09);
-  color: rgba(0, 0, 0, 0.7);
+  background: var(--mac-hover);
+  color: var(--mac-label);
 }
 
 .ms-logo-img {
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
 }
 
 .ms-footer-settings-icon {
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .ms-update-badge {
@@ -1523,25 +1512,23 @@
 .ms-footer-shortcut-label {
   margin-right: 4px;
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.36);
+  color: var(--mac-tertiary-label);
 }
 
 .ms-kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
+  min-width: 18px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0 4px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.09);
-  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: var(--mac-kbd);
+  color: var(--mac-secondary-label);
+  font-family: var(--font-ui);
   font-size: 11px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.45);
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
-  list-style: none;
+  font-weight: 500;
+  line-height: 1;
 }
 
 /* =============================================
@@ -1556,7 +1543,7 @@
 
 .ms-clipboard-surface {
   display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   min-height: 0;
   flex: 1;
 }
@@ -1565,18 +1552,17 @@
   display: flex;
   min-height: 0;
   flex-direction: column;
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(248, 247, 245, 0.72) 100%), rgba(255, 255, 255, 0.5);
+  border-right: 0.5px solid var(--mac-separator);
+  background: transparent;
 }
 
 .ms-clipboard-sidebar-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 10px 12px 8px 18px;
+  border-bottom: 0;
 }
 
 .ms-clipboard-eyebrow {
@@ -1584,25 +1570,26 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.4);
+  color: var(--mac-tertiary-label);
 }
 
 .ms-clipboard-count {
   margin-top: 4px;
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.54);
+  color: var(--mac-secondary-label);
 }
 
 .ms-clipboard-filter {
-  height: 36px;
-  min-width: 122px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  color: rgba(0, 0, 0, 0.78);
-  padding: 0 10px;
+  height: 24px;
+  min-width: 110px;
+  border: 0;
+  border-radius: 6px;
+  background-color: var(--mac-control);
+  box-shadow: var(--mac-shadow-control);
+  color: var(--mac-label);
+  padding: 0 8px;
   outline: none;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .ms-clipboard-list {
@@ -1618,31 +1605,34 @@
 .ms-clipboard-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 10px;
+  min-height: 40px;
+  padding: 5px 10px;
   border: none;
-  border-radius: 13px;
+  border-radius: 8px;
   background: transparent;
+  color: var(--mac-label);
   text-align: left;
-  cursor: pointer;
-  transition: background 0.16s ease;
+  cursor: default;
+  transition: background 0.08s ease;
 }
 
 .ms-clipboard-row:hover,
 .ms-clipboard-row.is-active {
-  background: rgba(0, 0, 0, 0.07);
+  background: var(--mac-selected);
 }
 
 .ms-clipboard-row-icon {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  color: rgba(0, 0, 0, 0.58);
+  border-radius: 6px;
+  background: var(--mac-fill);
+  border: 0;
+  box-shadow: inset 0 0 0 0.5px var(--mac-separator);
+  color: var(--mac-secondary-label);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1654,8 +1644,8 @@
 }
 
 .ms-clipboard-kind-letter {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .ms-clipboard-row-copy {
@@ -1670,9 +1660,9 @@
   align-items: center;
   gap: 5px;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.82);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--mac-label);
 }
 
 .ms-clipboard-row-title-text {
@@ -1693,7 +1683,7 @@
   padding: 24px 18px;
   text-align: center;
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.42);
+  color: var(--mac-secondary-label);
 }
 
 .ms-clipboard-detail {
@@ -1701,7 +1691,7 @@
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.34);
+  background: transparent;
 }
 
 .ms-clipboard-detail-head {
@@ -1709,8 +1699,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 10px 14px 4px 16px;
+  border-bottom: 0;
 }
 
 .ms-clipboard-detail-summary {
@@ -1724,10 +1714,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: rgba(0, 0, 0, 0.84);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--mac-label);
 }
 
 .ms-clipboard-detail-actions {
@@ -1739,15 +1729,15 @@
 
 .ms-clipboard-icon-button {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.7);
-  color: rgba(0, 0, 0, 0.58);
-  cursor: pointer;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mac-secondary-label);
+  cursor: default;
 }
 
 .ms-clipboard-preview-card {
@@ -1756,19 +1746,12 @@
   justify-content: center;
   min-height: 0;
   flex: 1;
-  margin: 14px 14px 10px;
+  margin: 6px 14px 10px 16px;
   padding: 12px;
-  border-radius: 14px;
-  background: radial-gradient(
-    circle at top left,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(244, 242, 238, 0.86) 42%,
-    rgba(232, 228, 221, 0.88) 100%
-  );
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.65),
-    0 18px 30px rgba(66, 52, 32, 0.08);
+  border-radius: var(--mac-radius-group);
+  background: var(--mac-group);
+  border: 0;
+  box-shadow: var(--mac-shadow-group);
   overflow: auto;
 }
 
@@ -1779,7 +1762,7 @@
   word-break: break-word;
   font-size: 15px;
   line-height: 1.6;
-  color: rgba(0, 0, 0, 0.74);
+  color: var(--mac-label);
   font-family: 'SF Mono', 'SFMono-Regular', ui-monospace, monospace;
 }
 
@@ -1797,16 +1780,14 @@
   gap: 14px;
   font-size: 24px;
   font-weight: 700;
-  color: rgba(0, 0, 0, 0.74);
+  color: var(--mac-label);
 }
 
 .ms-clipboard-color-swatch {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 16px 26px rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
 }
 
 .ms-clipboard-file-list {
@@ -1819,36 +1800,39 @@
 .ms-clipboard-file-item {
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--mac-group);
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.66);
+  color: var(--mac-secondary-label);
   word-break: break-all;
 }
 
 .ms-clipboard-info-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 0 14px 14px;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 0 14px 12px 16px;
+  padding: 0;
+  border-top: 0.5px solid var(--mac-separator);
 }
 
 .ms-clipboard-info-item {
   display: flex;
   min-width: 0;
-  min-height: 40px;
+  min-height: 28px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 0 12px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.44);
-  font-size: 13px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 0.5px solid var(--mac-separator);
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
 }
 
 .ms-clipboard-info-label {
   flex-shrink: 0;
-  color: rgba(0, 0, 0, 0.44);
+  color: var(--mac-secondary-label);
 }
 
 .ms-clipboard-info-value {
@@ -1856,7 +1840,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(0, 0, 0, 0.76);
+  color: var(--mac-label);
   text-align: right;
 }
 
@@ -1865,7 +1849,7 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  color: rgba(0, 0, 0, 0.42);
+  color: var(--mac-secondary-label);
   font-size: 14px;
 }
 
@@ -1874,40 +1858,41 @@
   grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  min-height: 46px;
-  padding: 0 14px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(250, 249, 247, 0.86);
+  min-height: 40px;
+  padding: 0 12px 0 18px;
+  border-top: 0.5px solid var(--mac-separator);
+  background: var(--mac-fill);
 }
 
 .ms-clipboard-footer-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.56);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mac-secondary-label);
 }
 
 .ms-clipboard-footer-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .ms-clipboard-footer-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--mac-control);
+  box-shadow: var(--mac-shadow-control);
   padding: 0 10px;
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.68);
-  cursor: pointer;
+  color: var(--mac-label);
+  cursor: default;
 }
 
 .ms-clipboard-footer-button.is-danger {
-  color: rgba(165, 42, 42, 0.86);
+  color: var(--mac-red);
 }
 
 .ms-clipboard-footer-button:disabled {
@@ -1918,7 +1903,7 @@
 .ms-clipboard-footer-note {
   min-width: 0;
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.4);
+  color: var(--mac-tertiary-label);
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
@@ -1928,397 +1913,45 @@
 /* =============================================
    Dark mode
    ============================================= */
-.dark .ms-root {
-  background: rgba(30, 30, 30, 0.96);
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.4),
-    0 12px 36px rgba(0, 0, 0, 0.5),
-    0 32px 80px rgba(0, 0, 0, 0.4);
-}
-
-.dark .ms-search-icon {
-  color: rgba(255, 255, 255, 0.35);
-}
-
-.dark .ms-input {
-  color: rgba(255, 255, 255, 0.88);
-}
-
-.dark .ms-input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
-}
-
-.dark .ms-divider {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.dark .ms-result-item:hover,
-.dark .ms-result-item.is-active {
-  background: rgba(255, 255, 255, 0.09);
-}
-
-.dark .ms-section-title {
-  color: rgba(255, 255, 255, 0.36);
-}
-
-.dark .ms-result-title {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.dark .ms-result-handle {
-  color: rgba(255, 255, 255, 0.38);
-}
-
-.dark .ms-result-type {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.46);
-}
-
-.dark .ms-result-logo,
-.dark .ms-command-chip-logo {
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.dark .ms-command-chip {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.dark .ms-translate-command-card {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(17, 24, 39, 0.94) 100%), rgba(15, 23, 42, 0.82);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 24px 44px rgba(0, 0, 0, 0.32);
-}
-
-.dark .ms-translate-command-card.is-error {
-  background: linear-gradient(180deg, rgba(69, 10, 10, 0.96) 0%, rgba(31, 12, 12, 0.94) 100%), rgba(15, 23, 42, 0.82);
-}
-
-.dark .ms-translate-command-select-wrap [data-slot='select'] {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(226, 232, 240, 0.88);
-}
-
-.dark .ms-translate-command-arrow,
-.dark .ms-translate-command-status {
-  color: rgba(203, 213, 225, 0.72);
-}
-
-.dark .ms-translate-command-panel-label {
-  color: rgba(255, 255, 255, 0.84);
-}
-
-.dark .ms-translate-command-panel-body {
-  background: linear-gradient(135deg, rgba(30, 64, 175, 0.5) 0%, rgba(30, 41, 59, 0.86) 100%);
-  color: rgba(255, 255, 255, 0.94);
-}
-
-.dark .ms-translate-command-panel-body.is-placeholder {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(203, 213, 225, 0.78);
-}
-
-.dark .ms-translate-command-panel-body.is-error {
-  background: rgba(220, 38, 38, 0.16);
-  color: rgba(254, 202, 202, 0.96);
-}
-
-.dark .ms-translate-command-markdown {
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.dark .ms-translate-command-markdown :where(blockquote) {
-  border-left-color: rgb(96 165 250);
-  color: rgba(191, 219, 254, 0.92);
-}
-
-.dark .ms-translate-command-markdown :where(code) {
-  background: rgba(15, 23, 42, 0.65);
-}
-
-.dark .ms-translate-command-markdown :where(pre) {
-  background: rgba(15, 23, 42, 0.92);
-}
-
-.dark .ms-translate-command-markdown :where(th, td) {
-  border-color: rgba(148, 163, 184, 0.34);
-}
-
-.dark .ms-translate-command-markdown :where(a) {
-  color: rgb(147 197 253);
-}
-
-.dark .ms-translate-word-phonetic,
-.dark .ms-translate-word-tag,
-.dark .ms-translate-word-list-item {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.dark .ms-translate-word-phonetic,
-.dark .ms-translate-word-tag,
-.dark .ms-translate-word-list-desc,
-.dark .ms-translate-word-example-target,
-.dark .ms-translate-word-section-title {
-  color: rgba(226, 232, 240, 0.82);
-}
-
-.dark .ms-translate-word-title,
-.dark .ms-translate-word-list-title,
-.dark .ms-translate-word-example-source {
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.dark .ms-translate-word-speak-btn {
-  border-color: rgba(147, 197, 253, 0.22);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(191, 219, 254, 0.94);
-}
-
-.dark .ms-translate-word-phonetic-label,
-.dark .ms-translate-word-part {
-  color: rgba(191, 219, 254, 0.96);
-}
-
-.dark .ms-translate-command-footer {
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-.dark .ms-translate-command-engine-select-wrap [data-slot='select'] {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(226, 232, 240, 0.88);
-}
-
-.dark .ms-translate-command-action-btn {
-  color: rgba(203, 213, 225, 0.82);
-}
-
-.dark .ms-translate-command-action-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.94);
-}
-
-.dark .ms-explain-nav {
-  background: rgb(15 23 42 / 0.72);
-  border-bottom-color: rgb(255 255 255 / 0.08);
-}
-
-.dark .ms-explain-dock {
-  background: transparent;
-}
-
-.dark .ms-explain-regenerate-btn {
-  color: rgb(191 201 216);
-}
-
-.dark .ms-explain-command-query {
-  color: rgba(241, 245, 249, 0.96);
-}
-
-.dark .ms-explain-network-toggle {
-  background: rgb(15 23 42 / 0.72);
-  border-color: rgb(255 255 255 / 0.08);
-  color: rgb(191 201 216);
-}
-
-.dark .ms-explain-provider-select {
-  border-color: rgb(255 255 255 / 0.08);
-  background: rgb(15 23 42 / 0.72);
-  color: rgb(226 232 240);
-}
-
-.dark .ms-explain-message.is-user {
-  background: rgb(30 41 59 / 0.72);
-}
-
-.dark .ms-translate-command-action-btn.is-primary {
-  background: rgba(96, 165, 250, 0.16);
-  color: rgba(191, 219, 254, 0.96);
-}
-
-.dark .ms-translate-command-action-btn.is-primary:hover:not(:disabled) {
-  background: rgba(96, 165, 250, 0.22);
-}
-
-.dark .ms-command-chip-muted {
-  color: rgba(255, 255, 255, 0.42);
-}
-
-.dark .ms-translate-card {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96) 0%, rgba(17, 24, 39, 0.92) 100%), rgba(15, 23, 42, 0.8);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 22px 44px rgba(0, 0, 0, 0.3);
-}
-
-.dark .ms-translate-card.is-error {
-  background: linear-gradient(180deg, rgba(69, 10, 10, 0.96) 0%, rgba(31, 12, 12, 0.92) 100%), rgba(15, 23, 42, 0.8);
-}
-
-.dark .ms-translate-card-title {
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.dark .ms-translate-card-subtitle,
-.dark .ms-translate-meta {
-  color: rgba(203, 213, 225, 0.72);
-}
-
-.dark .ms-translate-source {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(226, 232, 240, 0.82);
-}
-
-.dark .ms-translate-output {
-  background: linear-gradient(135deg, rgba(30, 64, 175, 0.58) 0%, rgba(91, 33, 182, 0.52) 100%);
-  color: rgba(255, 255, 255, 0.94);
-}
-
-.dark .ms-empty-title {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.dark .ms-empty-desc {
-  color: rgba(255, 255, 255, 0.36);
-}
-
-.dark .ms-footer {
-  border-top-color: rgba(255, 255, 255, 0.11);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.dark .ms-footer-logo {
-  color: rgba(255, 255, 255, 0.35);
-}
-
-.dark .ms-footer-logo:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.dark .ms-update-badge {
-  border-color: rgba(255, 178, 102, 0.26);
-  background: linear-gradient(135deg, rgba(255, 163, 26, 0.26) 0%, rgba(255, 110, 68, 0.22) 100%);
-  color: rgba(255, 224, 196, 0.92);
-}
-
-.dark .ms-update-badge:hover {
-  border-color: rgba(255, 193, 120, 0.4);
-  background: linear-gradient(135deg, rgba(255, 163, 26, 0.34) 0%, rgba(255, 110, 68, 0.3) 100%);
-  color: rgba(255, 239, 221, 0.96);
-}
-
-.dark .ms-kbd {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.35);
-}
-
-.dark .ms-footer-shortcut-label {
-  color: rgba(255, 255, 255, 0.3);
-}
-
-.dark .ms-clear {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.dark .ms-clear:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.dark .ms-clipboard-sidebar {
-  border-right-color: rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(41, 41, 41, 0.82) 0%, rgba(28, 28, 28, 0.88) 100%), rgba(18, 18, 18, 0.7);
-}
-
-.dark .ms-clipboard-sidebar-head,
-.dark .ms-clipboard-detail-head,
-.dark .ms-clipboard-footer {
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.dark .ms-clipboard-eyebrow,
-.dark .ms-clipboard-info-label,
-.dark .ms-clipboard-footer-note {
-  color: rgba(255, 255, 255, 0.34);
-}
-
-.dark .ms-clipboard-count,
-.dark .ms-clipboard-placeholder {
-  color: rgba(255, 255, 255, 0.46);
-}
-
-.dark .ms-clipboard-filter,
-.dark .ms-clipboard-icon-button,
-.dark .ms-clipboard-footer-button {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.dark .ms-clipboard-row:hover,
-.dark .ms-clipboard-row.is-active {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.dark .ms-clipboard-row-icon {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.68);
-}
-
-.dark .ms-clipboard-row-title,
-.dark .ms-clipboard-detail-title,
-.dark .ms-clipboard-info-value,
-.dark .ms-clipboard-footer-label {
-  color: rgba(255, 255, 255, 0.88);
-}
 
-.dark .ms-clipboard-row-pin {
-  color: rgba(251, 191, 36, 0.92);
+.ms-result-item:hover {
+  background: var(--mac-hover);
 }
 
-.dark .ms-clipboard-empty {
-  color: rgba(255, 255, 255, 0.42);
+.ms-result-item.is-active .ms-result-type {
+  color: var(--mac-secondary-label);
 }
 
-.dark .ms-clipboard-detail {
-  background: rgba(22, 22, 22, 0.38);
+.ms-footer-hints {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--mac-secondary-label);
 }
 
-.dark .ms-clipboard-preview-card {
-  background: radial-gradient(
-    circle at top left,
-    rgba(51, 65, 85, 0.72) 0%,
-    rgba(22, 22, 22, 0.9) 58%,
-    rgba(15, 23, 42, 0.94) 100%
-  );
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 18px 30px rgba(0, 0, 0, 0.24);
+.ms-footer-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.dark .ms-clipboard-preview-text,
-.dark .ms-clipboard-color-preview {
-  color: rgba(255, 255, 255, 0.86);
+.ms-footer-hint:first-child {
+  color: var(--mac-label);
+  font-weight: 500;
 }
 
-.dark .ms-clipboard-file-item {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.74);
+.ms-footer-hint-sep {
+  width: 0.5px;
+  height: 14px;
+  background: var(--mac-border);
 }
 
-.dark .ms-clipboard-info-item {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+.ms-clipboard-icon-button:hover {
+  background: var(--mac-hover);
+  color: var(--mac-label);
 }
 
-.dark .ms-clipboard-footer {
-  background: rgba(30, 30, 30, 0.92);
+.ms-clipboard-row:hover:not(.is-active) {
+  background: var(--mac-hover);
 }

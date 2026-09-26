@@ -18,7 +18,7 @@ import { showMainWindow } from '@/lib/main/window-manager'
 import { autoDismissController, type DismissContext } from '@/lib/windowing/auto-dismiss-controller'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
-import type { AppLanguage } from '@/lib/capability/types'
+import type { AppLanguage, CapabilitySettings } from '@/lib/capability/types'
 
 const IPC_HANDLE_CHANNELS = [
   TextPickerChannel.Command,
@@ -72,6 +72,7 @@ export class TextPickerFeature {
   private permissionRetryTimer: NodeJS.Timeout | null = null
   private lastMonitorStateKey: string | null = null
   private appLanguage: AppLanguage = 'zh-CN'
+  private capabilitySettings: CapabilitySettings | null = null
 
   constructor(
     private readonly bridge: SelectionBridge = selectionBridge,
@@ -126,6 +127,12 @@ export class TextPickerFeature {
       bubbleWindow: this.bubbleWindow,
       bridge: this.bridge,
       logger: this.logger,
+      resolveAutoCommand: (pickedInfo) => this.resolveAutoCommand(pickedInfo.text),
+      onAutoCommand: (commandId, pickedInfo) => {
+        void this.executeCommand(commandId, pickedInfo.selectionId).then((result) => {
+          this.logger.info('[TextPickerFeature] default action result', { commandId, result })
+        })
+      },
       onSelectionShown: () => {
         this.rememberCommandContext()
         this.dispatchAutoDismiss({
@@ -171,9 +178,11 @@ export class TextPickerFeature {
     this.registerInputTranslationShortcut()
     this.registerScreenshotShortcuts()
     const settings = await capabilityService.getSettings()
+    this.capabilitySettings = settings
     this.appLanguage = settings.appLanguage
     this.manager?.setLanguage(settings.appLanguage)
     this.detachCapabilityListener = capabilityService.subscribe((nextSettings) => {
+      this.capabilitySettings = nextSettings
       this.appLanguage = nextSettings.appLanguage
       this.manager?.setLanguage(nextSettings.appLanguage)
     })
@@ -687,172 +696,198 @@ export class TextPickerFeature {
     await this.screenshotSearchService?.start()
   }
 
-  private setupIpc() {
-    ipcMain.handle(TextPickerChannel.Command, async (_event, commandId: string, selectionId?: string) => {
-      this.manager?.noteBubbleInteraction()
+  private resolveAutoCommand(text: string) {
+    const defaultAction = this.capabilitySettings?.selection.defaultAction ?? 'bubble'
+    // Links keep the bubble so they can still be opened with one click.
+    if (defaultAction === 'bubble' || normalizeSelectedLink(text)) {
+      return null
+    }
 
-      const commandContext = this.resolveCommandContext(selectionId)
-      if (!commandContext?.pickedInfo.text) {
-        this.logger.warn('[TextPickerFeature] ipc command rejected: empty_selection', {
-          commandId,
-          selectionId,
-          liveSelectionId: this.manager?.getPickedInfo()?.selectionId ?? null,
+    if (defaultAction === 'translate') {
+      return SystemCommand.Translate
+    }
+
+    // Without a configured AI provider, Explain falls back to opening a web page;
+    // doing that on every selection would be disruptive, so show the bubble instead.
+    const aiService = this.capabilitySettings?.aiService
+    const activeProvider = aiService?.activeProvider
+    if (!activeProvider || !aiService.providers[activeProvider].apiKey.trim()) {
+      return null
+    }
+
+    return SystemCommand.Explain
+  }
+
+  private async executeCommand(commandId: string, selectionId?: string) {
+    this.manager?.noteBubbleInteraction()
+
+    const commandContext = this.resolveCommandContext(selectionId)
+    if (!commandContext?.pickedInfo.text) {
+      this.logger.warn('[TextPickerFeature] ipc command rejected: empty_selection', {
+        commandId,
+        selectionId,
+        liveSelectionId: this.manager?.getPickedInfo()?.selectionId ?? null,
+      })
+      return { ok: false, reason: 'empty_selection' }
+    }
+
+    const { pickedInfo } = commandContext
+    if (selectionId && pickedInfo.selectionId !== selectionId) {
+      this.logger.warn('[TextPickerFeature] ipc command rejected: stale_selection', {
+        commandId,
+        requestedSelectionId: selectionId,
+        currentSelectionId: pickedInfo.selectionId,
+      })
+      this.manager?.hideBubble()
+      return { ok: false, reason: 'stale_selection' }
+    }
+
+    if (commandId === SystemCommand.BlockCurrentApp) {
+      this.manager?.addBlockedApp(pickedInfo.appId)
+      this.manager?.hideBubble()
+      this.logger.info('[TextPickerFeature] current app blocked', {
+        appId: pickedInfo.appId,
+        appName: pickedInfo.appName,
+      })
+      return { ok: true, commandId }
+    }
+
+    if (commandId === SystemCommand.Copy) {
+      this.manager?.hideBubble()
+
+      // The selected text is already resolved before the bubble is shown.
+      // Writing it directly avoids a second round-trip through the source app
+      // and removes the menu/shortcut clipboard polling delay.
+      clipboard.writeText(pickedInfo.text)
+
+      const finalClipboardText = clipboard.readText()
+      const strategy = finalClipboardText === pickedInfo.text ? 'clipboard_write' : 'clipboard_write_failed'
+
+      if (strategy === 'clipboard_write_failed') {
+        this.logger.warn('[TextPickerFeature] clipboard.writeText verification failed', {
+          appId: pickedInfo.appId || 'unknown_app',
+          expectedTextLength: pickedInfo.text.length,
+          clipboardTextLength: finalClipboardText.length,
+          clipboardPreview: finalClipboardText.slice(0, 60),
         })
-        return { ok: false, reason: 'empty_selection' }
       }
 
-      const { pickedInfo } = commandContext
-      if (selectionId && pickedInfo.selectionId !== selectionId) {
-        this.logger.warn('[TextPickerFeature] ipc command rejected: stale_selection', {
+      return {
+        ok: strategy === 'clipboard_write',
+        commandId,
+        strategy,
+      }
+    }
+
+    if (commandId === SystemCommand.HideTextPicker) {
+      this.manager?.hideBubble()
+      return { ok: true, commandId }
+    }
+
+    if (commandId === SystemCommand.OpenLink) {
+      const targetUrl = normalizeSelectedLink(pickedInfo.text)
+      if (!targetUrl) {
+        this.logger.warn('[TextPickerFeature] ipc command rejected: invalid_link_selection', {
           commandId,
-          requestedSelectionId: selectionId,
-          currentSelectionId: pickedInfo.selectionId,
+          selectionId: pickedInfo.selectionId,
+          textPreview: pickedInfo.text.slice(0, 120),
         })
-        this.manager?.hideBubble()
-        return { ok: false, reason: 'stale_selection' }
+        return { ok: false, reason: 'invalid_link_selection' }
       }
 
-      if (commandId === SystemCommand.BlockCurrentApp) {
-        this.manager?.addBlockedApp(pickedInfo.appId)
-        this.manager?.hideBubble()
-        this.logger.info('[TextPickerFeature] current app blocked', {
-          appId: pickedInfo.appId,
-          appName: pickedInfo.appName,
+      this.manager?.hideBubble()
+      await shell.openExternal(targetUrl)
+      return { ok: true, commandId }
+    }
+
+    if (
+      commandId === SystemCommand.Translate ||
+      commandId === SystemCommand.Explain ||
+      commandId === SystemCommand.AskAI ||
+      commandId === SystemCommand.Search
+    ) {
+      if (commandId === SystemCommand.Translate) {
+        const anchor = commandContext.anchor
+        this.manager?.noteBubbleInteraction()
+        await this.translationWindowManager?.showTranslation({
+          text: pickedInfo.text,
+          selectionId: pickedInfo.selectionId,
+          sourceAppId: pickedInfo.appId,
+          anchor,
         })
+        this.manager?.noteBubbleInteraction()
         return { ok: true, commandId }
       }
 
-      if (commandId === SystemCommand.Copy) {
-        this.manager?.hideBubble()
-
-        // The selected text is already resolved before the bubble is shown.
-        // Writing it directly avoids a second round-trip through the source app
-        // and removes the menu/shortcut clipboard polling delay.
-        clipboard.writeText(pickedInfo.text)
-
-        const finalClipboardText = clipboard.readText()
-        const strategy = finalClipboardText === pickedInfo.text ? 'clipboard_write' : 'clipboard_write_failed'
-
-        if (strategy === 'clipboard_write_failed') {
-          this.logger.warn('[TextPickerFeature] clipboard.writeText verification failed', {
-            appId: pickedInfo.appId || 'unknown_app',
-            expectedTextLength: pickedInfo.text.length,
-            clipboardTextLength: finalClipboardText.length,
-            clipboardPreview: finalClipboardText.slice(0, 60),
-          })
-        }
-
-        return {
-          ok: strategy === 'clipboard_write',
-          commandId,
-          strategy,
-        }
-      }
-
-      if (commandId === SystemCommand.HideTextPicker) {
-        this.manager?.hideBubble()
-        return { ok: true, commandId }
-      }
-
-      if (commandId === SystemCommand.OpenLink) {
-        const targetUrl = normalizeSelectedLink(pickedInfo.text)
-        if (!targetUrl) {
-          this.logger.warn('[TextPickerFeature] ipc command rejected: invalid_link_selection', {
-            commandId,
-            selectionId: pickedInfo.selectionId,
-            textPreview: pickedInfo.text.slice(0, 120),
-          })
-          return { ok: false, reason: 'invalid_link_selection' }
-        }
-
-        this.manager?.hideBubble()
-        await shell.openExternal(targetUrl)
-        return { ok: true, commandId }
-      }
-
-      if (
-        commandId === SystemCommand.Translate ||
-        commandId === SystemCommand.Explain ||
-        commandId === SystemCommand.AskAI ||
-        commandId === SystemCommand.Search
-      ) {
-        if (commandId === SystemCommand.Translate) {
-          const anchor = commandContext.anchor
-          this.manager?.noteBubbleInteraction()
-          await this.translationWindowManager?.showTranslation({
-            text: pickedInfo.text,
-            selectionId: pickedInfo.selectionId,
-            sourceAppId: pickedInfo.appId,
-            anchor,
-          })
-          this.manager?.noteBubbleInteraction()
-          return { ok: true, commandId }
-        }
-
-        if (commandId === SystemCommand.Explain) {
-          const settings = await capabilityService.getSettings()
-          if (
-            !settings.aiService.activeProvider ||
-            !settings.aiService.providers[settings.aiService.activeProvider].apiKey.trim()
-          ) {
-            const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text, settings.appLanguage)
-            if (!targetUrl) {
-              return { ok: false, reason: 'missing_target_url' }
-            }
-
-            this.manager?.hideBubble()
-            await shell.openExternal(targetUrl)
-            return { ok: true, commandId }
+      if (commandId === SystemCommand.Explain) {
+        const settings = await capabilityService.getSettings()
+        if (
+          !settings.aiService.activeProvider ||
+          !settings.aiService.providers[settings.aiService.activeProvider].apiKey.trim()
+        ) {
+          const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text, settings.appLanguage)
+          if (!targetUrl) {
+            return { ok: false, reason: 'missing_target_url' }
           }
 
-          const contextImage = this.captureExplainContextImage(pickedInfo.appName, pickedInfo.sourceAppPid)
-
-          await this.selectionChatWindowManager?.open({
-            mode: 'explain',
-            text: pickedInfo.text,
-            selectionId: pickedInfo.selectionId,
-            sourceAppId: pickedInfo.appId,
-            sourceAppName: pickedInfo.appName,
-            contextImage,
-            anchor: commandContext.anchor,
-          })
+          this.manager?.hideBubble()
+          await shell.openExternal(targetUrl)
           return { ok: true, commandId }
         }
 
-        if (commandId === SystemCommand.AskAI) {
-          const contextImage = this.captureExplainContextImage(pickedInfo.appName, pickedInfo.sourceAppPid)
+        const contextImage = this.captureExplainContextImage(pickedInfo.appName, pickedInfo.sourceAppPid)
 
-          await this.selectionChatWindowManager?.open({
-            mode: 'ask',
-            text: pickedInfo.text,
-            selectionId: pickedInfo.selectionId,
-            sourceAppId: pickedInfo.appId,
-            sourceAppName: pickedInfo.appName,
-            contextImage,
-            anchor: commandContext.anchor,
-          })
-          return { ok: true, commandId }
-        }
-
-        const settings = await capabilityService.getSettings()
-        const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text, settings.appLanguage)
-        if (!targetUrl) {
-          this.logger.warn('[TextPickerFeature] ipc command rejected: missing_target_url', {
-            commandId,
-          })
-          return { ok: false, reason: 'missing_target_url' }
-        }
-
-        this.manager?.hideBubble()
-        await shell.openExternal(targetUrl)
+        await this.selectionChatWindowManager?.open({
+          mode: 'explain',
+          text: pickedInfo.text,
+          selectionId: pickedInfo.selectionId,
+          sourceAppId: pickedInfo.appId,
+          sourceAppName: pickedInfo.appName,
+          contextImage,
+          anchor: commandContext.anchor,
+        })
         return { ok: true, commandId }
       }
 
-      this.logger.warn('[TextPickerFeature] ipc command rejected: not_implemented', {
-        commandId,
-      })
-      return { ok: false, reason: 'not_implemented' }
+      if (commandId === SystemCommand.AskAI) {
+        const contextImage = this.captureExplainContextImage(pickedInfo.appName, pickedInfo.sourceAppPid)
+
+        await this.selectionChatWindowManager?.open({
+          mode: 'ask',
+          text: pickedInfo.text,
+          selectionId: pickedInfo.selectionId,
+          sourceAppId: pickedInfo.appId,
+          sourceAppName: pickedInfo.appName,
+          contextImage,
+          anchor: commandContext.anchor,
+        })
+        return { ok: true, commandId }
+      }
+
+      const settings = await capabilityService.getSettings()
+      const targetUrl = this.buildExternalCommandUrl(commandId, pickedInfo.text, settings.appLanguage)
+      if (!targetUrl) {
+        this.logger.warn('[TextPickerFeature] ipc command rejected: missing_target_url', {
+          commandId,
+        })
+        return { ok: false, reason: 'missing_target_url' }
+      }
+
+      this.manager?.hideBubble()
+      await shell.openExternal(targetUrl)
+      return { ok: true, commandId }
+    }
+
+    this.logger.warn('[TextPickerFeature] ipc command rejected: not_implemented', {
+      commandId,
     })
+    return { ok: false, reason: 'not_implemented' }
+  }
+
+  private setupIpc() {
+    ipcMain.handle(TextPickerChannel.Command, (_event, commandId: string, selectionId?: string) =>
+      this.executeCommand(commandId, selectionId)
+    )
 
     ipcMain.handle(TextPickerChannel.GetPickedInfo, async () => this.manager?.getPickedInfo() || null)
 
@@ -909,6 +944,11 @@ export class TextPickerFeature {
     ipcMain.on(TextPickerChannel.ResizeBubble, (_event, width: number) => {
       this.manager?.resizeBubble(width)
     })
+
+    ipcMain.handle(
+      TextPickerChannel.SetBubbleTooltipSpace,
+      (_event, open: boolean) => this.manager?.setBubbleTooltipSpace(Boolean(open)) ?? null
+    )
 
     ipcMain.on(TextPickerChannel.SetBubbleDragging, (_event, isDragging: boolean) => {
       this.manager?.setBubbleDragging(isDragging)

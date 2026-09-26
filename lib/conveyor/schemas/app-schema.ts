@@ -44,6 +44,10 @@ export const appIpcSchema = {
     args: z.tuple([]),
     return: z.boolean(),
   },
+  exportLogs: {
+    args: z.tuple([]),
+    return: z.object({ canceled: z.boolean(), filePath: z.string().optional() }),
+  },
   getThemeMode: {
     args: z.tuple([]),
     return: z.enum(themeModes),

@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Badge } from '@/app/components/ui/badge'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Select } from '@/app/components/ui/select'
 import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useI18n } from '@/app/i18n'
+import {
+  InlineMessage,
+  SegmentedControl,
+  SettingsBlock,
+  SettingsGroup,
+  SettingsRow,
+  StatusText,
+} from '@/app/components/settings/settings-kit'
+import { compareReleaseVersions } from '@/lib/app/release'
 import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
 import {
   DEFAULT_ELEVENLABS_VOICE_ID,
@@ -17,14 +25,41 @@ import type {
   AppLanguage,
   CapabilitySettings,
   LocalGemmaConfig,
+  SelectionDefaultAction,
   SpeechProviderId,
   WebSearchProviderId,
 } from '@/lib/capability/types'
 import type { I18nKey } from '@/lib/i18n/shared'
-import type { ExplainHistoryListItem, HistoryDataType, SearchHistoryListItem, SearchHistorySummary } from '@/lib/search-history/types'
+import type {
+  ExplainHistoryListItem,
+  HistoryDataType,
+  SearchHistoryListItem,
+  SearchHistorySummary,
+} from '@/lib/search-history/types'
 import type { ThemeMode } from '@/lib/theme/shared'
 import { getVisibleTranslationEngineIds, translationEngineLabels, translationLanguages } from '@/lib/translation/shared'
-import { Database, Download, Globe, History, Languages, LockKeyhole, Moon, Monitor, SearchCheck, Shield, Sun, Trash2 } from 'lucide-react'
+import {
+  ArrowUpRight,
+  AudioLines,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Hand,
+  History,
+  Languages,
+  LockKeyhole,
+  Monitor,
+  Moon,
+  RefreshCw,
+  ScreenShare,
+  Settings2,
+  SlidersHorizontal,
+  Sparkles,
+  Sun,
+  TextCursorInput,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
 import './styles.css'
 
 type PermissionStatus = {
@@ -32,7 +67,15 @@ type PermissionStatus = {
   supported: boolean
 }
 
-type SettingsSection = 'general' | 'privacy' | 'translation' | 'history'
+type SettingsSection =
+  | 'general'
+  | 'permissions'
+  | 'selection'
+  | 'translation'
+  | 'ai'
+  | 'speech'
+  | 'history'
+  | 'advanced'
 type HistoryTab = 'search' | 'explain'
 type StatusTone = 'success' | 'error'
 type GemmaCheckState = {
@@ -47,8 +90,22 @@ type GemmaCheckState = {
 type NavItem = {
   id: SettingsSection
   label: string
-  icon: typeof SearchCheck
+  icon: LucideIcon
+  /** Colour of the rounded icon tile, as in macOS System Settings. */
+  tint: string
 }
+
+type UpdateState = {
+  status: 'idle' | 'checking' | 'latest' | 'available' | 'failed'
+  version?: string
+  url?: string
+}
+
+const navGroups: SettingsSection[][] = [
+  ['general', 'permissions'],
+  ['selection', 'translation', 'ai', 'speech'],
+  ['history', 'advanced'],
+]
 
 const aiProviderOptions: Array<{ id: AiProviderId; label: string }> = [
   { id: 'openai', label: 'OpenAI' },
@@ -113,7 +170,9 @@ const getLmStudioNativeApiUrl = (value: string | undefined, endpoint: string) =>
 }
 
 const extractGemmaModelIds = (payload: unknown) => {
-  const models = Array.isArray((payload as { models?: unknown[] })?.models) ? (payload as { models: Array<Record<string, unknown>> }).models : []
+  const models = Array.isArray((payload as { models?: unknown[] })?.models)
+    ? (payload as { models: Array<Record<string, unknown>> }).models
+    : []
 
   return models
     .flatMap((model) => {
@@ -142,7 +201,9 @@ export function SettingsPage() {
     search: null,
     explain: null,
   })
-  const [historyItems, setHistoryItems] = useState<Record<HistoryTab, Array<SearchHistoryListItem | ExplainHistoryListItem>>>({
+  const [historyItems, setHistoryItems] = useState<
+    Record<HistoryTab, Array<SearchHistoryListItem | ExplainHistoryListItem>>
+  >({
     search: [],
     explain: [],
   })
@@ -166,15 +227,25 @@ export function SettingsPage() {
   })
   const [testingWebSearchProviderId, setTestingWebSearchProviderId] = useState<WebSearchProviderId | null>(null)
   const [blockedSelectionApps, setBlockedSelectionApps] = useState<string[]>([])
-  const [webSearchTestMessages, setWebSearchTestMessages] = useState<Partial<Record<WebSearchProviderId, { tone: StatusTone; message: string }>>>({})
+  const [webSearchTestMessages, setWebSearchTestMessages] = useState<
+    Partial<Record<WebSearchProviderId, { tone: StatusTone; message: string }>>
+  >({})
   const saveTimerRef = useRef<number | null>(null)
+
+  const [appVersion, setAppVersion] = useState('')
+  const [updateState, setUpdateState] = useState<UpdateState>({ status: 'idle' })
+  const [logMessage, setLogMessage] = useState('')
 
   const navItems: NavItem[] = useMemo(
     () => [
-      { id: 'general', label: t('settings.nav.general'), icon: SearchCheck },
-      { id: 'privacy', label: t('settings.nav.privacy'), icon: Shield },
-      { id: 'translation', label: t('settings.nav.translation'), icon: Languages },
-      { id: 'history', label: t('settings.nav.history'), icon: History },
+      { id: 'general', label: t('settings.nav.general'), icon: Settings2, tint: 'gray' },
+      { id: 'permissions', label: t('settings.nav.permissions'), icon: LockKeyhole, tint: 'blue' },
+      { id: 'selection', label: t('settings.nav.selection'), icon: TextCursorInput, tint: 'purple' },
+      { id: 'translation', label: t('settings.nav.translation'), icon: Languages, tint: 'teal' },
+      { id: 'ai', label: t('settings.nav.ai'), icon: Sparkles, tint: 'indigo' },
+      { id: 'speech', label: t('settings.nav.speech'), icon: AudioLines, tint: 'orange' },
+      { id: 'history', label: t('settings.nav.history'), icon: History, tint: 'slate' },
+      { id: 'advanced', label: t('settings.nav.advanced'), icon: SlidersHorizontal, tint: 'graphite' },
     ],
     [t]
   )
@@ -232,6 +303,7 @@ export function SettingsPage() {
   )
 
   useEffect(() => {
+    void app.version().then(setAppVersion)
     void app.getThemeMode().then(setThemeMode)
     void refreshPermissions()
     void refreshSettings()
@@ -288,6 +360,37 @@ export function SettingsPage() {
   const updateField = <K extends keyof CapabilitySettings>(key: K, value: CapabilitySettings[K]) => {
     setSettings((current) => (current ? { ...current, [key]: value } : current))
     void persistPatch({ [key]: value })
+  }
+
+  const updateSelectionDefaultAction = (defaultAction: SelectionDefaultAction) => {
+    setSettings((current) => (current ? { ...current, selection: { ...current.selection, defaultAction } } : current))
+    void persistPatch({ selection: { defaultAction } })
+  }
+
+  const checkForUpdates = async () => {
+    setUpdateState({ status: 'checking' })
+    try {
+      const [currentVersion, latest] = await Promise.all([app.version(), app.latestRelease()])
+      if (!latest) {
+        setUpdateState({ status: 'failed' })
+        return
+      }
+
+      setUpdateState(
+        compareReleaseVersions(latest.version, currentVersion) > 0
+          ? { status: 'available', version: latest.version, url: latest.url }
+          : { status: 'latest' }
+      )
+    } catch {
+      setUpdateState({ status: 'failed' })
+    }
+  }
+
+  const exportLogs = async () => {
+    const result = await app.exportLogs()
+    setLogMessage(
+      !result.canceled && result.filePath ? t('settings.advanced.logsExported', { path: result.filePath }) : ''
+    )
   }
 
   const updateEngine = (engine: keyof CapabilitySettings['enabledEngines'], checked: boolean) => {
@@ -653,7 +756,9 @@ export function SettingsPage() {
 
       if (result.ok) {
         const providerLabel =
-          aiProviderOptions.find((item) => item.id === result.providerId)?.label ?? result.providerId ?? t('common.none')
+          aiProviderOptions.find((item) => item.id === result.providerId)?.label ??
+          result.providerId ??
+          t('common.none')
 
         setAiTestMessage({
           tone: 'success',
@@ -700,7 +805,9 @@ export function SettingsPage() {
           tone: 'success',
           message: t('settings.capability.speech.testSuccess', {
             provider:
-              speechProviderOptions.find((item) => item.id === result.providerId)?.label ?? result.providerId ?? t('common.none'),
+              speechProviderOptions.find((item) => item.id === result.providerId)?.label ??
+              result.providerId ??
+              t('common.none'),
             voice: result.voiceId ?? t('common.none'),
             model: result.modelId ?? t('common.none'),
           }),
@@ -769,746 +876,458 @@ export function SettingsPage() {
     }
   }
 
-  return (
-    <div className="settings-shell">
-      <div className="settings-backdrop settings-backdrop-one" />
-      <div className="settings-backdrop settings-backdrop-two" />
+  const aiConfigured = Boolean(activeAiProvider && settings?.aiService.providers[activeAiProvider].apiKey.trim())
+  const selectionDefaultAction = settings?.selection.defaultAction ?? 'bubble'
+  const activeNavItem = navItems.find((item) => item.id === activeSection) ?? navItems[0]
 
-      <section className="settings-layout">
-        <aside className="settings-sidebar">
-          <div className="settings-sidebar-top">
-            <Button variant="ghost" className="settings-back-button" onClick={() => void windowShowRoute('home')}>
-              ← {t('settings.back')}
+  const renderSection = () => {
+    if (activeSection === 'general') {
+      return (
+        <>
+          <SettingsGroup title={t('settings.group.appearance')}>
+            <SettingsRow label={t('settings.theme.title')}>
+              <SegmentedControl
+                ariaLabel={t('settings.theme.title')}
+                value={themeMode}
+                onChange={(mode) => void handleThemeChange(mode)}
+                options={[
+                  { value: 'light', label: t('settings.theme.light'), icon: <Sun size={13} /> },
+                  { value: 'dark', label: t('settings.theme.dark'), icon: <Moon size={13} /> },
+                  { value: 'system', label: t('settings.theme.system'), icon: <Monitor size={13} /> },
+                ]}
+              />
+            </SettingsRow>
+          </SettingsGroup>
+
+          <SettingsGroup title={t('settings.group.region')}>
+            <SettingsRow label={t('common.language')}>
+              <Select
+                className="st-select"
+                value={settings?.appLanguage ?? language}
+                onChange={(event) => updateField('appLanguage', event.target.value as AppLanguage)}
+              >
+                <option value="zh-CN">{t('app.language.zh-CN')}</option>
+                <option value="en">{t('app.language.en')}</option>
+              </Select>
+            </SettingsRow>
+          </SettingsGroup>
+        </>
+      )
+    }
+
+    if (activeSection === 'permissions') {
+      const permissionRows = [
+        {
+          id: 'accessibility',
+          label: t('settings.accessibility.title'),
+          description: t('settings.accessibility.desc'),
+          status: accessibilityStatus,
+          icon: <Hand size={14} />,
+          tint: 'blue',
+          open: () => app.openAccessibilitySettings(),
+        },
+        {
+          id: 'screen',
+          label: t('settings.screenRecording.title'),
+          description: t('settings.screenRecording.desc'),
+          status: screenRecordingStatus,
+          icon: <ScreenShare size={14} />,
+          tint: 'purple',
+          open: () => app.openScreenRecordingSettings(),
+        },
+      ]
+
+      return (
+        <SettingsGroup
+          description={t('settings.permissions.intro')}
+          footer={
+            <Button size="sm" variant="ghost" onClick={() => void refreshPermissions()}>
+              <RefreshCw />
+              {t('settings.accessibility.refresh')}
             </Button>
+          }
+        >
+          {permissionRows.map((row) => (
+            <SettingsRow
+              key={row.id}
+              icon={<span className={`st-tile is-${row.tint}`}>{row.icon}</span>}
+              label={row.label}
+              description={row.description}
+            >
+              <StatusText tone={row.status?.granted ? 'success' : 'warning'}>
+                {row.status?.granted ? t('common.enabled') : t('common.disabled')}
+              </StatusText>
+              {row.status?.granted ? null : (
+                <Button size="sm" variant="outline" onClick={() => void row.open()}>
+                  {t('common.openSettings')}
+                </Button>
+              )}
+            </SettingsRow>
+          ))}
+        </SettingsGroup>
+      )
+    }
 
-            <div className="settings-brand-block">
-              <h1>{t('settings.brand')}</h1>
-            </div>
-          </div>
+    if (activeSection === 'selection') {
+      return (
+        <>
+          <SettingsGroup
+            title={t('settings.selection.behavior')}
+            footer={
+              selectionDefaultAction === 'explain' && !aiConfigured ? (
+                <InlineMessage tone="info">{t('settings.selection.explainNeedsAi')}</InlineMessage>
+              ) : undefined
+            }
+          >
+            <SettingsRow
+              label={t('settings.selection.defaultAction')}
+              description={t('settings.selection.defaultActionDesc')}
+            >
+              <SegmentedControl
+                ariaLabel={t('settings.selection.defaultAction')}
+                value={selectionDefaultAction}
+                onChange={updateSelectionDefaultAction}
+                options={[
+                  { value: 'bubble', label: t('settings.selection.action.bubble') },
+                  { value: 'translate', label: t('settings.selection.action.translate') },
+                  { value: 'explain', label: t('settings.selection.action.explain') },
+                ]}
+              />
+            </SettingsRow>
+          </SettingsGroup>
 
-          <nav className="settings-nav">
-            {navItems.map((item) => {
-              const Icon = item.icon
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`settings-nav-item ${activeSection === item.id ? 'is-active' : ''}`}
-                  onClick={() => setActiveSection(item.id)}
-                >
-                  <span className="settings-nav-icon">
-                    <Icon size={15} />
-                  </span>
-                  <span className="settings-nav-title">{item.label}</span>
-                </button>
-              )
-            })}
-          </nav>
-        </aside>
-
-        <div className="settings-content">
-          <header className="settings-content-header">
-            <div>
-              <h2>{getSectionTitle(activeSection, t)}</h2>
-            </div>
-
-            <Badge variant="outline" className="settings-inline-badge">
-              {isSaving ? t('common.saveSaving') : t('common.saveAuto')}
-            </Badge>
-          </header>
-
-          {activeSection === 'general' && (
-            <div className="settings-content-stack">
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">{t('settings.theme.title')}</div>
-                  </div>
-                </div>
-
-                <div className="settings-theme-grid">
-                  <ThemeButton
-                    active={themeMode === 'light'}
-                    label={t('settings.theme.light')}
-                    icon={<Sun size={18} />}
-                    onClick={() => void handleThemeChange('light')}
-                  />
-                  <ThemeButton
-                    active={themeMode === 'dark'}
-                    label={t('settings.theme.dark')}
-                    icon={<Moon size={18} />}
-                    onClick={() => void handleThemeChange('dark')}
-                  />
-                  <ThemeButton
-                    active={themeMode === 'system'}
-                    label={t('settings.theme.system')}
-                    icon={<Monitor size={18} />}
-                    onClick={() => void handleThemeChange('system')}
-                  />
-                </div>
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-row">
-                  <div>
-                    <div className="settings-item-title">{t('common.language')}</div>
-                  </div>
-                  <div className="settings-row-aside">
-                    <Select
-                      value={settings?.appLanguage ?? language}
-                      onChange={(event) => updateField('appLanguage', event.target.value as AppLanguage)}
-                    >
-                      <option value="zh-CN">{t('app.language.zh-CN')}</option>
-                      <option value="en">{t('app.language.en')}</option>
-                    </Select>
-                  </div>
-                </div>
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-row">
-                  <div>
-                    <div className="settings-item-title">{t('settings.accessibility.title')}</div>
-                  </div>
-
-                  <div className="settings-row-aside">
-                    <Switch
-                      checked={Boolean(accessibilityStatus?.granted)}
-                      onCheckedChange={() => {
-                        void app.openAccessibilitySettings()
-                      }}
-                      aria-label={t('settings.accessibility.status')}
-                    />
-                    <span className={`settings-pill ${accessibilityStatus?.granted ? 'is-on' : 'is-off'}`}>
-                      {accessibilityStatus?.granted ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="settings-action-row">
-                  <Button size="sm" onClick={() => void app.openAccessibilitySettings()}>
-                    <LockKeyhole />
-                    {t('common.openSettings')}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => void refreshPermissions()}>
-                    {t('settings.accessibility.refresh')}
-                  </Button>
-                </div>
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-row">
-                  <div>
-                    <div className="settings-item-title">{t('settings.screenRecording.title')}</div>
-                    <div className="settings-item-desc">{t('settings.screenRecording.desc')}</div>
-                  </div>
-
-                  <div className="settings-row-aside">
-                    <Switch
-                      checked={Boolean(screenRecordingStatus?.granted)}
-                      onCheckedChange={() => {
-                        void app.openScreenRecordingSettings()
-                      }}
-                      aria-label={t('settings.screenRecording.status')}
-                    />
-                    <span className={`settings-pill ${screenRecordingStatus?.granted ? 'is-on' : 'is-off'}`}>
-                      {screenRecordingStatus?.granted ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="settings-action-row">
-                  <Button size="sm" onClick={() => void app.openScreenRecordingSettings()}>
-                    <Monitor />
-                    {t('common.openSettings')}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => void refreshPermissions()}>
-                    {t('settings.screenRecording.refresh')}
-                  </Button>
-                </div>
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">{t('settings.capability.ai.title')}</div>
-                    <div className="settings-item-desc">{t('settings.capability.ai.desc')}</div>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => void runAiServiceTest()} disabled={!settings || isTestingAiService}>
-                    {isTestingAiService ? t('settings.capability.ai.testing') : t('settings.capability.ai.test')}
-                  </Button>
-                </div>
-
-                <div className="settings-form-grid">
-                  <label className="settings-field settings-field-span">
-                    <span className="settings-field-label">{t('settings.capability.ai.provider')}</span>
-                    <Select
-                      value={activeAiProvider ?? ''}
-                      onChange={(event) => updateActiveAiProvider((event.target.value || null) as AiProviderId | null)}
-                    >
-                      <option value="">None</option>
-                      {visibleAiProviderOptions.map((provider) => (
-                        <option key={provider.id} value={provider.id}>
-                          {provider.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
-
-                  {activeAiProvider && activeAiProvider !== 'gemma' ? (
-                    <>
-                      <label className="settings-field settings-field-span">
-                        <span className="settings-field-label">{t('settings.capability.ai.apiKey')}</span>
-                        <Input
-                          type="password"
-                          value={settings?.aiService.providers[activeAiProvider].apiKey ?? ''}
-                          onChange={(event) => updateAiService(activeAiProvider, 'apiKey', event.target.value)}
-                          placeholder={aiFieldPlaceholders.apiKey}
-                        />
-                      </label>
-                      <label className="settings-field">
-                        <span className="settings-field-label">{t('settings.capability.ai.baseUrl')}</span>
-                        <Input
-                          type="text"
-                          value={settings?.aiService.providers[activeAiProvider].baseURL ?? ''}
-                          onChange={(event) => updateAiService(activeAiProvider, 'baseURL', event.target.value)}
-                          placeholder={aiFieldPlaceholders.baseURL}
-                        />
-                      </label>
-                      <label className="settings-field">
-                        <span className="settings-field-label">{t('settings.capability.ai.model')}</span>
-                        <Input
-                          type="text"
-                          value={settings?.aiService.providers[activeAiProvider].model ?? ''}
-                          onChange={(event) => updateAiService(activeAiProvider, 'model', event.target.value)}
-                          placeholder={aiFieldPlaceholders.model}
-                        />
-                      </label>
-                    </>
-                  ) : null}
-                </div>
-
-                {activeAiProvider === 'gemma' ? (
-                  <div className="settings-status-message is-success">
-                    {t('settings.privacy.gemma.generalHint')}
-                    <div className="settings-action-row">
-                      <Button size="sm" variant="outline" onClick={() => setActiveSection('privacy')}>
-                        {t('settings.nav.privacy')}
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {aiTestMessage ? (
-                  <div className={`settings-status-message ${aiTestMessage.tone === 'success' ? 'is-success' : 'is-error'}`}>
-                    {aiTestMessage.message}
-                  </div>
-                ) : null}
-
-                <div className="settings-action-row">
-                  {visibleAiProviderOptions.map((provider) => (
-                    <Badge key={provider.id} variant={provider.id === activeAiProvider ? 'default' : 'outline'}>
-                      {provider.label}
-                    </Badge>
-                  ))}
-                </div>
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">{t('settings.capability.speech.title')}</div>
-                    <div className="settings-item-desc">{t('settings.capability.speech.desc')}</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void runSpeechServiceTest()}
-                    disabled={!settings || isTestingSpeechService}
-                  >
-                    {isTestingSpeechService ? t('settings.capability.speech.testing') : t('settings.capability.speech.test')}
-                  </Button>
-                </div>
-
-                <div className="settings-form-grid">
-                  <label className="settings-field settings-field-span">
-                    <span className="settings-field-label">{t('settings.capability.speech.provider')}</span>
-                    <Select value={activeSpeechProvider} onChange={(event) => updateSpeechProvider(event.target.value as SpeechProviderId)}>
-                      {speechProviderOptions.map((provider) => (
-                        <option key={provider.id} value={provider.id}>
-                          {provider.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
-
-                  {activeSpeechProvider === 'elevenlabs' ? (
-                    <>
-                      <label className="settings-field settings-field-span">
-                        <span className="settings-field-label">{t('settings.capability.speech.apiKey')}</span>
-                        <Input
-                          type="password"
-                          value={settings?.speechService.providers.elevenlabs.apiKey ?? ''}
-                          onChange={(event) => updateElevenLabsField('apiKey', event.target.value)}
-                          placeholder="sk_..."
-                        />
-                      </label>
-                      <label className="settings-field">
-                        <span className="settings-field-label">{t('settings.capability.speech.voiceId')}</span>
-                        <Select value={selectedElevenLabsVoiceOption} onChange={(event) => updateElevenLabsVoiceSelection(event.target.value)}>
-                          {ELEVENLABS_PRESET_VOICE_IDS.map((voiceId) => (
-                            <option key={voiceId} value={voiceId}>
-                              {voiceId}
-                            </option>
-                          ))}
-                          <option value={CUSTOM_ELEVENLABS_VOICE_OPTION}>自定义</option>
-                        </Select>
-                      </label>
-                      {selectedElevenLabsVoiceOption === CUSTOM_ELEVENLABS_VOICE_OPTION ? (
-                        <label className="settings-field">
-                          <span className="settings-field-label">自定义 Voice ID</span>
-                          <Input
-                            type="text"
-                            value={settings?.speechService.providers.elevenlabs.voiceId ?? ''}
-                            onChange={(event) => updateElevenLabsField('voiceId', event.target.value)}
-                            placeholder={DEFAULT_ELEVENLABS_VOICE_ID}
-                          />
-                        </label>
-                      ) : null}
-                      <label className="settings-field">
-                        <span className="settings-field-label">{t('settings.capability.speech.model')}</span>
-                        <Input
-                          type="text"
-                          value={settings?.speechService.providers.elevenlabs.modelId ?? ''}
-                          onChange={(event) => updateElevenLabsField('modelId', event.target.value)}
-                          placeholder="eleven_multilingual_v2"
-                        />
-                      </label>
-                    </>
-                  ) : null}
-
-                  {activeSpeechProvider === 'openai' ? (
-                    <>
-                      <label className="settings-field settings-field-span">
-                        <span className="settings-field-label">{t('settings.capability.speech.apiKey')}</span>
-                        <Input
-                          type="password"
-                          value={settings?.speechService.providers.openai.apiKey ?? ''}
-                          onChange={(event) => updateOpenAiSpeechField('apiKey', event.target.value)}
-                          placeholder="sk-..."
-                        />
-                      </label>
-                      <div className="settings-item-desc">
-                        {t('settings.capability.speech.openaiDefaultHint', {
-                          voice: settings?.speechService.providers.openai.voice ?? 'alloy',
-                          model: settings?.speechService.providers.openai.model ?? 'gpt-4o-mini-tts',
-                        })}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-
-                {speechTestMessage ? (
-                  <div className={`settings-status-message ${speechTestMessage.tone === 'success' ? 'is-success' : 'is-error'}`}>
-                    {speechTestMessage.message}
-                  </div>
-                ) : null}
-
-                <div className="settings-action-row">
+          <SettingsGroup title={t('settings.selection.blocked')} description={t('settings.selection.blockedDesc')}>
+            {blockedSelectionApps.length ? (
+              blockedSelectionApps.map((bundleId) => (
+                <SettingsRow key={bundleId} label={<span className="st-mono">{bundleId}</span>}>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() =>
+                      void app.removeBlockedSelectionApp(bundleId).then(() => refreshBlockedSelectionApps())
+                    }
+                  >
+                    {t('settings.selection.restore')}
+                  </Button>
+                </SettingsRow>
+              ))
+            ) : (
+              <SettingsBlock className="st-empty">{t('settings.selection.blockedEmpty')}</SettingsBlock>
+            )}
+          </SettingsGroup>
+        </>
+      )
+    }
+
+    if (activeSection === 'translation' && settings) {
+      const languageOptions = translationLanguages.filter((item) => item.code !== 'auto')
+
+      return (
+        <>
+          <SettingsGroup title={t('settings.translation.languages')}>
+            <SettingsRow label={t('settings.translation.first')}>
+              <Select
+                className="st-select"
+                value={settings.firstLanguage}
+                onChange={(event) => updateField('firstLanguage', event.target.value)}
+              >
+                {languageOptions.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </SettingsRow>
+            <SettingsRow label={t('settings.translation.second')}>
+              <Select
+                className="st-select"
+                value={settings.secondLanguage}
+                onChange={(event) => updateField('secondLanguage', event.target.value)}
+              >
+                {languageOptions.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </SettingsRow>
+          </SettingsGroup>
+
+          <SettingsGroup title={t('settings.translation.engines')}>
+            {visibleTranslationEngineIds.map((engine) => (
+              <SettingsRow
+                key={engine}
+                label={translationEngineLabels[engine]}
+                description={
+                  engine === 'ai'
+                    ? `${t('settings.capability.ai.provider')}：${getProviderLabel(activeAiProvider, t('common.none'))}`
+                    : engine === 'gemma'
+                      ? settings.localModels.gemma.model || t('settings.privacy.gemma.detectModelMeta')
+                      : undefined
+                }
+              >
+                <Switch
+                  checked={settings.enabledEngines[engine]}
+                  onCheckedChange={(checked) => updateEngine(engine, checked)}
+                />
+              </SettingsRow>
+            ))}
+          </SettingsGroup>
+        </>
+      )
+    }
+
+    if (activeSection === 'ai') {
+      return (
+        <SettingsGroup
+          title={t('settings.ai.service')}
+          description={t('settings.capability.ai.desc')}
+          accessory={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void runAiServiceTest()}
+              disabled={!settings || isTestingAiService}
+            >
+              {isTestingAiService ? t('settings.capability.ai.testing') : t('settings.capability.ai.test')}
+            </Button>
+          }
+          footer={
+            aiTestMessage ? (
+              <InlineMessage tone={aiTestMessage.tone === 'success' ? 'success' : 'error'}>
+                {aiTestMessage.message}
+              </InlineMessage>
+            ) : undefined
+          }
+        >
+          <SettingsRow label={t('settings.capability.ai.provider')}>
+            <Select
+              className="st-select"
+              value={activeAiProvider ?? ''}
+              onChange={(event) => updateActiveAiProvider((event.target.value || null) as AiProviderId | null)}
+            >
+              <option value="">{t('common.none')}</option>
+              {visibleAiProviderOptions.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.label}
+                </option>
+              ))}
+            </Select>
+          </SettingsRow>
+
+          {activeAiProvider && activeAiProvider !== 'gemma' ? (
+            <>
+              <SettingsRow label={t('settings.capability.ai.apiKey')}>
+                <Input
+                  className="st-input"
+                  type="password"
+                  value={settings?.aiService.providers[activeAiProvider].apiKey ?? ''}
+                  onChange={(event) => updateAiService(activeAiProvider, 'apiKey', event.target.value)}
+                  placeholder={aiFieldPlaceholders.apiKey}
+                />
+              </SettingsRow>
+              <SettingsRow label={t('settings.capability.ai.baseUrl')}>
+                <Input
+                  className="st-input"
+                  value={settings?.aiService.providers[activeAiProvider].baseURL ?? ''}
+                  onChange={(event) => updateAiService(activeAiProvider, 'baseURL', event.target.value)}
+                  placeholder={aiFieldPlaceholders.baseURL}
+                />
+              </SettingsRow>
+              <SettingsRow label={t('settings.capability.ai.model')}>
+                <Input
+                  className="st-input"
+                  value={settings?.aiService.providers[activeAiProvider].model ?? ''}
+                  onChange={(event) => updateAiService(activeAiProvider, 'model', event.target.value)}
+                  placeholder={aiFieldPlaceholders.model}
+                />
+              </SettingsRow>
+            </>
+          ) : null}
+
+          {activeAiProvider === 'gemma' ? (
+            <SettingsBlock className="st-note">
+              {t('settings.ai.gemmaHint')}
+              <Button size="sm" variant="link" onClick={() => setActiveSection('advanced')}>
+                {t('settings.nav.advanced')}
+              </Button>
+            </SettingsBlock>
+          ) : null}
+        </SettingsGroup>
+      )
+    }
+
+    if (activeSection === 'speech') {
+      return (
+        <SettingsGroup
+          title={t('settings.capability.speech.title')}
+          description={t('settings.capability.speech.desc')}
+          accessory={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void runSpeechServiceTest()}
+              disabled={!settings || isTestingSpeechService}
+            >
+              {isTestingSpeechService ? t('settings.capability.speech.testing') : t('settings.capability.speech.test')}
+            </Button>
+          }
+          footer={
+            <>
+              {speechTestMessage ? (
+                <InlineMessage tone={speechTestMessage.tone === 'success' ? 'success' : 'error'}>
+                  {speechTestMessage.message}
+                </InlineMessage>
+              ) : null}
+              <div className="st-link-row">
+                <Button
+                  size="sm"
+                  variant="link"
+                  onClick={() =>
+                    void webOpenUrl(
+                      activeSpeechProvider === 'openai'
+                        ? 'https://developers.openai.com/api/docs/guides/text-to-speech'
+                        : 'https://elevenlabs.io/docs/overview/intro'
+                    )
+                  }
+                >
+                  {t('settings.capability.speech.docs')}
+                  <ArrowUpRight />
+                </Button>
+                {activeSpeechProvider === 'elevenlabs' ? (
+                  <Button
+                    size="sm"
+                    variant="link"
+                    onClick={() =>
                       void webOpenUrl(
-                        activeSpeechProvider === 'openai'
-                          ? 'https://developers.openai.com/api/docs/guides/text-to-speech'
-                          : 'https://elevenlabs.io/docs/overview/intro'
+                        'https://help.elevenlabs.io/hc/en-us/articles/14599760033937-How-do-I-find-the-voice-ID-of-my-voices-via-the-website-and-API'
                       )
                     }
                   >
-                    <Globe size={14} />
-                    {t('settings.capability.speech.docs')}
+                    {t('settings.capability.speech.voiceHelp')}
+                    <ArrowUpRight />
                   </Button>
-                  {activeSpeechProvider === 'elevenlabs' ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        void webOpenUrl(
-                          'https://help.elevenlabs.io/hc/en-us/articles/14599760033937-How-do-I-find-the-voice-ID-of-my-voices-via-the-website-and-API'
-                        )
-                      }
-                    >
-                      {t('settings.capability.speech.voiceHelp')}
-                    </Button>
-                  ) : null}
-                </div>
-              </section>
+                ) : null}
+              </div>
+            </>
+          }
+        >
+          <SettingsRow label={t('settings.capability.speech.provider')}>
+            <Select
+              className="st-select"
+              value={activeSpeechProvider}
+              onChange={(event) => updateSpeechProvider(event.target.value as SpeechProviderId)}
+            >
+              {speechProviderOptions.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.label}
+                </option>
+              ))}
+            </Select>
+          </SettingsRow>
 
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">{t('settings.capability.search.title')}</div>
-                    <div className="settings-item-desc">{t('settings.capability.search.desc')}</div>
-                  </div>
-                </div>
-
-                <div className="settings-row">
-                  <div className="settings-item-desc">{t('settings.capability.search.priority')}</div>
-                  <div className="settings-row-aside">
-                    <Switch
-                      checked={settings?.webSearch.enabled ?? false}
-                      onCheckedChange={(checked) =>
-                        void persistPatch({
-                          webSearch: {
-                            enabled: checked,
-                          },
-                        })
-                      }
-                      aria-label={t('settings.capability.search.enabled')}
-                    />
-                  </div>
-                </div>
-
-                <div className="settings-content-stack">
-                  {webSearchProviders.map((provider) => (
-                    <div className="settings-content-stack" key={provider.id}>
-                      <div className="settings-row">
-                        <div className="settings-field settings-field-span">
-                          <span className="settings-field-label">{provider.label}</span>
-                          <Input
-                            type="password"
-                            value={settings?.webSearch.providers[provider.id].apiKey ?? ''}
-                            onChange={(event) => updateWebSearchField(provider.id, event.target.value)}
-                            placeholder="key"
-                          />
-                        </div>
-
-                        <div className="settings-row-aside">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void runWebSearchProviderTest(provider.id)}
-                            disabled={testingWebSearchProviderId === provider.id}
-                          >
-                            {testingWebSearchProviderId === provider.id
-                              ? t('settings.capability.search.testing')
-                              : t('settings.capability.search.test')}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => void window.open(provider.keyUrl, '_blank')}>
-                            <Globe size={14} />
-                            {t('settings.capability.search.getKey')}
-                          </Button>
-                        </div>
-                      </div>
-
-                      {webSearchTestMessages[provider.id] ? (
-                        <div
-                          className={`settings-status-message ${webSearchTestMessages[provider.id]?.tone === 'success' ? 'is-success' : 'is-error'}`}
-                        >
-                          {webSearchTestMessages[provider.id]?.message}
-                        </div>
-                      ) : null}
-                    </div>
+          {activeSpeechProvider === 'elevenlabs' ? (
+            <>
+              <SettingsRow label={t('settings.capability.speech.apiKey')}>
+                <Input
+                  className="st-input"
+                  type="password"
+                  value={settings?.speechService.providers.elevenlabs.apiKey ?? ''}
+                  onChange={(event) => updateElevenLabsField('apiKey', event.target.value)}
+                  placeholder="sk_..."
+                />
+              </SettingsRow>
+              <SettingsRow label={t('settings.capability.speech.voiceId')}>
+                <Select
+                  className="st-select"
+                  value={selectedElevenLabsVoiceOption}
+                  onChange={(event) => updateElevenLabsVoiceSelection(event.target.value)}
+                >
+                  {ELEVENLABS_PRESET_VOICE_IDS.map((voiceId) => (
+                    <option key={voiceId} value={voiceId}>
+                      {voiceId}
+                    </option>
                   ))}
-                </div>
-              </section>
-            </div>
-          )}
-
-          {activeSection === 'privacy' && settings && (
-            <div className="settings-content-stack">
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">划词气泡 APP 黑名单</div>
-                    <div className="settings-item-desc">名单内的应用不会触发展示划词气泡，可随时恢复。</div>
-                  </div>
-                </div>
-                {blockedSelectionApps.length ? (
-                  <div className="settings-action-row">
-                    {blockedSelectionApps.map((bundleId) => (
-                      <Badge key={bundleId} variant="outline">
-                        {bundleId}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            void app.removeBlockedSelectionApp(bundleId).then(() => refreshBlockedSelectionApps())
-                          }
-                        >
-                          恢复
-                        </Button>
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="settings-item-desc">暂无屏蔽应用</div>
-                )}
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">{t('settings.privacy.gemma.title')}</div>
-                    <div className="settings-item-desc">{t('settings.privacy.gemma.desc')}</div>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => void runGemmaEnvironmentCheck()} disabled={gemmaCheckState.status === 'checking'}>
-                    {gemmaCheckState.status === 'checking' ? t('settings.privacy.gemma.detecting') : t('settings.privacy.gemma.detect')}
-                  </Button>
-                </div>
-
-                <div className="settings-action-row">
-                  <Button size="sm" variant="outline" onClick={() => void webOpenUrl('https://lmstudio.ai')}>
-                    <Download size={14} />
-                    {t('settings.privacy.gemma.download')}
-                  </Button>
-                  {gemmaCheckState.appPath ? (
-                    <Button size="sm" variant="outline" onClick={() => void app.openInstalledApp(gemmaCheckState.appPath!)}>
-                      {t('settings.privacy.gemma.openApp')}
-                    </Button>
-                  ) : null}
-                </div>
-
-                <div className="settings-stat-grid">
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">{t('settings.privacy.gemma.detectApp')}</div>
-                    <div className="settings-stat-value">
-                      {gemmaCheckState.status === 'idle'
-                        ? t('common.none')
-                        : gemmaCheckState.installed
-                          ? t('common.enabled')
-                          : t('common.disabled')}
-                    </div>
-                    <div className="settings-stat-meta">{t('settings.privacy.gemma.detectAppMeta')}</div>
-                  </div>
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">{t('settings.privacy.gemma.detectService')}</div>
-                    <div className="settings-stat-value">
-                      {gemmaCheckState.status === 'idle'
-                        ? t('common.none')
-                        : gemmaCheckState.serviceReachable
-                          ? t('common.enabled')
-                          : t('common.disabled')}
-                    </div>
-                    <div className="settings-stat-meta">{settings.localModels.gemma.baseURL}</div>
-                  </div>
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">{t('settings.privacy.gemma.detectModel')}</div>
-                    <div className="settings-stat-value">{gemmaCheckState.detectedModelId ?? t('common.none')}</div>
-                    <div className="settings-stat-meta">
-                      {gemmaCheckState.modelIds.length
-                        ? t('settings.privacy.gemma.modelCount', { count: gemmaCheckState.modelIds.length })
-                        : t('settings.privacy.gemma.detectModelMeta')}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="settings-form-grid">
-                  <label className="settings-field settings-field-span">
-                    <span className="settings-field-label">{t('settings.privacy.gemma.enabled')}</span>
-                    <div className="settings-row-aside">
-                      <Switch
-                        checked={settings.localModels.gemma.enabled}
-                        onCheckedChange={(checked) => updateLocalGemma('enabled', checked)}
-                      />
-                    </div>
-                  </label>
-                  <label className="settings-field settings-field-span">
-                    <span className="settings-field-label">{t('settings.capability.ai.apiKey')}</span>
-                    <Input
-                      type="text"
-                      value={settings.localModels.gemma.apiKey}
-                      onChange={(event) => updateLocalGemma('apiKey', event.target.value, true)}
-                      placeholder="local"
-                    />
-                  </label>
-                  <label className="settings-field">
-                    <span className="settings-field-label">{t('settings.capability.ai.baseUrl')}</span>
-                    <Input
-                      type="text"
-                      value={settings.localModels.gemma.baseURL}
-                      onChange={(event) => updateLocalGemma('baseURL', event.target.value, true)}
-                      placeholder="http://127.0.0.1:1234/v1"
-                    />
-                  </label>
-                  <label className="settings-field">
-                    <span className="settings-field-label">{t('settings.capability.ai.model')}</span>
-                    <Input
-                      type="text"
-                      value={settings.localModels.gemma.model}
-                      onChange={(event) => updateLocalGemma('model', event.target.value, true)}
-                      placeholder={gemmaCheckState.detectedModelId ?? 'gemma-4-31b-it'}
-                    />
-                  </label>
-                </div>
-
-                <div className="settings-content-stack">
-                  <div className="settings-item-desc">{t('settings.privacy.gemma.guide')}</div>
-                  <div className="settings-item-desc">{t('settings.privacy.gemma.mainWindowOnly')}</div>
-                  <div className="settings-item-desc">{t('settings.privacy.gemma.translationHint')}</div>
-                  <div className="settings-item-desc">{t('settings.privacy.gemma.generalProviderHint')}</div>
-                </div>
-              </section>
-            </div>
-          )}
-
-          {activeSection === 'translation' && settings && (
-            <div className="settings-content-stack">
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">{t('settings.translation.engines')}</div>
-                  </div>
-                </div>
-
-                <div className="settings-engine-grid">
-                  {visibleTranslationEngineIds.map((engine) => {
-                    const enabled = settings.enabledEngines[engine]
-                    const isAiEngine = engine === 'ai'
-                    const isGemmaEngine = engine === 'gemma'
-
-                    return (
-                      <div className="settings-engine-item" key={engine}>
-                        <div>
-                          <div className="settings-engine-name">
-                            <Badge variant={enabled ? 'default' : 'outline'} className="settings-engine-badge">
-                              {translationEngineLabels[engine]}
-                            </Badge>
-                          </div>
-                          {isAiEngine ? (
-                            <div className="settings-item-desc">
-                              {t('settings.capability.ai.provider')}：{getProviderLabel(activeAiProvider, t('common.none'))}
-                            </div>
-                          ) : null}
-                          {isGemmaEngine ? (
-                            <div className="settings-item-desc">
-                              {settings.localModels.gemma.model || t('settings.privacy.gemma.detectModelMeta')}
-                            </div>
-                          ) : null}
-                        </div>
-                        <Switch checked={enabled} onCheckedChange={(checked) => updateEngine(engine, checked)} />
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">{t('settings.translation.languages')}</div>
-                  </div>
-                </div>
-
-                <div className="settings-form-grid">
-                  <label className="settings-field">
-                    <span className="settings-field-label">{t('settings.translation.first')}</span>
-                    <Select value={settings.firstLanguage} onChange={(event) => updateField('firstLanguage', event.target.value)}>
-                      {translationLanguages
-                        .filter((item) => item.code !== 'auto')
-                        .map((languageOption) => (
-                          <option key={languageOption.code} value={languageOption.code}>
-                            {languageOption.label}
-                          </option>
-                        ))}
-                    </Select>
-                  </label>
-
-                  <label className="settings-field">
-                    <span className="settings-field-label">{t('settings.translation.second')}</span>
-                    <Select value={settings.secondLanguage} onChange={(event) => updateField('secondLanguage', event.target.value)}>
-                      {translationLanguages
-                        .filter((item) => item.code !== 'auto')
-                        .map((languageOption) => (
-                          <option key={languageOption.code} value={languageOption.code}>
-                            {languageOption.label}
-                          </option>
-                        ))}
-                    </Select>
-                  </label>
-                </div>
-              </section>
-            </div>
-          )}
-
-          {activeSection === 'history' && (
-            <div className="settings-content-stack">
-              <section className="settings-surface">
-                <div className="settings-action-row">
-                  <HistoryTabButton
-                    active={activeHistoryTab === 'search'}
-                    label={t('settings.history.searchTab')}
-                    onClick={() => setActiveHistoryTab('search')}
+                  <option value={CUSTOM_ELEVENLABS_VOICE_OPTION}>{language === 'en' ? 'Custom' : '自定义'}</option>
+                </Select>
+              </SettingsRow>
+              {selectedElevenLabsVoiceOption === CUSTOM_ELEVENLABS_VOICE_OPTION ? (
+                <SettingsRow label="Voice ID">
+                  <Input
+                    className="st-input"
+                    value={settings?.speechService.providers.elevenlabs.voiceId ?? ''}
+                    onChange={(event) => updateElevenLabsField('voiceId', event.target.value)}
+                    placeholder={DEFAULT_ELEVENLABS_VOICE_ID}
                   />
-                  <HistoryTabButton
-                    active={activeHistoryTab === 'explain'}
-                    label={t('settings.history.explainTab')}
-                    onClick={() => setActiveHistoryTab('explain')}
-                  />
-                </div>
+                </SettingsRow>
+              ) : null}
+              <SettingsRow label={t('settings.capability.speech.model')}>
+                <Input
+                  className="st-input"
+                  value={settings?.speechService.providers.elevenlabs.modelId ?? ''}
+                  onChange={(event) => updateElevenLabsField('modelId', event.target.value)}
+                  placeholder="eleven_multilingual_v2"
+                />
+              </SettingsRow>
+            </>
+          ) : null}
 
-                <div className="settings-surface-heading">
-                  <div>
-                    <div className="settings-item-title">
-                      {activeHistoryTab === 'search' ? t('settings.history.searchSummary') : t('settings.history.explainSummary')}
-                    </div>
-                    <div className="settings-item-desc">
-                      {activeHistoryTab === 'search' ? t('settings.history.retentionSearch') : t('settings.history.retentionExplain')}
-                    </div>
-                  </div>
-                </div>
+          {activeSpeechProvider === 'openai' ? (
+            <SettingsRow
+              label={t('settings.capability.speech.apiKey')}
+              description={t('settings.capability.speech.openaiDefaultHint', {
+                voice: settings?.speechService.providers.openai.voice ?? 'alloy',
+                model: settings?.speechService.providers.openai.model ?? 'gpt-4o-mini-tts',
+              })}
+            >
+              <Input
+                className="st-input"
+                type="password"
+                value={settings?.speechService.providers.openai.apiKey ?? ''}
+                onChange={(event) => updateOpenAiSpeechField('apiKey', event.target.value)}
+                placeholder="sk-..."
+              />
+            </SettingsRow>
+          ) : null}
+        </SettingsGroup>
+      )
+    }
 
-                <div className="settings-stat-grid">
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">{t('settings.history.total')}</div>
-                    <div className="settings-stat-value">{historySummary[activeHistoryTab]?.totalCount ?? 0}</div>
-                    <div className="settings-stat-meta">
-                      {activeHistoryTab === 'search' ? t('settings.history.searchMeta') : t('settings.history.explainMeta')}
-                    </div>
-                  </div>
+    if (activeSection === 'history') {
+      const summary = historySummary[activeHistoryTab]
 
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">{t('settings.history.retention')}</div>
-                    <div className="settings-stat-value">
-                      {t('settings.history.retentionDays', { count: historySummary[activeHistoryTab]?.retentionDays ?? 0 })}
-                    </div>
-                    <div className="settings-stat-meta">SQLite</div>
-                  </div>
+      return (
+        <>
+          <div className="st-toolbar-row">
+            <SegmentedControl
+              value={activeHistoryTab}
+              onChange={setActiveHistoryTab}
+              options={[
+                { value: 'search', label: t('settings.history.searchTab') },
+                { value: 'explain', label: t('settings.history.explainTab') },
+              ]}
+            />
+          </div>
 
-                  <div className="settings-stat-card">
-                    <div className="settings-stat-label">
-                      {activeHistoryTab === 'search' ? t('settings.history.lastSearch') : t('settings.history.lastExplain')}
-                    </div>
-                    <div className="settings-stat-value">
-                      {formatHistoryTime(historySummary[activeHistoryTab]?.lastActivityAt, language)}
-                    </div>
-                    <div className="settings-stat-meta">{t('common.lastUpdated')}</div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="settings-surface">
-                <div className="settings-row">
-                  <div>
-                    <div className="settings-item-title">{t('settings.history.storage')}</div>
-                  </div>
-                  <div className="settings-row-aside">
-                    <span className="settings-pill is-on">{t('settings.history.sqlite')}</span>
-                  </div>
-                </div>
-
-                <div className="settings-history-path">
-                  <span className="settings-history-path-icon">
-                    <Database size={15} />
-                  </span>
-                  <span>{historySummary[activeHistoryTab]?.storagePath ?? t('common.loading')}</span>
-                </div>
-
-                <div className="settings-action-row">
-                  <Button size="sm" onClick={() => void exportHistory(activeHistoryTab)} disabled={Boolean(busyHistoryAction)}>
-                    <Download size={14} />
+          <SettingsGroup
+            title={
+              activeHistoryTab === 'search' ? t('settings.history.searchSummary') : t('settings.history.explainSummary')
+            }
+            description={
+              activeHistoryTab === 'search'
+                ? t('settings.history.retentionSearch')
+                : t('settings.history.retentionExplain')
+            }
+            footer={
+              <>
+                <div className="st-button-row">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void exportHistory(activeHistoryTab)}
+                    disabled={Boolean(busyHistoryAction)}
+                  >
+                    <Download />
                     {busyHistoryAction === 'export' ? t('settings.history.exporting') : t('settings.history.export')}
                   </Button>
                   <Button
@@ -1517,81 +1336,338 @@ export function SettingsPage() {
                     onClick={() => void clearHistory(activeHistoryTab)}
                     disabled={Boolean(busyHistoryAction)}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 />
                     {busyHistoryAction === 'clear' ? t('settings.history.clearing') : t('settings.history.clear')}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => void refreshHistory(activeHistoryTab)}>
+                  <Button size="sm" variant="ghost" onClick={() => void refreshHistory(activeHistoryTab)}>
+                    <RefreshCw />
                     {t('common.reload')}
                   </Button>
                 </div>
+                {historyMessage ? <InlineMessage tone="info">{historyMessage}</InlineMessage> : null}
+              </>
+            }
+          >
+            <SettingsRow label={t('settings.history.total')}>
+              <span className="st-value">{summary?.totalCount ?? 0}</span>
+            </SettingsRow>
+            <SettingsRow label={t('settings.history.retention')}>
+              <span className="st-value">
+                {t('settings.history.retentionDays', { count: summary?.retentionDays ?? 0 })}
+              </span>
+            </SettingsRow>
+            <SettingsRow
+              label={
+                activeHistoryTab === 'search' ? t('settings.history.lastSearch') : t('settings.history.lastExplain')
+              }
+            >
+              <span className="st-value">{formatHistoryTime(summary?.lastActivityAt, language)}</span>
+            </SettingsRow>
+            <SettingsRow
+              label={t('settings.history.storage')}
+              description={<span className="st-mono">{summary?.storagePath ?? t('common.loading')}</span>}
+            >
+              <span className="st-value">{t('settings.history.sqlite')}</span>
+            </SettingsRow>
+          </SettingsGroup>
 
-                {historyMessage ? <div className="settings-history-message">{historyMessage}</div> : null}
+          <SettingsGroup title={t('settings.history.records')}>
+            {historyItems[activeHistoryTab].length ? (
+              historyItems[activeHistoryTab].map((item) =>
+                activeHistoryTab === 'search' ? (
+                  <SearchHistoryRow key={item.id} item={item as SearchHistoryListItem} locale={language} />
+                ) : (
+                  <ExplainHistoryRow key={item.id} item={item as ExplainHistoryListItem} locale={language} t={t} />
+                )
+              )
+            ) : (
+              <SettingsBlock className="st-empty">{t('settings.history.empty')}</SettingsBlock>
+            )}
+          </SettingsGroup>
+        </>
+      )
+    }
 
-                <div className="settings-content-stack">
-                  {historyItems[activeHistoryTab].length ? (
-                    historyItems[activeHistoryTab].map((item) =>
-                      activeHistoryTab === 'search' ? (
-                        <SearchHistoryCard key={item.id} item={item as SearchHistoryListItem} />
-                      ) : (
-                        <ExplainHistoryCard key={item.id} item={item as ExplainHistoryListItem} locale={language} t={t} />
-                      )
-                    )
-                  ) : (
-                    <div className="settings-item-desc">{t('settings.history.empty')}</div>
-                  )}
+    if (activeSection === 'advanced' && settings) {
+      const gemmaStatus = (ok: boolean) =>
+        gemmaCheckState.status === 'idle' ? (
+          <span className="st-value">{t('common.none')}</span>
+        ) : (
+          <StatusText tone={ok ? 'success' : 'warning'}>{ok ? t('common.enabled') : t('common.disabled')}</StatusText>
+        )
+
+      return (
+        <>
+          <SettingsGroup title={t('settings.advanced.webSearch')} description={t('settings.capability.search.desc')}>
+            <SettingsRow
+              label={t('settings.capability.search.enabled')}
+              description={t('settings.capability.search.priority')}
+            >
+              <Switch
+                checked={settings.webSearch.enabled}
+                onCheckedChange={(checked) => void persistPatch({ webSearch: { enabled: checked } })}
+              />
+            </SettingsRow>
+            {webSearchProviders.map((provider) => {
+              const message = webSearchTestMessages[provider.id]
+
+              return (
+                <SettingsRow
+                  key={provider.id}
+                  label={provider.label}
+                  description={
+                    message ? (
+                      <span className={message.tone === 'success' ? 'st-text-success' : 'st-text-error'}>
+                        {message.message}
+                      </span>
+                    ) : undefined
+                  }
+                >
+                  <Input
+                    className="st-input is-narrow"
+                    type="password"
+                    value={settings.webSearch.providers[provider.id].apiKey}
+                    onChange={(event) => updateWebSearchField(provider.id, event.target.value)}
+                    placeholder="API Key"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void runWebSearchProviderTest(provider.id)}
+                    disabled={testingWebSearchProviderId === provider.id}
+                  >
+                    {testingWebSearchProviderId === provider.id
+                      ? t('settings.capability.search.testing')
+                      : t('settings.capability.search.test')}
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title={t('settings.capability.search.getKey')}
+                    aria-label={t('settings.capability.search.getKey')}
+                    onClick={() => void webOpenUrl(provider.keyUrl)}
+                  >
+                    <ArrowUpRight />
+                  </Button>
+                </SettingsRow>
+              )
+            })}
+          </SettingsGroup>
+
+          <SettingsGroup
+            title={t('settings.advanced.localModel')}
+            description={t('settings.privacy.gemma.desc')}
+            accessory={
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void runGemmaEnvironmentCheck()}
+                disabled={gemmaCheckState.status === 'checking'}
+              >
+                {gemmaCheckState.status === 'checking'
+                  ? t('settings.privacy.gemma.detecting')
+                  : t('settings.privacy.gemma.detect')}
+              </Button>
+            }
+            footer={
+              <>
+                <div className="st-footnotes">
+                  <p>{t('settings.privacy.gemma.guide')}</p>
+                  <p>{t('settings.privacy.gemma.mainWindowOnly')}</p>
+                  <p>{t('settings.privacy.gemma.translationHint')}</p>
                 </div>
-              </section>
+                <div className="st-link-row">
+                  <Button size="sm" variant="link" onClick={() => void webOpenUrl('https://lmstudio.ai')}>
+                    {t('settings.privacy.gemma.download')}
+                    <ArrowUpRight />
+                  </Button>
+                  {gemmaCheckState.appPath ? (
+                    <Button
+                      size="sm"
+                      variant="link"
+                      onClick={() => void app.openInstalledApp(gemmaCheckState.appPath!)}
+                    >
+                      {t('settings.privacy.gemma.openApp')}
+                      <ArrowUpRight />
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            }
+          >
+            <SettingsRow label={t('settings.privacy.gemma.enabled')}>
+              <Switch
+                checked={settings.localModels.gemma.enabled}
+                onCheckedChange={(checked) => updateLocalGemma('enabled', checked)}
+              />
+            </SettingsRow>
+            <SettingsRow
+              label={t('settings.privacy.gemma.detectApp')}
+              description={t('settings.privacy.gemma.detectAppMeta')}
+            >
+              {gemmaStatus(gemmaCheckState.installed)}
+            </SettingsRow>
+            <SettingsRow
+              label={t('settings.privacy.gemma.detectService')}
+              description={<span className="st-mono">{settings.localModels.gemma.baseURL}</span>}
+            >
+              {gemmaStatus(gemmaCheckState.serviceReachable)}
+            </SettingsRow>
+            <SettingsRow
+              label={t('settings.privacy.gemma.detectModel')}
+              description={
+                gemmaCheckState.modelIds.length
+                  ? t('settings.privacy.gemma.modelCount', { count: gemmaCheckState.modelIds.length })
+                  : t('settings.privacy.gemma.detectModelMeta')
+              }
+            >
+              <span className="st-value">{gemmaCheckState.detectedModelId ?? t('common.none')}</span>
+            </SettingsRow>
+            <SettingsRow label={t('settings.capability.ai.apiKey')}>
+              <Input
+                className="st-input"
+                value={settings.localModels.gemma.apiKey}
+                onChange={(event) => updateLocalGemma('apiKey', event.target.value, true)}
+                placeholder="local"
+              />
+            </SettingsRow>
+            <SettingsRow label={t('settings.capability.ai.baseUrl')}>
+              <Input
+                className="st-input"
+                value={settings.localModels.gemma.baseURL}
+                onChange={(event) => updateLocalGemma('baseURL', event.target.value, true)}
+                placeholder="http://127.0.0.1:1234/v1"
+              />
+            </SettingsRow>
+            <SettingsRow label={t('settings.capability.ai.model')}>
+              <Input
+                className="st-input"
+                value={settings.localModels.gemma.model}
+                onChange={(event) => updateLocalGemma('model', event.target.value, true)}
+                placeholder={gemmaCheckState.detectedModelId ?? 'gemma-4-31b-it'}
+              />
+            </SettingsRow>
+          </SettingsGroup>
+
+          <SettingsGroup title={t('settings.advanced.diagnostics')}>
+            <SettingsRow label={t('settings.advanced.version')} description={renderUpdateStatus()}>
+              <span className="st-value">{appVersion || '—'}</span>
+              {updateState.status === 'available' && updateState.url ? (
+                <Button size="sm" onClick={() => void webOpenUrl(updateState.url!)}>
+                  {t('settings.advanced.download')}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void checkForUpdates()}
+                  disabled={updateState.status === 'checking'}
+                >
+                  {updateState.status === 'checking'
+                    ? t('settings.advanced.checking')
+                    : t('settings.advanced.checkUpdate')}
+                </Button>
+              )}
+            </SettingsRow>
+            <SettingsRow
+              label={t('settings.advanced.logs')}
+              description={logMessage || t('settings.advanced.logsDesc')}
+            >
+              <Button size="sm" variant="outline" onClick={() => void exportLogs()}>
+                <Download />
+                {t('settings.advanced.exportLogs')}
+              </Button>
+            </SettingsRow>
+          </SettingsGroup>
+        </>
+      )
+    }
+
+    return null
+  }
+
+  const renderUpdateStatus = () => {
+    if (updateState.status === 'latest')
+      return <span className="st-text-success">{t('settings.advanced.upToDate')}</span>
+    if (updateState.status === 'available') {
+      return (
+        <span className="st-text-accent">
+          {t('settings.advanced.updateAvailable', { version: updateState.version ?? '' })}
+        </span>
+      )
+    }
+    if (updateState.status === 'failed')
+      return <span className="st-text-error">{t('settings.advanced.checkFailed')}</span>
+    return undefined
+  }
+
+  return (
+    <div className="st-shell">
+      <aside className="st-sidebar">
+        <div className="st-sidebar-drag" />
+        <nav className="st-nav" aria-label={t('settings.brand')}>
+          {navGroups.map((group, groupIndex) => (
+            <div className="st-nav-group" key={groupIndex}>
+              {group.map((id) => {
+                const item = navItems.find((navItem) => navItem.id === id)
+                if (!item) return null
+                const Icon = item.icon
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`st-nav-item ${activeSection === item.id ? 'is-active' : ''}`}
+                    aria-current={activeSection === item.id ? 'page' : undefined}
+                    onClick={() => setActiveSection(item.id)}
+                  >
+                    <span className={`st-tile is-${item.tint}`}>
+                      <Icon size={13} strokeWidth={2.2} />
+                    </span>
+                    <span className="st-nav-label">{item.label}</span>
+                  </button>
+                )
+              })}
             </div>
-          )}
+          ))}
+        </nav>
+
+        <div className="st-sidebar-footer">
+          <button type="button" className="st-back" onClick={() => void windowShowRoute('home')}>
+            <ChevronLeft size={14} />
+            {t('settings.back')}
+          </button>
         </div>
-      </section>
+      </aside>
+
+      <main className="st-main">
+        <header className="st-toolbar">
+          <div className="st-toolbar-inner">
+            <h1 className="st-title">{activeNavItem.label}</h1>
+            <span className={`st-save-state ${isSaving ? 'is-saving' : ''}`}>
+              {isSaving ? t('common.saveSaving') : t('common.saveAuto')}
+            </span>
+          </div>
+        </header>
+        <div className="st-scroll">
+          <div className="st-page" key={activeSection}>
+            {renderSection()}
+          </div>
+        </div>
+      </main>
     </div>
   )
 }
 
-function ThemeButton({
-  active,
-  label,
-  icon,
-  onClick,
-}: {
-  active: boolean
-  label: string
-  icon: ReactNode
-  onClick: () => void
-}) {
+function SearchHistoryRow({ item, locale }: { item: SearchHistoryListItem; locale: AppLanguage }) {
   return (
-    <button type="button" className={`settings-theme-option ${active ? 'is-active' : ''}`} onClick={onClick}>
-      <span className="settings-theme-icon">{icon}</span>
-      <span className="settings-theme-label">{label}</span>
-      {active ? <span className="settings-theme-dot" /> : null}
-    </button>
+    <SettingsRow label={item.query} description={`${item.actionLabel} · ${formatHistoryTime(item.createdAt, locale)}`}>
+      <span className="st-tag">{item.kind}</span>
+    </SettingsRow>
   )
 }
 
-function HistoryTabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <Button size="sm" variant={active ? 'default' : 'outline'} onClick={onClick}>
-      {label}
-    </Button>
-  )
-}
-
-function SearchHistoryCard({ item }: { item: SearchHistoryListItem }) {
-  return (
-    <div className="settings-engine-item">
-      <div>
-        <div className="settings-item-title">{item.query}</div>
-        <div className="settings-item-desc">
-          {item.actionLabel} · {new Date(item.createdAt).toLocaleString()}
-        </div>
-      </div>
-      <Badge variant="outline">{item.kind}</Badge>
-    </div>
-  )
-}
-
-function ExplainHistoryCard({
+function ExplainHistoryRow({
   item,
   locale,
   t,
@@ -1604,50 +1680,29 @@ function ExplainHistoryCard({
   const sourceCount = item.messages.reduce((count, message) => count + (message.sources?.length ?? 0), 0)
 
   return (
-    <details className="settings-surface">
-      <summary className="settings-row">
-        <div>
-          <div className="settings-item-title">{item.selectionText}</div>
-          <div className="settings-item-desc">
-            {getProviderLabel(item.aiProvider as AiProviderId, t('common.none'))} · {formatHistoryTime(item.updatedAt, locale)}
-          </div>
-        </div>
-        <div className="settings-row-aside">
-          <Badge variant="outline">{t('settings.history.row.turns', { count: turns })}</Badge>
-          {sourceCount ? <Badge variant="outline">{t('settings.history.row.sources', { count: sourceCount })}</Badge> : null}
-        </div>
+    <details className="st-disclosure">
+      <summary>
+        <SettingsRow
+          label={item.selectionText}
+          description={`${getProviderLabel(item.aiProvider as AiProviderId, t('common.none'))} · ${formatHistoryTime(item.updatedAt, locale)}`}
+        >
+          <span className="st-tag">{t('settings.history.row.turns', { count: turns })}</span>
+          {sourceCount ? (
+            <span className="st-tag">{t('settings.history.row.sources', { count: sourceCount })}</span>
+          ) : null}
+          <ChevronRight size={14} className="st-disclosure-chevron" />
+        </SettingsRow>
       </summary>
-
-      <div className="settings-content-stack">
+      <div className="st-disclosure-body">
         {item.messages.map((message) => (
-          <div key={message.id} className="settings-engine-item">
-            <div>
-              <div className="settings-item-title">{message.role === 'user' ? 'User' : 'AI'}</div>
-              <div className="settings-item-desc" style={{ whiteSpace: 'pre-wrap' }}>
-                {message.text}
-              </div>
-            </div>
+          <div key={message.id} className="st-message-item">
+            <div className="st-message-role">{message.role === 'user' ? 'You' : 'AI'}</div>
+            <div className="st-message-text">{message.text}</div>
           </div>
         ))}
       </div>
     </details>
   )
-}
-
-const getSectionTitle = (section: SettingsSection, t: (key: I18nKey, params?: Record<string, string | number>) => string) => {
-  if (section === 'privacy') {
-    return t('settings.title.privacy')
-  }
-
-  if (section === 'translation') {
-    return t('settings.title.translation')
-  }
-
-  if (section === 'history') {
-    return t('settings.title.history')
-  }
-
-  return t('settings.title.general')
 }
 
 const formatHistoryTime = (timestamp: number | undefined, locale: AppLanguage) => {

@@ -38,6 +38,9 @@ export const translationLanguages: TranslationLanguageOption[] = [
 
 export const defaultTranslationSettings: TranslationSettings = {
   appLanguage: 'zh-CN',
+  selection: {
+    defaultAction: 'bubble',
+  },
   enabledEngines: {
     google: true,
     deepl: false,

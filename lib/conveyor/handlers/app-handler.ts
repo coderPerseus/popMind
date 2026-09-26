@@ -2,7 +2,7 @@ import { type App, shell, systemPreferences } from 'electron'
 import { installedAppService } from '@/lib/app/installed-app-service'
 import { fetchLatestRelease } from '@/lib/app/latest-release'
 import { compareReleaseVersions } from '@/lib/app/release'
-import { mainLogger } from '@/lib/main/logger'
+import { exportMainProcessLogs, mainLogger } from '@/lib/main/logger'
 import { handle } from '@/lib/main/shared'
 import { themeStore } from '@/lib/main/theme-store'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
@@ -78,6 +78,8 @@ export const registerAppHandlers = (app: App) => {
     await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
     return true
   })
+
+  handle('exportLogs', () => exportMainProcessLogs())
 
   handle('getThemeMode', () => themeStore.getThemeMode())
 

@@ -1,5 +1,35 @@
 :root {
   color-scheme: light dark;
+  --bubble-height: 36px;
+  --bubble-bg: rgba(252, 252, 252, 0.97);
+  --bubble-border: rgba(0, 0, 0, 0.12);
+  --bubble-highlight: rgba(255, 255, 255, 0.9);
+  --bubble-fg: rgba(0, 0, 0, 0.62);
+  --bubble-fg-strong: rgba(0, 0, 0, 0.88);
+  --bubble-hover: rgba(0, 0, 0, 0.06);
+  --bubble-pressed: rgba(0, 0, 0, 0.1);
+  --bubble-separator: rgba(0, 0, 0, 0.1);
+  --bubble-accent: #007aff;
+  --tooltip-bg: rgba(40, 40, 42, 0.94);
+  --tooltip-fg: rgba(255, 255, 255, 0.95);
+  --tooltip-border: rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bubble-bg: rgba(40, 40, 43, 0.97);
+    --bubble-border: rgba(255, 255, 255, 0.1);
+    --bubble-highlight: rgba(255, 255, 255, 0.07);
+    --bubble-fg: rgba(255, 255, 255, 0.66);
+    --bubble-fg-strong: rgba(255, 255, 255, 0.95);
+    --bubble-hover: rgba(255, 255, 255, 0.09);
+    --bubble-pressed: rgba(255, 255, 255, 0.14);
+    --bubble-separator: rgba(255, 255, 255, 0.1);
+    --bubble-accent: #0a84ff;
+    --tooltip-bg: rgba(64, 64, 68, 0.97);
+    --tooltip-fg: rgba(255, 255, 255, 0.95);
+    --tooltip-border: rgba(255, 255, 255, 0.12);
+  }
 }
 
 html,
@@ -9,105 +39,90 @@ body {
   height: 100%;
   overflow: hidden;
   background: transparent;
-  font-family: 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#bubble {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
 #toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
   box-sizing: border-box;
   width: max-content;
-  min-width: 350px;
-  height: 100%;
+  height: var(--bubble-height);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.09);
-  background: rgba(255, 255, 255, 0.97);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  gap: 2px;
+  padding: 0 4px;
+  border-radius: 10px;
+  border: 0.5px solid var(--bubble-border);
+  background: var(--bubble-bg);
+  box-shadow: inset 0 0.5px 0 var(--bubble-highlight);
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* Window grew upward to make room for a tooltip: keep the toolbar at the bottom. */
+body.tooltip-above #toolbar {
+  top: auto;
+  bottom: 0;
 }
 
 #toolbar.is-compact {
   min-width: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  #toolbar {
-    border-color: rgba(255, 255, 255, 0.12);
-    background: rgba(40, 40, 40, 0.97);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-  }
-}
-
 .drag-handle,
-.lead-logo {
+.lead-logo,
+.skill-btn {
   border: 0;
   padding: 0;
+  margin: 0;
   background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   touch-action: none;
+  outline: none;
 }
 
 .drag-handle {
-  width: 18px;
-  height: 22px;
-  border-radius: 6px;
+  width: 14px;
+  height: 24px;
+  border-radius: 5px;
   cursor: grab;
-  color: rgba(60, 60, 67, 0.58);
+  color: var(--bubble-fg);
+  opacity: 0.55;
   transition:
-    background 0.15s ease,
-    color 0.15s ease;
+    background 0.12s ease,
+    opacity 0.12s ease;
 }
 
 .drag-handle::before {
   content: '';
-  width: 10px;
+  width: 6px;
   height: 14px;
-  background-image: radial-gradient(circle, currentColor 1.2px, transparent 1.2px);
-  background-position: 0 0;
-  background-size: 5px 5px;
+  background-image: radial-gradient(circle, currentColor 1.1px, transparent 1.2px);
+  background-size: 3px 4px;
+  background-position: 0 1px;
 }
 
 .drag-handle:hover {
-  background: rgba(60, 60, 67, 0.08);
-  color: #1d2129;
+  opacity: 1;
+  background: var(--bubble-hover);
 }
 
 .drag-handle.is-dragging {
   cursor: grabbing;
-  background: rgba(32, 86, 217, 0.12);
-  color: #2056d9;
-}
-
-.lead-logo {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    opacity 0.15s ease;
-}
-
-.lead-logo:hover {
-  background: rgba(32, 86, 217, 0.08);
-}
-
-.lead-logo.is-pressed {
-  background: rgba(32, 86, 217, 0.14);
-}
-
-.lead-logo img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  pointer-events: none;
+  opacity: 1;
+  background: var(--bubble-pressed);
 }
 
 #skills {
@@ -119,84 +134,111 @@ body {
 }
 
 .skill-btn {
-  border: 0;
-  border-radius: 6px;
-  padding: 4px 8px;
-  background: transparent;
-  color: #1d2129;
-  font-size: 13px;
-  line-height: 1;
+  width: 30px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--bubble-fg);
   cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.skill-btn.has-label {
+  width: auto;
+  padding: 0 8px;
+  font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
-  transition: background 0.15s ease;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+}
+
+.skill-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .skill-btn:hover {
-  background: rgba(32, 86, 217, 0.1);
+  color: var(--bubble-fg-strong);
+  background: var(--bubble-hover);
+}
+
+.skill-btn:active {
+  background: var(--bubble-pressed);
+}
+
+.skill-btn:focus-visible,
+.lead-logo:focus-visible {
+  box-shadow: 0 0 0 2px var(--bubble-accent);
 }
 
 .skill-btn:disabled {
-  opacity: 0.5;
   cursor: default;
 }
 
-.skill-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.lead-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s ease;
 }
 
-.skill-icon svg {
-  width: 14px;
-  height: 14px;
+.lead-logo:hover {
+  background: var(--bubble-hover);
+}
+
+.lead-logo.is-pressed {
+  background: var(--bubble-pressed);
+}
+
+.lead-logo img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .separator {
   width: 1px;
-  height: 14px;
-  background: rgba(0, 0, 0, 0.1);
+  height: 16px;
+  margin: 0 3px;
+  background: var(--bubble-separator);
   flex-shrink: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .drag-handle {
-    color: rgba(235, 235, 245, 0.55);
-  }
+.tooltip {
+  position: absolute;
+  top: calc(var(--bubble-height) + 6px);
+  left: 0;
+  box-sizing: border-box;
+  max-width: calc(100% - 8px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 0.5px solid var(--tooltip-border);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-fg);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s ease;
+}
 
-  .drag-handle:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #f5f5f5;
-  }
+body.tooltip-above .tooltip {
+  top: auto;
+  bottom: calc(var(--bubble-height) + 6px);
+  transform: translateY(2px);
+}
 
-  .drag-handle.is-dragging {
-    background: rgba(100, 160, 255, 0.2);
-    color: #8db5ff;
-  }
-
-  .lead-logo:hover {
-    background: rgba(100, 160, 255, 0.14);
-  }
-
-  .lead-logo.is-pressed {
-    background: rgba(100, 160, 255, 0.22);
-  }
-
-  .skill-btn {
-    color: #e8e8e8;
-  }
-
-  .skill-btn:hover {
-    background: rgba(100, 160, 255, 0.18);
-  }
-
-  .separator {
-    background: rgba(255, 255, 255, 0.12);
-  }
+.tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }

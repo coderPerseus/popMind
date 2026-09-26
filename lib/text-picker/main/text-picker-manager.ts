@@ -5,6 +5,7 @@ import type { AppLanguage } from '@/lib/capability/types'
 import { translateMessage } from '@/lib/i18n/shared'
 import { normalizeSelectedLink } from '@/lib/text-picker/link-utils'
 import type {
+  BubbleTooltipPlacement,
   EnabledSelectionScene,
   PickedInfo,
   SceneEnableMap,
@@ -25,6 +26,7 @@ import {
   TOOLBAR_GAP,
   TOOLBAR_HEIGHT,
   TOOLBAR_MIN_WIDTH,
+  TOOLBAR_TOOLTIP_SPACE,
 } from '@/lib/text-picker/shared'
 import { toElectronScreenPoint } from '@/lib/text-picker/screen-point'
 import type { BubbleWindowPort } from './bubble-window'
@@ -47,6 +49,9 @@ interface TextPickerManagerOptions {
   bridge: SelectionBridge
   logger?: Console
   onSelectionShown?: (pickedInfo: PickedInfo) => void
+  // Command to run right away instead of showing the bubble (the "default action" setting).
+  resolveAutoCommand?: (pickedInfo: PickedInfo) => string | null
+  onAutoCommand?: (commandId: string, pickedInfo: PickedInfo) => void
   isSecondaryFloatingVisible?: () => boolean
   isEventInsideSecondaryFloating?: (event: SelectionActionEvent) => boolean
   hideSecondaryFloating?: () => void
@@ -104,6 +109,8 @@ export class TextPickerManager {
   private readonly bridge: SelectionBridge
   private readonly logger: Console
   private readonly onSelectionShown?: (pickedInfo: PickedInfo) => void
+  private readonly resolveAutoCommand?: (pickedInfo: PickedInfo) => string | null
+  private readonly onAutoCommand?: (commandId: string, pickedInfo: PickedInfo) => void
   private readonly isSecondaryFloatingVisible?: () => boolean
   private readonly isEventInsideSecondaryFloating?: (event: SelectionActionEvent) => boolean
   private readonly hideSecondaryFloating?: () => void
@@ -131,6 +138,7 @@ export class TextPickerManager {
   private currentAnchor: AnchorPoint | null = null
   private currentBubbleAnchor: AnchorPoint | null = null
   private bubbleWidth = TOOLBAR_MIN_WIDTH
+  private bubbleTooltipPlacement: BubbleTooltipPlacement | null = null
   private pickedInfo: PickedInfo | null = null
   private language: AppLanguage = 'zh-CN'
   private skills: SelectionSkill[] = createDefaultSkills('zh-CN')
@@ -140,6 +148,8 @@ export class TextPickerManager {
     bridge,
     logger = console,
     onSelectionShown,
+    resolveAutoCommand,
+    onAutoCommand,
     isSecondaryFloatingVisible,
     isEventInsideSecondaryFloating,
     hideSecondaryFloating,
@@ -149,6 +159,8 @@ export class TextPickerManager {
     this.bridge = bridge
     this.logger = logger
     this.onSelectionShown = onSelectionShown
+    this.resolveAutoCommand = resolveAutoCommand
+    this.onAutoCommand = onAutoCommand
     this.isSecondaryFloatingVisible = isSecondaryFloatingVisible
     this.isEventInsideSecondaryFloating = isEventInsideSecondaryFloating
     this.hideSecondaryFloating = hideSecondaryFloating
@@ -339,6 +351,7 @@ export class TextPickerManager {
 
     this.currentAnchor = null
     this.currentBubbleAnchor = null
+    this.bubbleTooltipPlacement = null
     this.leaveFullscreenOverlayMode()
     this.syncDismissKeyMonitor()
   }
@@ -428,6 +441,43 @@ export class TextPickerManager {
     })
 
     this.bubbleWindow.orderFront()
+  }
+
+  /**
+   * Grow the bubble window while a button tooltip is shown so the tooltip is not
+   * clipped, and shrink it back afterwards. Grows downward unless that would leave
+   * the work area, in which case it grows upward and the toolbar keeps its place.
+   */
+  setBubbleTooltipSpace(open: boolean): BubbleTooltipPlacement | null {
+    if (this.bubbleWindow.isDestroyed() || !this.bubbleWindow.isVisible() || this.isBubbleDragging) {
+      return null
+    }
+
+    const bounds = this.bubbleWindow.getBounds()
+
+    if (!open) {
+      if (this.bubbleTooltipPlacement) {
+        const y = this.bubbleTooltipPlacement === 'above' ? bounds.y + TOOLBAR_TOOLTIP_SPACE : bounds.y
+        this.bubbleTooltipPlacement = null
+        this.setBubbleBounds({ ...bounds, y, height: TOOLBAR_HEIGHT })
+      }
+      return null
+    }
+
+    if (this.bubbleTooltipPlacement) {
+      return this.bubbleTooltipPlacement
+    }
+
+    const { workArea } = screen.getDisplayMatching(bounds)
+    const fitsBelow = bounds.y + TOOLBAR_HEIGHT + TOOLBAR_TOOLTIP_SPACE <= workArea.y + workArea.height
+    const placement: BubbleTooltipPlacement = fitsBelow ? 'below' : 'above'
+    this.bubbleTooltipPlacement = placement
+    this.setBubbleBounds({
+      ...bounds,
+      y: placement === 'above' ? bounds.y - TOOLBAR_TOOLTIP_SPACE : bounds.y,
+      height: TOOLBAR_HEIGHT + TOOLBAR_TOOLTIP_SPACE,
+    })
+    return placement
   }
 
   setBubbleDragging(isDragging: boolean) {
@@ -815,6 +865,20 @@ export class TextPickerManager {
     const cursorPoint = screen.getCursorScreenPoint()
     const anchor = this.resolveAnchor(snapshot, cursorPoint)
 
+    const autoCommandId = this.resolveAutoCommand?.(this.pickedInfo) ?? null
+    if (autoCommandId) {
+      this.logger.info('[TextPickerManager] run default action instead of bubble', {
+        token,
+        commandId: autoCommandId,
+        selectionId: this.pickedInfo.selectionId,
+      })
+      this.hideBubble()
+      this.currentAnchor = anchor
+      this.onSelectionShown?.(this.pickedInfo)
+      this.onAutoCommand?.(autoCommandId, this.pickedInfo)
+      return
+    }
+
     this.showToolbar({
       anchor,
       pickedInfo: this.pickedInfo,
@@ -848,6 +912,7 @@ export class TextPickerManager {
       y = Math.min(bubbleAnchor.bottomY + TOOLBAR_GAP, workArea.y + workArea.height - TOOLBAR_HEIGHT)
     }
 
+    this.bubbleTooltipPlacement = null
     this.setBubbleBounds({
       x: Math.round(x),
       y: Math.round(y),

@@ -560,11 +560,18 @@ export function MainSearch() {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         void windowDismissTopmost()
+        return
+      }
+
+      // ⌘, opens settings, as in every macOS app.
+      if (e.metaKey && e.key === ',') {
+        e.preventDefault()
+        void windowShowRoute('settings')
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [windowDismissTopmost])
+  }, [windowDismissTopmost, windowShowRoute])
 
   const moveClipboardSelection = useCallback(
     (direction: 'next' | 'previous') => {
@@ -1292,6 +1299,18 @@ export function MainSearch() {
                 {t('main.updateAvailable', { version: updateInfo.version })}
               </button>
             ) : null}
+          </div>
+          <div className="ms-footer-hints" aria-hidden="true">
+            <span className="ms-footer-hint">
+              {t('main.footer.open')}
+              <kbd className="ms-kbd">↵</kbd>
+            </span>
+            <span className="ms-footer-hint-sep" />
+            <span className="ms-footer-hint">
+              {t('main.footer.settings')}
+              <kbd className="ms-kbd">⌘</kbd>
+              <kbd className="ms-kbd">,</kbd>
+            </span>
           </div>
         </div>
       ) : null}

@@ -1,25 +1,34 @@
 import '@/app/styles/text-picker-bubble.css'
 import { getThemeLogoUrl } from '@/app/theme-assets'
-import type { PickedInfo, SelectionSkill } from '@/lib/text-picker/shared'
+import type { BubbleTooltipPlacement, PickedInfo, SelectionSkill } from '@/lib/text-picker/shared'
 import { SystemCommand } from '@/lib/text-picker/shared'
 
 const SKILL_ICONS: Record<string, string> = {
-  [SystemCommand.Translate]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>`,
-  [SystemCommand.Explain]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`,
-  [SystemCommand.Copy]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
-  [SystemCommand.AskAI]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
-  [SystemCommand.BlockCurrentApp]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg>`,
-  [SystemCommand.OpenLink]: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`,
+  [SystemCommand.Translate]: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>`,
+  [SystemCommand.Explain]: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`,
+  [SystemCommand.Copy]: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
+  [SystemCommand.AskAI]: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  [SystemCommand.BlockCurrentApp]: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg>`,
+  [SystemCommand.OpenLink]: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`,
 }
 const COMPACT_COMMAND_IDS = new Set([SystemCommand.OpenLink])
+// Rarely used actions sit after a divider, next to the logo.
+const TRAILING_COMMAND_IDS = new Set<string>([SystemCommand.BlockCurrentApp])
+const isChineseUi = navigator.language.toLowerCase().startsWith('zh')
+const STATIC_TOOLTIPS = {
+  drag: isChineseUi ? '拖动' : 'Drag',
+  logo: isChineseUi ? '打开 popMind' : 'Open popMind',
+}
+const TOOLTIP_SHOW_DELAY_MS = 380
+const TOOLTIP_HIDE_DELAY_MS = 120
 
 const skillsContainer = document.querySelector<HTMLDivElement>('#skills')
 const toolbarNode = document.querySelector<HTMLDivElement>('#toolbar')
 const dragHandle = document.querySelector<HTMLButtonElement>('#drag-handle')
 const leadLogoButton = document.querySelector<HTMLButtonElement>('#lead-logo')
 const leadLogoImage = document.querySelector<HTMLImageElement>('#lead-logo-image')
+const tooltipNode = document.querySelector<HTMLDivElement>('#tooltip')
 const SYNTHETIC_CLICK_GUARD_MS = 320
-const BUBBLE_WIDTH_PADDING = 2
 const bubbleLog = (...args: unknown[]) => {
   console.info('[bubble]', new Date().toISOString(), ...args)
 }
@@ -86,8 +95,9 @@ const queueBubbleWidthMeasurement = () => {
       return
     }
 
-    const nextWidth = Math.ceil(toolbarNode.scrollWidth + BUBBLE_WIDTH_PADDING)
-    bubbleLog('resizeBubble', { nextWidth, scrollWidth: toolbarNode.scrollWidth })
+    // The window hugs the toolbar exactly so no transparent strip swallows clicks.
+    const nextWidth = Math.ceil(toolbarNode.getBoundingClientRect().width)
+    bubbleLog('resizeBubble', { nextWidth })
     window.textPicker.resizeBubble(nextWidth)
   })
 }
@@ -140,17 +150,22 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
 
   toolbarNode?.classList.toggle(
     'is-compact',
-    Boolean(skills?.length === 1 && skills[0] && COMPACT_COMMAND_IDS.has(skills[0].commandId as typeof SystemCommand.OpenLink))
+    Boolean(
+      skills?.length === 1 && skills[0] && COMPACT_COMMAND_IDS.has(skills[0].commandId as typeof SystemCommand.OpenLink)
+    )
   )
 
+  hideTooltip(true)
   skillsContainer.replaceChildren()
 
   if (!skills?.length) {
     return
   }
 
+  let trailingGroupStarted = false
   skills.forEach((skill, index) => {
-    if (index > 0) {
+    if (index > 0 && TRAILING_COMMAND_IDS.has(skill.commandId) && !trailingGroupStarted) {
+      trailingGroupStarted = true
       const separator = document.createElement('div')
       separator.className = 'separator'
       skillsContainer.appendChild(separator)
@@ -159,18 +174,17 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
     const button = document.createElement('button')
     button.className = 'skill-btn'
     button.dataset.commandId = skill.commandId
+    button.dataset.tooltip = skill.label
+    button.setAttribute('aria-label', skill.label)
 
     const iconSvg = SKILL_ICONS[skill.commandId]
     if (iconSvg) {
-      const iconSpan = document.createElement('span')
-      iconSpan.className = 'skill-icon'
-      iconSpan.innerHTML = iconSvg
-      button.appendChild(iconSpan)
+      button.innerHTML = iconSvg
+    } else {
+      // No icon for this command: fall back to its text label.
+      button.classList.add('has-label')
+      button.textContent = skill.label
     }
-
-    const labelSpan = document.createElement('span')
-    labelSpan.textContent = skill.label
-    button.appendChild(labelSpan)
 
     button.disabled = busy
     button.style.opacity = busy ? '0.5' : '1'
@@ -208,6 +222,96 @@ const renderSkills = (skills: SelectionSkill[] | undefined) => {
     skillsContainer.appendChild(button)
   })
 }
+
+// ---------------------------------------------------------------------------
+// Tooltips — the window only fits the toolbar, so it is grown while a tooltip
+// is visible (see TextPickerManager.setBubbleTooltipSpace).
+// ---------------------------------------------------------------------------
+
+let tooltipTarget: HTMLElement | null = null
+let tooltipPlacement: BubbleTooltipPlacement | null = null
+let tooltipShowTimer = 0
+let tooltipHideTimer = 0
+let tooltipRequestId = 0
+
+const positionTooltip = (target: HTMLElement) => {
+  if (!tooltipNode) return
+  const targetRect = target.getBoundingClientRect()
+  const tooltipWidth = tooltipNode.offsetWidth
+  const maxLeft = window.innerWidth - tooltipWidth - 4
+  const left = Math.max(4, Math.min(targetRect.left + targetRect.width / 2 - tooltipWidth / 2, maxLeft))
+  tooltipNode.style.left = `${Math.round(left)}px`
+}
+
+const hideTooltip = (immediate = false) => {
+  window.clearTimeout(tooltipShowTimer)
+  window.clearTimeout(tooltipHideTimer)
+
+  const collapse = () => {
+    tooltipRequestId += 1
+    tooltipTarget = null
+    tooltipNode?.classList.remove('is-visible')
+    tooltipNode?.setAttribute('aria-hidden', 'true')
+    if (tooltipPlacement) {
+      tooltipPlacement = null
+      document.body.classList.remove('tooltip-below', 'tooltip-above')
+      void window.textPicker.setTooltipSpace(false)
+    }
+  }
+
+  if (immediate) {
+    collapse()
+  } else {
+    tooltipHideTimer = window.setTimeout(collapse, TOOLTIP_HIDE_DELAY_MS)
+  }
+}
+
+const showTooltip = async (target: HTMLElement) => {
+  const text = target.dataset.tooltip
+  if (!tooltipNode || !text || activePointerId != null) return
+
+  const requestId = ++tooltipRequestId
+  tooltipTarget = target
+  tooltipNode.textContent = text
+
+  if (!tooltipPlacement) {
+    const placement = await window.textPicker.setTooltipSpace(true)
+    if (requestId !== tooltipRequestId || !placement) return
+    tooltipPlacement = placement
+    document.body.classList.add(placement === 'above' ? 'tooltip-above' : 'tooltip-below')
+  }
+
+  positionTooltip(target)
+  tooltipNode.classList.add('is-visible')
+  tooltipNode.setAttribute('aria-hidden', 'false')
+}
+
+toolbarNode?.addEventListener('pointerover', (event) => {
+  const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-tooltip]') : null
+  if (!target || target === tooltipTarget) return
+
+  window.clearTimeout(tooltipShowTimer)
+  window.clearTimeout(tooltipHideTimer)
+  // Once a tooltip is up, moving to the next button switches it instantly (like macOS).
+  if (tooltipPlacement) {
+    void showTooltip(target)
+  } else {
+    tooltipShowTimer = window.setTimeout(() => void showTooltip(target), TOOLTIP_SHOW_DELAY_MS)
+  }
+})
+
+toolbarNode?.addEventListener('pointerout', (event) => {
+  const next = event.relatedTarget instanceof Element ? event.relatedTarget.closest('[data-tooltip]') : null
+  if (next) return
+  window.clearTimeout(tooltipShowTimer)
+  hideTooltip()
+})
+
+document.addEventListener('pointerleave', () => hideTooltip(true))
+toolbarNode?.addEventListener('pointerdown', () => hideTooltip(true), true)
+
+if (dragHandle) dragHandle.dataset.tooltip = STATIC_TOOLTIPS.drag
+if (leadLogoButton) leadLogoButton.dataset.tooltip = STATIC_TOOLTIPS.logo
 
 const applyState = (pickedInfo: PickedInfo | null, skills?: SelectionSkill[]) => {
   currentPickedInfo = pickedInfo

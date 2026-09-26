@@ -4,6 +4,8 @@ export type AppLanguage = 'zh-CN' | 'en'
 export type AiProviderId = 'openai' | 'anthropic' | 'google' | 'kimi' | 'deepseek' | 'gemma'
 export type WebSearchProviderId = 'tavily' | 'serper' | 'brave' | 'jina'
 export type SpeechProviderId = 'system' | 'elevenlabs' | 'openai'
+// What happens right after text is selected: show the bubble, or run a command directly.
+export type SelectionDefaultAction = 'bubble' | 'translate' | 'explain'
 export type AiServiceTestErrorCode = 'missing-config' | 'request-failed'
 export type WebSearchServiceTestErrorCode = 'missing-config' | 'request-failed'
 export type SpeechServiceTestErrorCode = 'missing-config' | 'request-failed'
@@ -39,6 +41,9 @@ export interface OpenAiSpeechProviderConfig {
 
 export interface CapabilitySettings {
   appLanguage: AppLanguage
+  selection: {
+    defaultAction: SelectionDefaultAction
+  }
   enabledEngines: Record<TranslationEngineId, boolean>
   firstLanguage: string
   secondLanguage: string
@@ -65,6 +70,9 @@ export interface CapabilitySettings {
 
 export interface CapabilitySettingsPatch {
   appLanguage?: AppLanguage
+  selection?: {
+    defaultAction?: SelectionDefaultAction
+  }
   enabledEngines?: Partial<Record<TranslationEngineId, boolean>>
   firstLanguage?: string
   secondLanguage?: string

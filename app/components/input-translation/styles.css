@@ -31,13 +31,10 @@ body,
   flex-direction: column;
   gap: 2px;
   padding: 7px 8px 5px;
-  border: 1px solid rgb(28 32 40 / 0.12);
-  border-radius: 13px;
-  background: rgb(252 252 253 / 0.96);
-  box-shadow:
-    0 13px 32px rgb(14 20 31 / 0.14),
-    0 2px 7px rgb(14 20 31 / 0.07),
-    inset 0 1px 0 rgb(255 255 255 / 0.96);
+  border: 0;
+  border-radius: var(--mac-radius-window);
+  background: var(--mac-elevated);
+  box-shadow: var(--mac-shadow-popover);
   backdrop-filter: blur(26px) saturate(1.25);
 }
 
@@ -53,7 +50,7 @@ body,
   border-radius: 0;
   background: transparent;
   padding: 8px 41px 8px 5px;
-  color: rgb(24 28 36);
+  color: var(--mac-label);
   font-size: 14px;
   font-weight: 500;
   line-height: 21px;
@@ -63,7 +60,7 @@ body,
 }
 
 .input-translation-field [data-slot='textarea']::placeholder {
-  color: rgb(128 135 147);
+  color: var(--mac-tertiary-label);
   font-weight: 450;
 }
 
@@ -87,8 +84,8 @@ body,
   justify-content: center;
   border: 0;
   border-radius: 8px;
-  background: rgb(31 36 45 / 0.075);
-  color: rgb(75 82 94);
+  background: var(--mac-hover);
+  color: var(--mac-secondary-label);
   cursor: pointer;
   transition:
     transform 110ms ease,
@@ -98,8 +95,8 @@ body,
 }
 
 .input-translation-submit:hover:not(:disabled) {
-  background: rgb(31 36 45 / 0.12);
-  color: rgb(37 43 53);
+  background: var(--mac-fill-strong);
+  color: var(--mac-label);
 }
 
 .input-translation-submit:active:not(:disabled) {
@@ -123,7 +120,7 @@ body,
   align-items: center;
   gap: 3px;
   padding-top: 3px;
-  border-top: 1px solid rgb(37 43 54 / 0.07);
+  border-top: 1px solid var(--mac-separator);
   cursor: grab;
   user-select: none;
 }
@@ -137,20 +134,20 @@ body,
   display: inline-flex;
   height: 22px;
   align-items: center;
-  color: rgb(104 111 124);
+  color: var(--mac-secondary-label);
 }
 
 .input-translation-compact-select > svg:last-child {
   position: absolute;
   right: 3px;
   z-index: 1;
-  color: rgb(142 148 158);
+  color: var(--mac-tertiary-label);
   pointer-events: none;
 }
 
 .input-translation-select-label {
   padding-left: 4px;
-  color: rgb(126 132 143);
+  color: var(--mac-secondary-label);
   font-size: 9.5px;
   font-weight: 560;
   white-space: nowrap;
@@ -163,7 +160,7 @@ body,
   border-radius: 6px;
   background: transparent;
   padding: 0 15px 0 3px;
-  color: rgb(63 69 80);
+  color: var(--mac-label);
   font-size: 10.5px;
   font-weight: 630;
   line-height: 22px;
@@ -174,7 +171,7 @@ body,
 
 .input-translation-compact-select [data-slot='select']:hover,
 .input-translation-compact-select [data-slot='select']:focus {
-  background: rgb(31 36 45 / 0.055);
+  background: var(--mac-hover);
   box-shadow: none;
 }
 
@@ -192,7 +189,7 @@ body,
   align-items: center;
   gap: 3px;
   padding: 0 3px;
-  color: rgb(136 142 153);
+  color: var(--mac-tertiary-label);
   font-size: 9.5px;
   font-weight: 580;
   white-space: nowrap;
@@ -221,7 +218,7 @@ body,
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: rgb(137 143 154);
+  color: var(--mac-tertiary-label);
   cursor: pointer;
   transition:
     background-color 130ms ease,
@@ -259,8 +256,8 @@ body,
 }
 
 .input-translation-close:hover {
-  background: rgb(31 36 45 / 0.07);
-  color: rgb(65 71 82);
+  background: var(--mac-hover);
+  color: var(--mac-label);
 }
 
 .input-translation-close:active {
@@ -286,44 +283,18 @@ body,
   }
 }
 
-.dark .input-translation-panel {
-  border-color: rgb(255 255 255 / 0.11);
-  background: rgb(31 33 38 / 0.97);
-  box-shadow:
-    0 16px 38px rgb(0 0 0 / 0.42),
-    0 3px 10px rgb(0 0 0 / 0.28),
-    inset 0 1px 0 rgb(255 255 255 / 0.07);
-}
 
-.dark .input-translation-field [data-slot='textarea'] {
-  background: transparent;
-  color: rgb(243 245 249);
-}
 
-.dark .input-translation-field [data-slot='textarea']::placeholder {
-  color: rgb(143 149 160);
-}
 
-.dark .input-translation-toolbar {
-  border-top-color: rgb(255 255 255 / 0.07);
-}
 
-.dark .input-translation-compact-select [data-slot='select'] {
-  color: rgb(213 217 225);
-}
 
-.dark .input-translation-select-label {
-  color: rgb(139 145 157);
-}
 
-.dark .input-translation-compact-select [data-slot='select']:hover,
-.dark .input-translation-compact-select [data-slot='select']:focus,
-.dark .input-translation-close:hover {
-  background: rgb(255 255 255 / 0.07);
-}
 
-.dark .input-translation-close-tip {
-  background: rgb(18 20 26 / 0.96);
-  color: rgb(243 245 249);
-  box-shadow: 0 6px 16px rgb(0 0 0 / 0.36);
-}
+
+
+
+
+
+
+
+

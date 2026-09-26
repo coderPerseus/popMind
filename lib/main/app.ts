@@ -45,7 +45,7 @@ export const MAIN_WINDOW_ROUTE_CONFIG: Record<MainWindowRoute, RouteWindowConfig
     minHeight: 720,
     resizable: true,
     maximizable: true,
-    backgroundColor: '#f6f4ef',
+    backgroundColor: '#f2f2f2',
   },
 }
 

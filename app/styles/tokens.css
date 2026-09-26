@@ -1,0 +1,74 @@
+/* macOS-inspired design tokens shared by every window. */
+
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, monospace;
+
+  --mac-accent: #007aff;
+  --mac-accent-hover: #0068d9;
+  --mac-accent-soft: rgba(0, 122, 255, 0.12);
+  --mac-on-accent: #ffffff;
+  --mac-green: #28a745;
+  --mac-orange: #e8860b;
+  --mac-red: #e5484d;
+
+  --mac-window: #ececec;
+  --mac-window-translucent: rgba(246, 246, 246, 0.97);
+  --mac-sidebar: #e3e3e3;
+  --mac-content: #f2f2f2;
+  --mac-group: #ffffff;
+  --mac-elevated: #ffffff;
+  --mac-control: #ffffff;
+  --mac-field: #ffffff;
+
+  --mac-label: rgba(0, 0, 0, 0.86);
+  --mac-secondary-label: rgba(0, 0, 0, 0.55);
+  --mac-tertiary-label: rgba(0, 0, 0, 0.34);
+  --mac-separator: rgba(0, 0, 0, 0.09);
+  --mac-border: rgba(0, 0, 0, 0.12);
+  --mac-hover: rgba(0, 0, 0, 0.05);
+  --mac-selected: rgba(0, 0, 0, 0.08);
+  --mac-fill: rgba(0, 0, 0, 0.05);
+  --mac-fill-strong: rgba(0, 0, 0, 0.09);
+  --mac-kbd: rgba(0, 0, 0, 0.07);
+
+  --mac-shadow-control: 0 0.5px 1px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  --mac-shadow-group: 0 0 0 0.5px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --mac-shadow-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --mac-radius-window: 12px;
+  --mac-radius-group: 10px;
+  --mac-radius-control: 6px;
+}
+
+.dark {
+  --mac-accent: #0a84ff;
+  --mac-accent-hover: #3395ff;
+  --mac-accent-soft: rgba(10, 132, 255, 0.2);
+  --mac-green: #32d74b;
+  --mac-orange: #ff9f0a;
+  --mac-red: #ff6961;
+
+  --mac-window: #1e1e1f;
+  --mac-window-translucent: rgba(30, 30, 32, 0.97);
+  --mac-sidebar: #262627;
+  --mac-content: #1e1e1f;
+  --mac-group: rgba(255, 255, 255, 0.05);
+  --mac-elevated: #2c2c2e;
+  --mac-control: rgba(255, 255, 255, 0.1);
+  --mac-field: rgba(255, 255, 255, 0.06);
+
+  --mac-label: rgba(255, 255, 255, 0.9);
+  --mac-secondary-label: rgba(255, 255, 255, 0.55);
+  --mac-tertiary-label: rgba(255, 255, 255, 0.3);
+  --mac-separator: rgba(255, 255, 255, 0.08);
+  --mac-border: rgba(255, 255, 255, 0.12);
+  --mac-hover: rgba(255, 255, 255, 0.06);
+  --mac-selected: rgba(255, 255, 255, 0.1);
+  --mac-fill: rgba(255, 255, 255, 0.07);
+  --mac-fill-strong: rgba(255, 255, 255, 0.12);
+  --mac-kbd: rgba(255, 255, 255, 0.1);
+
+  --mac-shadow-control: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 1px 1px rgba(0, 0, 0, 0.25);
+  --mac-shadow-group: 0 0 0 0.5px rgba(255, 255, 255, 0.07);
+  --mac-shadow-popover: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 14px 36px rgba(0, 0, 0, 0.5);
+}

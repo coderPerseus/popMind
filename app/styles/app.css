@@ -2,8 +2,8 @@
 @import './window.css';
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-  font-size: 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
   margin: 0;
   overflow: hidden;
   color: var(--window-c-text);
@@ -30,9 +30,18 @@ body[data-route='home'] .window-content {
   height: 100%;
 }
 
-/* On settings route: restore solid background */
+/* On settings route: the page draws its own sidebar/toolbar under the traffic lights. */
+body[data-route='settings'] .window-titlebar {
+  display: none;
+}
+
+body[data-route='settings'] .window-content {
+  overflow: hidden;
+  height: 100%;
+}
+
 body[data-route='settings'],
 body[data-route='settings'] #app,
 body[data-route='settings'] .window-frame {
-  background: #f2f1f0;
+  background: var(--mac-content);
 }

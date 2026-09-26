@@ -50,6 +50,7 @@ export const TextPickerChannel = {
   DismissTopmost: 'textPicker:dismissTopmost',
   MoveBubble: 'bubble:move',
   ResizeBubble: 'bubble:resize',
+  SetBubbleTooltipSpace: 'bubble:setTooltipSpace',
   SetBubbleDragging: 'bubble:setDragging',
   NotifyBubbleInteraction: 'bubble:interaction',
   BubbleUpdate: 'bubble:update',
@@ -58,9 +59,13 @@ export const TextPickerChannel = {
 export const CHECK_DELAY_MS = 32
 export const RETRY_DELAY_MS = 50
 export const MAX_RETRIES = 1
-export const TOOLBAR_MIN_WIDTH = 350
-export const TOOLBAR_COMPACT_MIN_WIDTH = 96
+export const TOOLBAR_MIN_WIDTH = 72
+export const TOOLBAR_COMPACT_MIN_WIDTH = 72
 export const TOOLBAR_HEIGHT = 36
+// Extra window height reserved while a button tooltip is visible.
+export const TOOLBAR_TOOLTIP_SPACE = 34
+
+export type BubbleTooltipPlacement = 'below' | 'above'
 export const TOOLBAR_GAP = 12
 
 export interface SelectionRect {
@@ -148,6 +153,7 @@ export interface BubblePreloadApi {
   dismissTopmost(): Promise<{ ok: boolean }>
   moveBubble(deltaX: number, deltaY: number): void
   resizeBubble(width: number): void
+  setTooltipSpace(open: boolean): Promise<BubbleTooltipPlacement | null>
   setBubbleDragging(isDragging: boolean): void
   notifyBubbleInteraction(): void
   getPickedInfo(): Promise<PickedInfo | null>

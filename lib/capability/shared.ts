@@ -9,6 +9,7 @@ import type {
   LegacyTranslationSettings,
   LocalGemmaConfig,
   OpenAiSpeechProviderConfig,
+  SelectionDefaultAction,
 } from './types'
 
 export const capabilitySettingsFileName = 'capability-settings.json'
@@ -68,6 +69,9 @@ const mergeLocalGemmaConfig = (
 
 export const defaultCapabilitySettings: CapabilitySettings = {
   appLanguage: 'zh-CN',
+  selection: {
+    defaultAction: 'bubble',
+  },
   enabledEngines: {
     google: true,
     deepl: false,
@@ -87,7 +91,12 @@ export const defaultCapabilitySettings: CapabilitySettings = {
       google: { ...defaultAiProviderConfig },
       kimi: { ...defaultAiProviderConfig, baseURL: 'https://api.moonshot.cn/v1' },
       deepseek: { ...defaultAiProviderConfig, baseURL: 'https://api.deepseek.com', model: 'deepseek-chat' },
-      gemma: { ...defaultAiProviderConfig, apiKey: 'local', baseURL: 'http://127.0.0.1:1234/v1', model: 'gemma-4-e4b-it' },
+      gemma: {
+        ...defaultAiProviderConfig,
+        apiKey: 'local',
+        baseURL: 'http://127.0.0.1:1234/v1',
+        model: 'gemma-4-e4b-it',
+      },
     },
   },
   localModels: {
@@ -146,8 +155,14 @@ const legacyEnabledEngines = (
   return normalizeEnabledEngines({ patch: enabledEngines })
 }
 
+const selectionDefaultActions: SelectionDefaultAction[] = ['bubble', 'translate', 'explain']
+
+const normalizeSelectionDefaultAction = (value: unknown): SelectionDefaultAction =>
+  selectionDefaultActions.includes(value as SelectionDefaultAction) ? (value as SelectionDefaultAction) : 'bubble'
+
 export const getCapabilitySettingsFilePath = () => join(app.getPath('userData'), capabilitySettingsFileName)
-export const getLegacyTranslationSettingsFilePath = () => join(app.getPath('userData'), legacyTranslationSettingsFileName)
+export const getLegacyTranslationSettingsFilePath = () =>
+  join(app.getPath('userData'), legacyTranslationSettingsFileName)
 
 export const mergeCapabilitySettings = (
   previous: CapabilitySettings,
@@ -159,8 +174,9 @@ export const mergeCapabilitySettings = (
     patch.aiService?.providers?.gemma
   )
   const nextElevenLabsVoiceId =
-    normalizeElevenLabsVoiceId(patch.speechService?.providers?.elevenlabs?.voiceId ?? previous.speechService.providers.elevenlabs.voiceId) ||
-    DEFAULT_ELEVENLABS_VOICE_ID
+    normalizeElevenLabsVoiceId(
+      patch.speechService?.providers?.elevenlabs?.voiceId ?? previous.speechService.providers.elevenlabs.voiceId
+    ) || DEFAULT_ELEVENLABS_VOICE_ID
 
   return {
     ...previous,
@@ -234,6 +250,11 @@ export const mergeCapabilitySettings = (
           ...patch.webSearch?.providers?.jina,
         },
       },
+    },
+    selection: {
+      defaultAction: normalizeSelectionDefaultAction(
+        patch.selection?.defaultAction ?? previous.selection?.defaultAction
+      ),
     },
     speechService: {
       ...previous.speechService,

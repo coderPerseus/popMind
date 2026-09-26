@@ -47,8 +47,8 @@ type Todo = {
 const STORAGE_KEY = 'popmind.todo.minimalist.v1'
 
 const priorityColors: Record<Priority, string> = {
-  0: 'text-slate-400',
-  1: 'text-blue-500',
+  0: 'text-[var(--mac-tertiary-label)]',
+  1: 'text-[var(--mac-accent)]',
   2: 'text-orange-500',
   3: 'text-red-500',
 }
@@ -71,44 +71,44 @@ const tagColorStyles: Record<
   }
 > = {
   rose: {
-    chip: 'border-rose-200 bg-rose-50 text-rose-700',
-    button: 'hover:bg-rose-100/80 hover:text-rose-800',
+    chip: 'border-rose-500/25 bg-rose-500/12 text-rose-600 dark:text-rose-300',
+    button: 'hover:bg-rose-500/20 hover:text-rose-600 dark:text-rose-300',
     dot: 'bg-rose-400',
   },
   amber: {
-    chip: 'border-amber-200 bg-amber-50 text-amber-700',
-    button: 'hover:bg-amber-100/80 hover:text-amber-800',
+    chip: 'border-amber-500/25 bg-amber-500/12 text-amber-600 dark:text-amber-300',
+    button: 'hover:bg-amber-500/20 hover:text-amber-600 dark:text-amber-300',
     dot: 'bg-amber-400',
   },
   emerald: {
-    chip: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    button: 'hover:bg-emerald-100/80 hover:text-emerald-800',
+    chip: 'border-emerald-500/25 bg-emerald-500/12 text-emerald-600 dark:text-emerald-300',
+    button: 'hover:bg-emerald-500/20 hover:text-emerald-600 dark:text-emerald-300',
     dot: 'bg-emerald-400',
   },
   sky: {
-    chip: 'border-sky-200 bg-sky-50 text-sky-700',
-    button: 'hover:bg-sky-100/80 hover:text-sky-800',
+    chip: 'border-sky-500/25 bg-sky-500/12 text-sky-600 dark:text-sky-300',
+    button: 'hover:bg-sky-500/20 hover:text-sky-600 dark:text-sky-300',
     dot: 'bg-sky-400',
   },
   blue: {
-    chip: 'border-blue-200 bg-blue-50 text-blue-700',
-    button: 'hover:bg-blue-100/80 hover:text-blue-800',
+    chip: 'border-blue-500/25 bg-blue-500/12 text-blue-600 dark:text-blue-300',
+    button: 'hover:bg-blue-500/20 hover:text-blue-600 dark:text-blue-300',
     dot: 'bg-blue-400',
   },
   violet: {
-    chip: 'border-violet-200 bg-violet-50 text-violet-700',
-    button: 'hover:bg-violet-100/80 hover:text-violet-800',
+    chip: 'border-violet-500/25 bg-violet-500/12 text-violet-600 dark:text-violet-300',
+    button: 'hover:bg-violet-500/20 hover:text-violet-600 dark:text-violet-300',
     dot: 'bg-violet-400',
   },
   pink: {
-    chip: 'border-pink-200 bg-pink-50 text-pink-700',
-    button: 'hover:bg-pink-100/80 hover:text-pink-800',
+    chip: 'border-pink-500/25 bg-pink-500/12 text-pink-600 dark:text-pink-300',
+    button: 'hover:bg-pink-500/20 hover:text-pink-600 dark:text-pink-300',
     dot: 'bg-pink-400',
   },
   slate: {
-    chip: 'border-slate-200 bg-slate-100 text-slate-700',
-    button: 'hover:bg-slate-200 hover:text-slate-800',
-    dot: 'bg-slate-400',
+    chip: 'border-[var(--mac-separator)] bg-[var(--mac-fill)] text-[var(--mac-label)]',
+    button: 'hover:bg-[var(--mac-fill-strong)] hover:text-[var(--mac-label)]',
+    dot: 'bg-[var(--mac-tertiary-label)]',
   },
 }
 
@@ -337,7 +337,7 @@ const PrioritySelect = ({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className={`flex items-center rounded-lg bg-slate-100 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 ${
+        className={`flex items-center rounded-lg bg-[var(--mac-fill)] text-xs font-medium text-[var(--mac-secondary-label)] transition-colors hover:bg-[var(--mac-fill-strong)] ${
           compact ? 'px-1.5 py-0.5 rounded-md' : 'px-2 py-1.5'
         }`}
       >
@@ -346,7 +346,7 @@ const PrioritySelect = ({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-20 min-w-[112px] rounded-xl border border-slate-200 bg-white p-1 shadow-[0_14px_30px_rgba(15,23,42,0.12)]">
+        <div className="absolute left-0 top-[calc(100%+6px)] z-20 min-w-[112px] rounded-xl border border-[var(--mac-separator)] bg-[var(--mac-elevated)] p-1 shadow-[var(--mac-shadow-popover)]">
           {priorityOptions.map((option) => (
             <button
               key={option.value}
@@ -356,7 +356,9 @@ const PrioritySelect = ({
                 setOpen(false)
               }}
               className={`flex w-full items-center rounded-lg px-2 py-2 text-left text-xs transition-colors ${
-                option.value === value ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'
+                option.value === value
+                  ? 'bg-[var(--mac-fill)] text-[var(--mac-label)]'
+                  : 'text-[var(--mac-secondary-label)] hover:bg-[var(--mac-hover)]'
               }`}
             >
               <Flag className={`mr-2 size-3.5 ${priorityColors[option.value]}`} />
@@ -534,7 +536,7 @@ const TagEditor = ({
       {isEditing ? (
         <div
           className={cn(
-            'flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50 text-slate-500 transition-colors focus-within:border-blue-300 focus-within:bg-white focus-within:text-slate-700',
+            'flex items-center rounded-full border border-dashed border-[var(--mac-separator)] bg-[var(--mac-fill)] text-[var(--mac-secondary-label)] transition-colors focus-within:border-blue-300 focus-within:bg-[var(--mac-elevated)] focus-within:text-[var(--mac-label)]',
             compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1'
           )}
         >
@@ -568,7 +570,7 @@ const TagEditor = ({
             }}
             placeholder={placeholder ?? '输入标签后回车'}
             className={cn(
-              'min-w-[88px] bg-transparent outline-none placeholder:text-slate-400',
+              'min-w-[88px] bg-transparent outline-none placeholder:text-[var(--mac-tertiary-label)]',
               compact ? 'w-24' : 'w-32 text-[13px]'
             )}
           />
@@ -578,7 +580,7 @@ const TagEditor = ({
           type="button"
           onClick={() => setIsEditing(true)}
           className={cn(
-            'inline-flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50 font-medium text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700',
+            'inline-flex items-center rounded-full border border-dashed border-[var(--mac-separator)] bg-[var(--mac-fill)] font-medium text-[var(--mac-secondary-label)] transition-colors hover:border-[var(--mac-border)] hover:bg-[var(--mac-hover)] hover:text-[var(--mac-label)]',
             compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]'
           )}
         >
@@ -590,11 +592,13 @@ const TagEditor = ({
       {shouldShowSuggestions ? (
         <div
           className={cn(
-            'absolute left-0 top-[calc(100%+8px)] z-30 min-w-[180px] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_18px_40px_rgba(15,23,42,0.12)]',
+            'absolute left-0 top-[calc(100%+8px)] z-30 min-w-[180px] rounded-2xl border border-[var(--mac-separator)] bg-[var(--mac-elevated)] p-2 shadow-[var(--mac-shadow-group)]',
             compact ? 'max-w-[220px]' : 'max-w-[280px]'
           )}
         >
-          <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">已有标签</div>
+          <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--mac-tertiary-label)]">
+            已有标签
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {visibleSuggestions.map((label) => {
               const previewTag = createTodoTag(label)
@@ -663,11 +667,11 @@ const TaskInput = ({
   }
 
   return (
-    <div className="mb-5 rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm transition-all focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+    <div className="mb-5 rounded-[10px] border border-[var(--mac-separator)] bg-[var(--mac-group)] p-3 shadow-sm transition-all focus-within:border-[var(--mac-accent)] focus-within:ring-1 focus-within:ring-[var(--mac-accent)]">
       <input
         type="text"
         placeholder="准备做点什么？"
-        className="w-full bg-transparent px-2 py-1 text-[17px] text-slate-800 outline-none placeholder:text-slate-400"
+        className="w-full bg-transparent px-2 py-1 text-[17px] text-[var(--mac-label)] outline-none placeholder:text-[var(--mac-tertiary-label)]"
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
@@ -681,11 +685,11 @@ const TaskInput = ({
       <div className="mt-3 flex items-center justify-between px-2">
         <div className="flex flex-wrap items-center gap-2">
           {showDateControl || date ? (
-            <label className="flex cursor-pointer items-center rounded-lg bg-slate-100 px-2 py-1.5 transition-colors hover:bg-slate-200">
-              <CalendarIcon className="mr-1.5 size-4 text-slate-500" />
+            <label className="flex cursor-pointer items-center rounded-lg bg-[var(--mac-fill)] px-2 py-1.5 transition-colors hover:bg-[var(--mac-fill-strong)]">
+              <CalendarIcon className="mr-1.5 size-4 text-[var(--mac-secondary-label)]" />
               <input
                 type="datetime-local"
-                className="cursor-pointer bg-transparent text-xs font-medium text-slate-600 outline-none"
+                className="cursor-pointer bg-transparent text-xs font-medium text-[var(--mac-secondary-label)] outline-none"
                 value={date ? getLocalISOString(date) : ''}
                 onChange={(event) => {
                   if (event.target.value) {
@@ -702,7 +706,7 @@ const TaskInput = ({
             <button
               type="button"
               onClick={() => setShowDateControl(true)}
-              className="rounded-lg bg-slate-100 p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+              className="rounded-lg bg-[var(--mac-fill)] p-2 text-[var(--mac-secondary-label)] transition-colors hover:bg-[var(--mac-fill-strong)] hover:text-[var(--mac-label)]"
               aria-label="设置日期"
             >
               <CalendarIcon className="size-4" />
@@ -721,7 +725,7 @@ const TaskInput = ({
             <button
               type="button"
               onClick={() => setShowTagEditor(true)}
-              className="rounded-lg bg-slate-100 p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+              className="rounded-lg bg-[var(--mac-fill)] p-2 text-[var(--mac-secondary-label)] transition-colors hover:bg-[var(--mac-fill-strong)] hover:text-[var(--mac-label)]"
               aria-label="添加标签"
             >
               <TagIcon className="size-4" />
@@ -734,7 +738,7 @@ const TaskInput = ({
             <button
               type="button"
               onClick={() => setShowPriorityControl(true)}
-              className="rounded-lg bg-slate-100 p-2 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+              className="rounded-lg bg-[var(--mac-fill)] p-2 text-[var(--mac-secondary-label)] transition-colors hover:bg-[var(--mac-fill-strong)] hover:text-[var(--mac-label)]"
               aria-label="设置优先级"
             >
               <Flag className="size-4" />
@@ -746,7 +750,7 @@ const TaskInput = ({
           type="button"
           onClick={submitTask}
           disabled={!draft.trim()}
-          className="rounded-md bg-blue-500 p-1.5 text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md bg-[var(--mac-accent)] p-1.5 text-white transition-colors hover:bg-[var(--mac-accent)] disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="添加任务"
         >
           <Plus className="size-4" />
@@ -791,11 +795,11 @@ const TaskItem = ({
   }
 
   return (
-    <div className="group flex items-start justify-between rounded-[20px] border border-slate-100 bg-white p-4 shadow-sm transition-all duration-200 hover:bg-slate-50/80">
+    <div className="group flex items-start justify-between rounded-[10px] border border-[var(--mac-separator)] bg-[var(--mac-group)] p-4 shadow-sm transition-all duration-200 hover:bg-[var(--mac-hover)]">
       <div className="flex min-w-0 flex-1 items-start">
         <button type="button" onClick={onToggle} className="mr-3 mt-0.5 flex-shrink-0">
           {todo.completed ? (
-            <CheckCircle2 className="size-5 text-blue-500" />
+            <CheckCircle2 className="size-5 text-[var(--mac-accent)]" />
           ) : (
             <Circle
               className={`size-5 transition-colors ${
@@ -805,7 +809,7 @@ const TaskItem = ({
                     ? 'text-orange-400'
                     : todo.priority === 1
                       ? 'text-blue-400'
-                      : 'text-slate-300 group-hover:text-blue-400'
+                      : 'text-[var(--mac-tertiary-label)] group-hover:text-blue-400'
               }`}
             />
           )}
@@ -831,14 +835,14 @@ const TaskItem = ({
                   setIsEditingText(false)
                 }
               }}
-              className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[15px] text-slate-700 outline-none ring-1 ring-blue-500/30"
+              className="rounded-md border border-blue-500/25 bg-[var(--mac-group)] px-2 py-1 text-[15px] text-[var(--mac-label)] outline-none ring-1 ring-[var(--mac-accent)]/30"
             />
           ) : (
             <button
               type="button"
               onClick={() => setIsEditingText(true)}
               className={`truncate text-left text-[15px] transition-all ${
-                todo.completed ? 'text-slate-400 line-through' : 'text-slate-700'
+                todo.completed ? 'text-[var(--mac-tertiary-label)] line-through' : 'text-[var(--mac-label)]'
               }`}
             >
               {todo.text}
@@ -849,7 +853,7 @@ const TaskItem = ({
             {isEditingDate ? (
               <div
                 className={`flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
-                  overdue ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
+                  overdue ? 'bg-red-500/12 text-red-600' : 'bg-[var(--mac-fill)] text-[var(--mac-secondary-label)]'
                 }`}
               >
                 <CalendarIcon className="mr-1 size-3" />
@@ -879,7 +883,9 @@ const TaskItem = ({
                 type="button"
                 onClick={() => setIsEditingDate(true)}
                 className={`flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
-                  overdue ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  overdue
+                    ? 'bg-red-500/12 text-red-600'
+                    : 'bg-[var(--mac-fill)] text-[var(--mac-secondary-label)] hover:bg-[var(--mac-fill-strong)]'
                 }`}
               >
                 <CalendarIcon className="mr-1 size-3" />
@@ -904,7 +910,7 @@ const TaskItem = ({
       <button
         type="button"
         onClick={onDelete}
-        className="ml-4 rounded-xl p-2 text-slate-300 opacity-0 transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100"
+        className="ml-4 rounded-xl p-2 text-[var(--mac-tertiary-label)] opacity-0 transition-all duration-200 hover:bg-rose-500/20 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100"
         aria-label="删除任务"
       >
         <Trash2 className="size-4" />
@@ -941,30 +947,30 @@ const MiniCalendar = ({
   }
 
   return (
-    <div className="mx-4 mt-6 rounded-[20px] border border-slate-100 bg-white p-3 shadow-sm">
+    <div className="mx-4 mt-6 rounded-[10px] border border-[var(--mac-separator)] bg-[var(--mac-group)] p-3 shadow-sm">
       <div className="mb-3 flex items-center justify-between px-1">
-        <span className="text-sm font-semibold text-slate-700">
+        <span className="text-sm font-semibold text-[var(--mac-label)]">
           {currentMonth.getFullYear()}年{currentMonth.getMonth() + 1}月
         </span>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
-            className="rounded-md p-1 transition-colors hover:bg-slate-100"
+            className="rounded-md p-1 transition-colors hover:bg-[var(--mac-hover)]"
           >
-            <ChevronLeft className="size-4 text-slate-500" />
+            <ChevronLeft className="size-4 text-[var(--mac-secondary-label)]" />
           </button>
           <button
             type="button"
             onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
-            className="rounded-md p-1 transition-colors hover:bg-slate-100"
+            className="rounded-md p-1 transition-colors hover:bg-[var(--mac-hover)]"
           >
-            <ChevronRight className="size-4 text-slate-500" />
+            <ChevronRight className="size-4 text-[var(--mac-secondary-label)]" />
           </button>
         </div>
       </div>
 
-      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-slate-400">
+      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-[var(--mac-tertiary-label)]">
         {['日', '一', '二', '三', '四', '五', '六'].map((dayLabel) => (
           <div key={dayLabel}>{dayLabel}</div>
         ))}
@@ -987,15 +993,17 @@ const MiniCalendar = ({
               onClick={() => onSelectDate(date)}
               className={`relative flex h-7 w-7 flex-col items-center justify-center rounded-full transition-colors ${
                 selected
-                  ? 'bg-blue-500 font-semibold text-white shadow-md shadow-blue-500/30'
+                  ? 'bg-[var(--mac-accent)] font-semibold text-white shadow-md shadow-blue-500/30'
                   : today
-                    ? 'bg-blue-50 font-semibold text-blue-600'
-                    : 'text-slate-700 hover:bg-slate-100'
+                    ? 'bg-blue-500/12 font-semibold text-[var(--mac-accent)]'
+                    : 'text-[var(--mac-label)] hover:bg-[var(--mac-hover)]'
               }`}
             >
               <span>{date.getDate()}</span>
               {hasTodo ? (
-                <span className={`absolute bottom-0.5 size-1 rounded-full ${selected ? 'bg-white' : 'bg-blue-400'}`} />
+                <span
+                  className={`absolute bottom-0.5 size-1 rounded-full ${selected ? 'bg-[var(--mac-group)]' : 'bg-blue-400'}`}
+                />
               ) : null}
             </button>
           )
@@ -1119,7 +1127,7 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
   }, [selectedDate, viewMode])
 
   const navItems = [
-    { id: 'inbox' as const, label: '收集箱', icon: Inbox, color: 'text-blue-500' },
+    { id: 'inbox' as const, label: '收集箱', icon: Inbox, color: 'text-[var(--mac-accent)]' },
     { id: 'today' as const, label: '今天', icon: Sun, color: 'text-orange-500' },
     { id: 'upcoming' as const, label: '最近7天', icon: CalendarDays, color: 'text-violet-500' },
   ]
@@ -1145,18 +1153,18 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
   }
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden bg-white text-slate-800">
+    <div className="flex h-full min-h-0 overflow-hidden bg-transparent text-[var(--mac-label)]">
       <aside
-        className={`flex h-full flex-shrink-0 flex-col border-r border-slate-200 bg-slate-50 transition-all duration-300 ${
+        className={`flex h-full flex-shrink-0 flex-col border-r border-[var(--mac-separator)] bg-[var(--mac-fill)] transition-all duration-300 ${
           isSidebarOpen ? 'w-56' : 'w-0 overflow-hidden border-r-0'
         }`}
       >
-        <div className="flex h-12 items-center justify-between border-b border-slate-200/60 px-5">
-          <span className="text-base font-bold text-slate-800">待办清单</span>
+        <div className="flex h-12 items-center justify-between border-b border-[var(--mac-separator)] px-5">
+          <span className="text-base font-bold text-[var(--mac-label)]">待办清单</span>
           <button
             type="button"
             onClick={() => setIsSidebarOpen(false)}
-            className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200"
+            className="rounded-md p-1 text-[var(--mac-secondary-label)] transition-colors hover:bg-[var(--mac-fill-strong)]"
           >
             <X className="size-4" />
           </button>
@@ -1171,8 +1179,8 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
                 onClick={() => setViewMode(item.id)}
                 className={`flex w-full items-center rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
                   viewMode === item.id
-                    ? 'border-slate-100 bg-white text-slate-900 shadow-sm'
-                    : 'border-transparent text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                    ? 'border-[var(--mac-separator)] bg-[var(--mac-group)] text-[var(--mac-label)] shadow-sm'
+                    : 'border-transparent text-[var(--mac-secondary-label)] hover:bg-[var(--mac-fill-strong)] hover:text-[var(--mac-label)]'
                 }`}
               >
                 <item.icon className={`mr-3 size-5 ${item.color}`} />
@@ -1182,11 +1190,11 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
           </nav>
 
           <div className="mt-7 flex items-center justify-between px-4">
-            <div className="px-2 text-sm font-semibold tracking-[0.08em] text-slate-600">日历</div>
+            <div className="px-2 text-sm font-semibold tracking-[0.08em] text-[var(--mac-secondary-label)]">日历</div>
             <button
               type="button"
               onClick={handleExportTodos}
-              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="inline-flex items-center rounded-full border border-[var(--mac-separator)] bg-[var(--mac-group)] px-3 py-1.5 text-xs font-medium text-[var(--mac-secondary-label)] shadow-sm transition-colors hover:bg-[var(--mac-hover)] hover:text-[var(--mac-label)]"
             >
               <Download className="mr-1.5 size-3.5" />
               导出数据
@@ -1204,30 +1212,30 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col bg-white">
+      <div className="flex min-w-0 flex-1 flex-col bg-transparent">
         {viewMode === 'calendar' ? null : (
-          <header className="flex h-12 items-center justify-between border-b border-slate-100/80 px-4">
+          <header className="flex h-12 items-center justify-between border-b border-[var(--mac-separator)] px-4">
             <div className="flex items-center">
               {!isSidebarOpen ? (
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(true)}
-                  className="mr-3 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
+                  className="mr-3 rounded-lg p-2 text-[var(--mac-secondary-label)] transition-colors hover:bg-[var(--mac-hover)]"
                 >
                   <Menu className="size-4" />
                 </button>
               ) : null}
-              <h1 className="text-lg font-bold text-slate-800">{viewTitle}</h1>
+              <h1 className="text-lg font-bold text-[var(--mac-label)]">{viewTitle}</h1>
             </div>
 
             <div className="relative flex items-center">
-              <Search className="absolute left-3 size-4 text-slate-400" />
+              <Search className="absolute left-3 size-4 text-[var(--mac-tertiary-label)]" />
               <input
                 type="text"
                 placeholder="搜索任务、标签或日期..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-44 rounded-full border border-transparent bg-slate-100 py-1.5 pl-9 pr-4 text-sm outline-none transition-all hover:bg-slate-200/80 focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
+                className="w-44 rounded-full border border-transparent bg-[var(--mac-fill)] py-1.5 pl-9 pr-4 text-sm outline-none transition-all hover:bg-[var(--mac-fill-strong)] focus:border-[var(--mac-accent)] focus:bg-[var(--mac-elevated)] focus:ring-1 focus:ring-[var(--mac-accent)]"
               />
             </div>
           </header>
@@ -1240,7 +1248,7 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(true)}
-                  className="absolute left-0 top-0 z-20 rounded-xl border border-slate-200 bg-white/90 p-2 text-slate-500 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-slate-700"
+                  className="absolute left-0 top-0 z-20 rounded-xl border border-[var(--mac-separator)] bg-[var(--mac-elevated)] p-2 text-[var(--mac-secondary-label)] shadow-sm backdrop-blur transition-colors hover:bg-[var(--mac-elevated)] hover:text-[var(--mac-label)]"
                   aria-label="展开侧边栏"
                 >
                   <Menu className="size-4" />
@@ -1248,8 +1256,8 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
               ) : null}
 
               <div className={cn('mb-5 flex items-center', isSidebarOpen ? 'justify-between' : 'justify-end pl-12')}>
-                <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
-                  <CalendarIcon className="mr-2 size-4 text-blue-500" />
+                <div className="inline-flex items-center rounded-full border border-[var(--mac-separator)] bg-[var(--mac-fill)] px-3 py-1 text-sm font-medium text-[var(--mac-label)]">
+                  <CalendarIcon className="mr-2 size-4 text-[var(--mac-accent)]" />
                   {viewTitle}
                 </div>
               </div>
@@ -1276,12 +1284,14 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 py-16 text-center">
-                  <div className="mb-5 flex size-20 items-center justify-center rounded-full bg-white shadow-sm">
-                    <CalendarIcon className="size-10 text-slate-300" />
+                <div className="flex flex-1 flex-col items-center justify-center rounded-[24px] border border-dashed border-[var(--mac-separator)] bg-[var(--mac-fill)] py-16 text-center">
+                  <div className="mb-5 flex size-20 items-center justify-center rounded-full bg-[var(--mac-group)] shadow-sm">
+                    <CalendarIcon className="size-10 text-[var(--mac-tertiary-label)]" />
                   </div>
-                  <p className="text-base font-medium text-slate-600">这一天没有安排任务</p>
-                  <p className="mt-2 text-sm text-slate-400">在左侧继续切换日期，或回到其他视图添加任务</p>
+                  <p className="text-base font-medium text-[var(--mac-secondary-label)]">这一天没有安排任务</p>
+                  <p className="mt-2 text-sm text-[var(--mac-tertiary-label)]">
+                    在左侧继续切换日期，或回到其他视图添加任务
+                  </p>
                 </div>
               )}
             </div>
@@ -1320,13 +1330,13 @@ export function TodoFocusPanel({ query, trigger, setQuery }: TodoFocusPanelProps
                 </div>
               ) : (
                 <div className="flex flex-col items-center py-16 text-center">
-                  <div className="mb-5 flex size-20 items-center justify-center rounded-full bg-slate-50">
-                    <CheckCircle2 className="size-10 text-slate-300" />
+                  <div className="mb-5 flex size-20 items-center justify-center rounded-full bg-[var(--mac-fill)]">
+                    <CheckCircle2 className="size-10 text-[var(--mac-tertiary-label)]" />
                   </div>
-                  <p className="text-base font-medium text-slate-600">
+                  <p className="text-base font-medium text-[var(--mac-secondary-label)]">
                     {searchQuery ? '没有找到匹配的任务' : '太棒了，所有任务都已完成！'}
                   </p>
-                  <p className="mt-2 text-sm text-slate-400">
+                  <p className="mt-2 text-sm text-[var(--mac-tertiary-label)]">
                     {searchQuery ? '试试任务名称、标签或 3/12 这样的日期' : '享受你的空闲时间，或者添加新任务'}
                   </p>
                 </div>

@@ -52,6 +52,9 @@ const bubbleApi: BubblePreloadApi = {
     preloadLog('resizeBubble', { width })
     ipcRenderer.send(TextPickerChannel.ResizeBubble, width)
   },
+  setTooltipSpace(open) {
+    return ipcRenderer.invoke(TextPickerChannel.SetBubbleTooltipSpace, open)
+  },
   setBubbleDragging(isDragging) {
     preloadLog('setBubbleDragging', { isDragging })
     ipcRenderer.send(TextPickerChannel.SetBubbleDragging, isDragging)

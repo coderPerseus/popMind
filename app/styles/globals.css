@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+@import './tokens.css';
+
+/* dark: follows the app theme (html.dark), not only the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
 @source '@/app';
 @source '@/lib';
 @source '../../node_modules/streamdown/dist/*.js';
@@ -34,26 +38,30 @@
 }
 
 @layer base {
+  /*
+   * macOS-inspired design tokens. shadcn tokens map onto them so shared
+   * components (Button, Input, Switch…) pick up the same look everywhere.
+   */
   :root {
-    --background: var(--color-neutral-50);
-    --foreground: var(--color-neutral-900);
-    --card: hsl(0 0% 100%);
-    --card-foreground: hsl(0 0% 3.9%);
-    --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(0 0% 3.9%);
-    --primary: hsl(0 0% 9%);
-    --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(0 0% 96.1%);
-    --secondary-foreground: hsl(0 0% 9%);
-    --muted: hsl(0 0% 96.1%);
-    --muted-foreground: hsl(0 0% 45.1%);
-    --accent: hsl(0 0% 96.1%);
-    --accent-foreground: hsl(0 0% 9%);
-    --destructive: hsl(0 84.2% 60.2%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 89.8%);
-    --input: hsl(0 0% 89.8%);
-    --ring: hsl(0 0% 3.9%);
+    --background: var(--mac-window);
+    --foreground: var(--mac-label);
+    --card: var(--mac-group);
+    --card-foreground: var(--mac-label);
+    --popover: var(--mac-elevated);
+    --popover-foreground: var(--mac-label);
+    --primary: var(--mac-accent);
+    --primary-foreground: var(--mac-on-accent);
+    --secondary: var(--mac-fill);
+    --secondary-foreground: var(--mac-label);
+    --muted: var(--mac-fill);
+    --muted-foreground: var(--mac-secondary-label);
+    --accent: var(--mac-hover);
+    --accent-foreground: var(--mac-label);
+    --destructive: var(--mac-red);
+    --destructive-foreground: #ffffff;
+    --border: var(--mac-border);
+    --input: var(--mac-border);
+    --ring: rgba(0, 122, 255, 0.55);
     --chart-1: hsl(12 76% 61%);
     --chart-2: hsl(173 58% 39%);
     --chart-3: hsl(197 37% 24%);
@@ -63,29 +71,53 @@
   }
 
   .dark {
-    --background: var(--color-neutral-950);
-    --foreground: var(--color-neutral-100);
-    --card: hsl(0, 0%, 3.9%);
-    --card-foreground: hsl(0 0% 98%);
-    --popover: hsl(0 0% 3.9%);
-    --popover-foreground: hsl(0 0% 98%);
-    --primary: hsl(0 0% 98%);
-    --primary-foreground: hsl(0 0% 9%);
-    --secondary: hsl(0 0% 14.9%);
-    --secondary-foreground: hsl(0 0% 98%);
-    --muted: hsl(0 0% 14.9%);
-    --muted-foreground: hsl(0 0% 63.9%);
-    --accent: hsl(0 0% 14.9%);
-    --accent-foreground: hsl(0 0% 98%);
-    --destructive: hsl(0 62.8% 30.6%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 14.9%);
-    --input: hsl(0 0% 14.9%);
-    --ring: hsl(0 0% 83.1%);
+    --background: var(--mac-window);
+    --foreground: var(--mac-label);
+    --card: var(--mac-group);
+    --card-foreground: var(--mac-label);
+    --popover: var(--mac-elevated);
+    --popover-foreground: var(--mac-label);
+    --primary: var(--mac-accent);
+    --primary-foreground: #ffffff;
+    --secondary: var(--mac-fill);
+    --secondary-foreground: var(--mac-label);
+    --muted: var(--mac-fill);
+    --muted-foreground: var(--mac-secondary-label);
+    --accent: var(--mac-hover);
+    --accent-foreground: var(--mac-label);
+    --destructive: var(--mac-red);
+    --destructive-foreground: #ffffff;
+    --border: var(--mac-border);
+    --input: var(--mac-border);
+    --ring: rgba(10, 132, 255, 0.6);
     --chart-1: hsl(220 70% 50%);
     --chart-2: hsl(160 60% 45%);
     --chart-3: hsl(30 80% 55%);
     --chart-4: hsl(280 65% 60%);
     --chart-5: hsl(340 75% 55%);
   }
+
+  html,
+  body {
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'kern';
+  }
+
+  ::selection {
+    background: var(--mac-accent-soft);
+  }
+}
+
+/* Native-looking popup button chevron for <Select>. */
+.mac-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12' fill='none' stroke='%23808080' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 4.25 4 1.75l2.5 2.5M1.5 7.75 4 10.25l2.5-2.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 8px 12px;
+}
+
+.mac-select option {
+  color: initial;
+  background: initial;
 }

@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import '@/app/styles/tokens.css'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { TranslationPanel } from '@/app/components/translation/TranslationPanel'
 
@@ -8,5 +9,5 @@ ReactDOM.createRoot(document.getElementById('translate-root') as HTMLElement).re
     <ErrorBoundary>
       <TranslationPanel />
     </ErrorBoundary>
-  </React.StrictMode>,
+  </React.StrictMode>
 )

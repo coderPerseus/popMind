@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import '@/app/styles/tokens.css'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { InputTranslationPanel } from '@/app/components/input-translation/InputTranslationPanel'
 

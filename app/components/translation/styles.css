@@ -20,23 +20,21 @@ body,
   box-sizing: border-box;
   overflow: hidden;
   background: transparent;
-  font-family: -apple-system, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif;
-  color: rgb(30 32 36);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--mac-label);
   user-select: none;
   -webkit-font-smoothing: antialiased;
 }
 
 .translation-shell:has(.translation-edge-handle:hover) .translation-panel,
 .translation-shell.is-resizing .translation-panel {
-  border-color: rgb(99 131 210 / 0.32);
+  backdrop-filter: none;
+  box-shadow: var(--mac-shadow-popover);
 }
 
 .translation-shell:has(.translation-edge-handle:hover) .translation-panel {
-  box-shadow:
-    0 4px 6px rgb(0 0 0 / 0.04),
-    0 12px 32px rgb(0 0 0 / 0.1),
-    0 24px 56px rgb(0 0 0 / 0.07),
-    inset 0 1px 0 rgb(255 255 255 / 0.94);
+  box-shadow: var(--mac-shadow-popover), 0 0 0 1px var(--mac-accent-soft);
 }
 
 .translation-shell.is-resizing .translation-panel {
@@ -60,15 +58,10 @@ body,
   box-sizing: border-box;
   max-height: 100%;
   overflow: hidden;
-  border-radius: 20px;
-  border: 1px solid rgb(255 255 255 / 0.55);
-  background: linear-gradient(160deg, rgb(255 255 255 / 0.97) 0%, rgb(248 249 252 / 0.95) 100%);
-  box-shadow:
-    0 4px 6px rgb(0 0 0 / 0.04),
-    0 12px 32px rgb(0 0 0 / 0.1),
-    0 24px 56px rgb(0 0 0 / 0.07),
-    inset 0 1px 0 rgb(255 255 255 / 0.94);
-  backdrop-filter: blur(28px) saturate(1.4) brightness(1.01);
+  border-radius: var(--mac-radius-window);
+  border: 0;
+  background: var(--mac-elevated);
+  box-shadow: var(--mac-shadow-popover);
 }
 
 /* ── Top bar ── */
@@ -76,9 +69,9 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 11px 12px 10px;
-  border-bottom: 1px solid rgb(0 0 0 / 0.055);
+  gap: 8px;
+  padding: 8px 8px 8px 6px;
+  border-bottom: 0.5px solid var(--mac-separator);
 }
 
 .translation-topbar-left {
@@ -100,16 +93,16 @@ body,
 .translation-drag-handle {
   flex-shrink: 0;
   border: 0 !important;
-  border-radius: 10px;
+  border-radius: 6px;
   background: transparent !important;
   box-shadow: none !important;
-  color: rgb(150 156 168);
+  color: var(--mac-tertiary-label);
   cursor: grab;
 }
 
 .translation-drag-handle:hover {
   background: transparent !important;
-  color: rgb(86 94 108);
+  color: var(--mac-secondary-label);
 }
 
 .translation-drag-handle:active {
@@ -131,36 +124,29 @@ body,
 .translation-select-wrap [data-slot='select'] {
   width: 100%;
   min-width: 0;
-  padding: 4px 8px;
-  height: 30px;
-  border: 1px solid rgb(210 214 222 / 0.9);
-  border-radius: 9px;
-  background: rgb(255 255 255 / 0.92);
-  color: rgb(40 44 52);
+  height: 24px;
+  padding: 0 22px 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background-color: var(--mac-control);
+  color: var(--mac-label);
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 400;
   outline: none;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.05),
-    inset 0 1px 0 rgb(255 255 255 / 0.6);
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease;
-  cursor: pointer;
+  box-shadow: var(--mac-shadow-control);
+  transition: box-shadow 120ms ease;
+  cursor: default;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12' fill='none' stroke='%23808080' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 4.25 4 1.75l2.5 2.5M1.5 7.75 4 10.25l2.5-2.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 7px center;
-  padding-right: 22px;
+  background-size: 8px 12px;
 }
 
 .translation-select-wrap [data-slot='select']:focus {
-  border-color: rgb(99 131 210 / 0.72);
-  box-shadow:
-    0 0 0 3px rgb(99 131 210 / 0.12),
-    0 1px 2px rgb(0 0 0 / 0.05),
-    inset 0 1px 0 rgb(255 255 255 / 0.6);
+  border: 0;
+  box-shadow: 0 0 0 3px var(--mac-accent-soft);
 }
 
 /* Arrow between selects */
@@ -168,11 +154,11 @@ body,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 18px;
   flex-shrink: 0;
-  color: rgb(180 185 195);
-  font-size: 14px;
-  opacity: 0.85;
+  color: var(--mac-tertiary-label);
+  font-size: 13px;
+  opacity: 1;
 }
 
 /* Icon buttons (pin / close) */
@@ -180,31 +166,31 @@ body,
   appearance: none;
   border: 0;
   background: transparent;
-  border-radius: 8px;
-  color: rgb(160 165 175);
-  width: 28px !important;
-  height: 28px !important;
+  border-radius: 6px;
+  color: var(--mac-secondary-label);
+  width: 26px !important;
+  height: 26px !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    transform 100ms ease;
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .translation-icon-btn:hover {
-  background: rgb(0 0 0 / 0.06);
-  color: rgb(60 65 75);
+  background: var(--mac-hover);
+  color: var(--mac-label);
 }
 
 .translation-icon-btn:active {
-  transform: scale(0.92);
+  background: var(--mac-selected);
+  transform: none;
 }
 
 .translation-icon-btn.is-active {
-  background: rgb(59 91 168 / 0.12);
-  color: rgb(59 91 168);
+  background: var(--mac-accent-soft);
+  color: var(--mac-accent);
 }
 
 /* ── Body / Result area ── */
@@ -213,7 +199,7 @@ body,
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding: 14px 16px 12px;
+  padding: 12px 14px 10px;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior-y: contain;
@@ -221,10 +207,10 @@ body,
 
 .translation-result {
   min-height: min-content;
-  color: rgb(26 28 33);
-  font-size: 15px;
-  line-height: 1.7;
-  letter-spacing: -0.01em;
+  color: var(--mac-label);
+  font-size: 14.5px;
+  line-height: 1.65;
+  letter-spacing: -0.005em;
   user-select: text;
 }
 
@@ -239,41 +225,41 @@ body,
 }
 
 .translation-divider {
-  margin: 14px 0 12px;
-  height: 1px;
-  background: rgb(0 0 0 / 0.08);
+  margin: 12px 0 10px;
+  height: 0.5px;
+  background: var(--mac-separator);
 }
 
 .translation-source-text {
-  color: rgb(99 104 115);
-  font-size: 13px;
-  line-height: 1.7;
+  color: var(--mac-secondary-label);
+  font-size: 12.5px;
+  line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
 }
 
 .translation-result.status-idle {
-  color: rgb(180 185 195);
-  font-size: 14px;
+  color: var(--mac-tertiary-label);
+  font-size: 13.5px;
 }
 
 .translation-result.status-idle .translation-source-text {
-  color: rgb(99 104 115);
+  color: var(--mac-secondary-label);
 }
 
 .translation-result.status-error {
-  color: rgb(188 58 58);
-  font-size: 13.5px;
-  line-height: 1.65;
+  color: var(--mac-red);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .translation-result.status-error .translation-source-text {
-  color: rgb(99 104 115);
+  color: var(--mac-secondary-label);
 }
 
 .translation-markdown {
-  color: rgb(15 23 42);
+  color: var(--mac-label);
   font-size: 14px;
   line-height: 1.66;
   user-select: text;
@@ -314,12 +300,12 @@ body,
 .translation-markdown :where(blockquote) {
   padding-left: 12px;
   border-left: 2px solid rgb(191 219 254);
-  color: rgb(71 85 105);
+  color: var(--mac-label);
 }
 
 .translation-markdown :where(code) {
   border-radius: 6px;
-  background: rgb(241 245 249);
+  background: var(--mac-elevated);
   padding: 0.14em 0.4em;
   font-size: 0.92em;
 }
@@ -345,13 +331,13 @@ body,
 }
 
 .translation-markdown :where(th, td) {
-  border: 1px solid rgb(226 232 240);
+  border: 1px solid var(--mac-separator);
   padding: 8px 10px;
   text-align: left;
 }
 
 .translation-markdown :where(a) {
-  color: rgb(37 99 235);
+  color: var(--mac-accent);
   text-decoration: none;
 }
 
@@ -371,7 +357,7 @@ body,
   display: flex;
   flex-direction: column;
   min-height: max-content;
-  gap: 14px;
+  gap: 12px;
 }
 
 .translation-word-head {
@@ -388,34 +374,34 @@ body,
 }
 
 .translation-word-title {
-  font-size: 26px;
-  line-height: 1.1;
+  font-size: 22px;
+  line-height: 1.15;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  color: rgb(24 27 34);
+  letter-spacing: -0.02em;
+  color: var(--mac-label);
 }
 
 .translation-word-speak-btn {
   flex-shrink: 0;
-  width: 30px !important;
-  height: 30px !important;
+  width: 26px !important;
+  height: 26px !important;
   padding: 0 !important;
-  border-radius: 999px;
-  border: 1px solid rgb(224 229 238 / 0.95) !important;
-  background: rgb(246 248 252 / 0.95) !important;
-  color: rgb(71 81 98);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.82);
+  border-radius: 6px;
+  border: 0 !important;
+  background: var(--mac-fill) !important;
+  color: var(--mac-secondary-label);
+  box-shadow: none;
 }
 
 .translation-word-speak-btn:hover:not(:disabled) {
-  background: rgb(238 243 251 / 0.98) !important;
-  color: rgb(43 52 69);
+  background: var(--mac-fill-strong) !important;
+  color: var(--mac-label);
 }
 
 .translation-word-speak-btn.is-speaking {
-  border-color: rgb(145 181 255 / 0.9) !important;
-  background: rgb(222 235 255 / 0.92) !important;
-  color: rgb(42 87 172);
+  border: 0 !important;
+  background: var(--mac-accent-soft) !important;
+  color: var(--mac-accent);
 }
 
 .translation-word-speak-btn:disabled {
@@ -431,20 +417,20 @@ body,
 .translation-word-phonetic {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgb(244 246 250);
-  color: rgb(88 95 108);
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--mac-fill);
+  color: var(--mac-secondary-label);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .translation-word-phonetic-label {
-  color: rgb(128 134 146);
+  color: var(--mac-tertiary-label);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 .translation-word-section {
@@ -455,9 +441,9 @@ body,
 
 .translation-word-section-title {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: rgb(144 150 162);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--mac-secondary-label);
 }
 
 .translation-word-definition {
@@ -467,17 +453,18 @@ body,
 }
 
 .translation-word-part {
-  min-width: 32px;
+  min-width: 28px;
   flex-shrink: 0;
-  color: rgb(86 103 152);
+  color: var(--mac-accent);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
+  font-style: italic;
 }
 
 .translation-word-meaning {
-  color: rgb(38 42 50);
-  font-size: 14px;
-  line-height: 1.7;
+  color: var(--mac-label);
+  font-size: 13.5px;
+  line-height: 1.6;
 }
 
 .translation-word-tags {
@@ -489,11 +476,11 @@ body,
 .translation-word-tag {
   display: inline-flex;
   align-items: center;
-  padding: 5px 10px;
-  border-radius: 10px;
-  background: rgb(247 248 251);
-  border: 1px solid rgb(228 231 238);
-  color: rgb(88 95 108);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--mac-fill);
+  border: 0;
+  color: var(--mac-secondary-label);
   font-size: 12px;
   line-height: 1.2;
 }
@@ -507,31 +494,31 @@ body,
 .translation-word-list-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgb(248 249 252 / 0.93);
-  border: 1px solid rgb(232 235 241 / 0.9);
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--mac-fill);
+  border: 0;
 }
 
 .translation-word-list-title {
   font-size: 13px;
   font-weight: 600;
-  color: rgb(34 38 45);
+  color: var(--mac-label);
   line-height: 1.35;
 }
 
 .translation-word-list-desc,
 .translation-word-example-target {
   font-size: 12.5px;
-  line-height: 1.6;
-  color: rgb(99 104 115);
+  line-height: 1.55;
+  color: var(--mac-secondary-label);
 }
 
 .translation-word-example-source {
   font-size: 12.5px;
   line-height: 1.6;
-  color: rgb(34 38 45);
+  color: var(--mac-label);
 }
 
 /* Loading state */
@@ -540,7 +527,7 @@ body,
   align-items: center;
   gap: 6px;
   padding: 0;
-  color: rgb(160 165 175);
+  color: var(--mac-tertiary-label);
 }
 
 .translation-loading-text {
@@ -555,9 +542,9 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 9px 12px 9px 12px;
-  border-top: 1px solid rgb(0 0 0 / 0.055);
+  gap: 8px;
+  padding: 8px 8px 8px 10px;
+  border-top: 0.5px solid var(--mac-separator);
 }
 
 /* Engine select — compact pill style */
@@ -566,34 +553,33 @@ body,
 }
 
 .translation-engine-select-wrap [data-slot='select'] {
-  height: 26px;
-  padding: 3px 22px 3px 9px;
-  border-radius: 8px;
-  border: 1px solid rgb(210 214 222 / 0.85);
-  background: rgb(248 249 252 / 0.94);
-  color: rgb(90 96 108);
-  font-size: 11.5px;
-  font-weight: 500;
+  height: 24px;
+  padding: 0 22px 0 8px;
+  border-radius: 6px;
+  border: 0;
+  background-color: var(--mac-control);
+  box-shadow: var(--mac-shadow-control);
+  color: var(--mac-label);
+  font-size: 12px;
+  font-weight: 400;
   outline: none;
-  cursor: pointer;
+  cursor: default;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' fill='none'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23aaa' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12' fill='none' stroke='%23808080' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 4.25 4 1.75l2.5 2.5M1.5 7.75 4 10.25l2.5-2.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 6px center;
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease;
+  background-position: right 7px center;
+  background-size: 8px 12px;
 }
 
 .translation-engine-select-wrap [data-slot='select']:hover {
-  border-color: rgb(180 185 200 / 0.95);
-  background-color: rgb(255 255 255 / 0.95);
+  border: 0;
+  background-color: var(--mac-control);
 }
 
 .translation-engine-select-wrap [data-slot='select']:focus {
-  border-color: rgb(99 131 210 / 0.65);
-  box-shadow: 0 0 0 2.5px rgb(99 131 210 / 0.1);
+  border: 0;
+  box-shadow: 0 0 0 3px var(--mac-accent-soft);
 }
 
 /* Footer action buttons */
@@ -610,40 +596,39 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 11px !important;
-  border-radius: 9px;
-  color: rgb(110 116 128);
+  padding: 0 8px !important;
+  border-radius: 6px;
+  color: var(--mac-secondary-label);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    transform 100ms ease,
-    box-shadow 140ms ease;
-  cursor: pointer;
-  height: 28px !important;
+    background-color 120ms ease,
+    color 120ms ease;
+  cursor: default;
+  height: 24px !important;
 }
 
 .translation-action-btn:hover:not(:disabled) {
-  background: rgb(0 0 0 / 0.055);
-  color: rgb(40 45 55);
+  background: var(--mac-hover);
+  color: var(--mac-label);
 }
 
 .translation-action-btn:active:not(:disabled) {
-  transform: scale(0.95);
+  background: var(--mac-selected);
+  transform: none;
 }
 
 .translation-action-btn.is-primary {
-  background: rgb(59 91 168 / 0.1);
-  color: rgb(59 91 168);
-  font-weight: 600;
+  background: var(--mac-accent);
+  color: #fff;
+  font-weight: 500;
 }
 
 .translation-action-btn.is-primary:hover:not(:disabled) {
-  background: rgb(59 91 168 / 0.16);
-  color: rgb(50 78 148);
-  box-shadow: 0 1px 4px rgb(59 91 168 / 0.14);
+  background: var(--mac-accent-hover);
+  color: #fff;
+  box-shadow: none;
 }
 
 .translation-action-btn:disabled {
@@ -758,187 +743,72 @@ body,
   border-radius: 2px;
 }
 
-.dark .translation-shell {
-  color: rgb(232 235 241);
-}
 
-.dark .translation-shell:has(.translation-edge-handle:hover) .translation-panel,
-.dark .translation-shell.is-resizing .translation-panel {
-  border-color: rgb(129 140 248 / 0.3);
-}
 
-.dark .translation-shell:has(.translation-edge-handle:hover) .translation-panel {
-  box-shadow:
-    0 12px 32px rgb(0 0 0 / 0.42),
-    0 24px 56px rgb(0 0 0 / 0.32),
-    inset 0 1px 0 rgb(255 255 255 / 0.05);
-}
 
-.dark .translation-shell.is-resizing .translation-panel {
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.4);
-}
 
-.dark .translation-panel {
-  border-color: rgb(255 255 255 / 0.12);
-  background: linear-gradient(160deg, rgb(34 35 40 / 0.96) 0%, rgb(24 25 29 / 0.94) 100%);
-  box-shadow:
-    0 12px 32px rgb(0 0 0 / 0.42),
-    0 24px 56px rgb(0 0 0 / 0.32),
-    inset 0 1px 0 rgb(255 255 255 / 0.05);
-}
 
-.dark .translation-topbar,
-.dark .translation-footer {
-  border-color: rgb(255 255 255 / 0.08);
-}
 
-.dark .translation-drag-handle {
-  color: rgb(164 170 181);
-}
 
-.dark .translation-drag-handle:hover {
-  color: rgb(232 235 241);
-}
 
-.dark .translation-arrow,
-.dark .translation-loading,
-.dark .translation-action-btn,
-.dark .translation-icon-btn {
-  color: rgb(166 171 181);
-}
 
-.dark .translation-select-wrap [data-slot='select'],
-.dark .translation-engine-select-wrap [data-slot='select'] {
-  border-color: rgb(255 255 255 / 0.12);
-  background: rgb(255 255 255 / 0.08);
-  color: rgb(240 243 247);
-  box-shadow: none;
-}
 
-.dark .translation-select-wrap [data-slot='select']:focus,
-.dark .translation-engine-select-wrap [data-slot='select']:focus {
-  border-color: rgb(129 140 248 / 0.72);
-  box-shadow: 0 0 0 3px rgb(129 140 248 / 0.18);
-}
 
-.dark .translation-engine-select-wrap [data-slot='select']:hover {
-  border-color: rgb(255 255 255 / 0.16);
-  background: rgb(255 255 255 / 0.12);
-}
 
-.dark .translation-icon-btn:hover,
-.dark .translation-action-btn:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.08);
-  color: rgb(245 247 250);
-}
 
-.dark .translation-icon-btn.is-active,
-.dark .translation-action-btn.is-primary {
-  background: rgb(99 131 210 / 0.24);
-  color: rgb(181 201 255);
-}
 
-.dark .translation-action-btn.is-primary:hover:not(:disabled) {
-  background: rgb(99 131 210 / 0.32);
-  color: rgb(221 230 255);
-  box-shadow: 0 1px 4px rgb(99 131 210 / 0.22);
-}
 
-.dark .translation-result {
-  color: rgb(236 239 244);
-}
 
-.dark .translation-result.status-idle {
-  color: rgb(142 148 160);
-}
 
-.dark .translation-result.status-error {
-  color: rgb(255 206 206);
-}
 
-.dark .translation-result.status-error .translation-source-text {
-  color: rgb(154 160 171);
-}
 
-.dark .translation-divider {
-  background: rgb(255 255 255 / 0.1);
-}
 
-.dark .translation-source-text {
-  color: rgb(154 160 171);
-}
 
-.dark .translation-markdown {
-  color: rgb(236 239 244);
-}
 
-.dark .translation-markdown :where(blockquote) {
-  border-left-color: rgb(96 165 250 / 0.5);
-  color: rgb(154 160 171);
-}
 
-.dark .translation-markdown :where(code) {
-  background: rgb(255 255 255 / 0.08);
-  color: rgb(236 239 244);
-}
 
-.dark .translation-markdown :where(pre) {
-  background: rgb(2 6 23);
-  color: rgb(241 245 249);
-}
 
-.dark .translation-markdown :where(th, td) {
-  border-color: rgb(255 255 255 / 0.12);
-}
 
-.dark .translation-markdown :where(a) {
-  color: rgb(147 197 253);
-}
 
-.dark .translation-word-title,
-.dark .translation-word-meaning,
-.dark .translation-word-list-title,
-.dark .translation-word-example-source {
-  color: rgb(242 244 247);
-}
 
-.dark .translation-word-speak-btn {
-  border-color: rgb(255 255 255 / 0.1) !important;
-  background: rgb(255 255 255 / 0.08) !important;
-  color: rgb(221 226 234);
-  box-shadow: none;
-}
 
-.dark .translation-word-speak-btn:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.12) !important;
-  color: rgb(245 247 250);
-}
 
-.dark .translation-word-speak-btn.is-speaking {
-  border-color: rgb(120 154 240 / 0.42) !important;
-  background: rgb(99 131 210 / 0.22) !important;
-  color: rgb(193 214 255);
-}
 
-.dark .translation-word-phonetic,
-.dark .translation-word-tag,
-.dark .translation-word-list-item {
-  background: rgb(255 255 255 / 0.07);
-  border-color: rgb(255 255 255 / 0.08);
-  color: rgb(205 210 219);
-}
 
-.dark .translation-word-phonetic-label,
-.dark .translation-word-section-title,
-.dark .translation-word-list-desc,
-.dark .translation-word-example-target {
-  color: rgb(154 160 171);
-}
 
-.dark .translation-word-part {
-  color: rgb(155 182 255);
-}
 
-.dark .translation-body::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 0.22);
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
