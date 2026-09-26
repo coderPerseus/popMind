@@ -9,6 +9,7 @@ import type {
   TranslationWindowSpeakPayload,
 } from './types'
 import type { SpeechProviderId } from '@/lib/capability/types'
+import { defaultShortcutBindings } from '@/lib/shortcuts/shared'
 
 export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma']
 
@@ -41,6 +42,7 @@ export const defaultTranslationSettings: TranslationSettings = {
   selection: {
     defaultAction: 'bubble',
   },
+  shortcuts: { ...defaultShortcutBindings },
   enabledEngines: {
     google: true,
     deepl: false,

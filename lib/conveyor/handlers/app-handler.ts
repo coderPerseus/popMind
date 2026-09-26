@@ -5,6 +5,7 @@ import { compareReleaseVersions } from '@/lib/app/release'
 import { exportMainProcessLogs, mainLogger } from '@/lib/main/logger'
 import { handle } from '@/lib/main/shared'
 import { themeStore } from '@/lib/main/theme-store'
+import { shortcutManager } from '@/lib/shortcuts/shortcut-manager'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { textPickerAppBlockStore } from '@/lib/text-picker/app-block-store'
 
@@ -96,6 +97,13 @@ export const registerAppHandlers = (app: App) => {
   handle('removeBlockedSelectionApp', (bundleId) => {
     textPickerAppBlockStore.remove(bundleId)
     return true
+  })
+
+  handle('getShortcutStatus', () => shortcutManager.getStatus())
+
+  handle('setShortcutRecording', (recording) => {
+    shortcutManager.setSuspended(recording)
+    return recording
   })
 
   handle('openInstalledApp', async (appPath) => {

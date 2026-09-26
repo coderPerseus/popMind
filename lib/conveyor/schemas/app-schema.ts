@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { shortcutActionIds } from '@/lib/shortcuts/shared'
 import { themeModes } from '@/lib/theme/shared'
 
 const installedAppSchema = z.object({
@@ -7,6 +8,12 @@ const installedAppSchema = z.object({
   bundleId: z.string(),
   path: z.string(),
   iconDataUrl: z.string().nullable(),
+})
+
+const shortcutStatusSchema = z.object({
+  id: z.enum(shortcutActionIds),
+  accelerator: z.string(),
+  state: z.enum(['registered', 'disabled', 'failed', 'conflict', 'suspended']),
 })
 
 const permissionStatusSchema = z.object({
@@ -70,6 +77,14 @@ export const appIpcSchema = {
   },
   removeBlockedSelectionApp: {
     args: z.tuple([z.string()]),
+    return: z.boolean(),
+  },
+  getShortcutStatus: {
+    args: z.tuple([]),
+    return: z.array(shortcutStatusSchema),
+  },
+  setShortcutRecording: {
+    args: z.tuple([z.boolean()]),
     return: z.boolean(),
   },
 }

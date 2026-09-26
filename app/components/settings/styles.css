@@ -122,6 +122,9 @@
 .st-tile.is-graphite {
   background: linear-gradient(180deg, #6b6b70, #48484c);
 }
+.st-tile.is-pink {
+  background: linear-gradient(180deg, #ff6b8b, #e5365f);
+}
 
 .st-sidebar-footer {
   padding: 8px 10px 12px;
@@ -612,4 +615,137 @@
 .st-scroll::-webkit-scrollbar-track,
 .st-nav::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ---------- Shortcuts ---------- */
+
+.st-page-intro {
+  margin: 0 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--mac-secondary-label);
+}
+
+.st-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.st-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--mac-kbd, var(--mac-fill));
+  box-shadow:
+    inset 0 0 0 0.5px var(--mac-separator),
+    0 0.5px 0 var(--mac-separator);
+  color: var(--mac-label);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.st-recorder-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.st-recorder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 132px;
+  height: 28px;
+  padding: 0 26px 0 8px;
+  border-radius: var(--mac-radius-control, 6px);
+  background: var(--mac-control, var(--mac-field));
+  box-shadow: var(--mac-shadow-control, inset 0 0 0 0.5px var(--mac-separator));
+  color: var(--mac-label);
+  font-size: 12px;
+  cursor: default;
+  transition:
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+
+.st-recorder:hover {
+  background: var(--mac-hover);
+}
+
+.st-recorder:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.st-recorder.is-recording {
+  background: var(--mac-accent-soft, var(--mac-fill));
+  box-shadow: 0 0 0 2px var(--mac-accent);
+  padding-right: 8px;
+}
+
+.st-recorder.is-invalid:not(.is-recording) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mac-red) 70%, transparent);
+}
+
+.st-recorder.is-recording.is-invalid {
+  box-shadow: 0 0 0 2px var(--mac-red);
+}
+
+.st-recorder-hint {
+  color: var(--mac-accent);
+  font-weight: 500;
+}
+
+.st-recorder.is-invalid .st-recorder-hint {
+  color: var(--mac-red);
+}
+
+.st-recorder-placeholder {
+  color: var(--mac-tertiary-label);
+}
+
+.st-recorder-clear {
+  position: absolute;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--mac-fill-strong, var(--mac-fill));
+  color: var(--mac-secondary-label);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.st-recorder-wrap:hover .st-recorder-clear,
+.st-recorder-clear:focus-visible {
+  opacity: 1;
+}
+
+.st-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--mac-secondary-label);
+}
+
+.st-icon-button:hover:not(:disabled) {
+  background: var(--mac-hover);
+  color: var(--mac-label);
+}
+
+.st-icon-button:disabled {
+  opacity: 0.3;
 }

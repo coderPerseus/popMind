@@ -35,6 +35,15 @@ const openAiSpeechProviderConfigSchema = z.object({
   model: z.string(),
 })
 
+const shortcutBindingsSchema = z.object({
+  toggleHome: z.string(),
+  clipboardHistory: z.string(),
+  inputTranslation: z.string(),
+  screenshotTranslate: z.string(),
+  screenshotSearch: z.string(),
+  hideBubble: z.string(),
+})
+
 const selectionDefaultActionSchema = z.enum(['bubble', 'translate', 'explain'])
 
 const capabilitySettingsSchema = z.object({
@@ -42,6 +51,7 @@ const capabilitySettingsSchema = z.object({
   selection: z.object({
     defaultAction: selectionDefaultActionSchema,
   }),
+  shortcuts: shortcutBindingsSchema,
   enabledEngines: z.object({
     google: z.boolean(),
     deepl: z.boolean(),
@@ -92,6 +102,7 @@ const capabilitySettingsPatchSchema = z.object({
       defaultAction: selectionDefaultActionSchema.optional(),
     })
     .optional(),
+  shortcuts: shortcutBindingsSchema.partial().optional(),
   enabledEngines: z
     .object({
       google: z.boolean(),

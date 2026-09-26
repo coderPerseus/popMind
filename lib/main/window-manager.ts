@@ -1,7 +1,9 @@
 import { app, BrowserWindow, nativeTheme } from 'electron'
 import {
   createAppWindow,
+  createSettingsWindow,
   getMainWindowRouteHash,
+  getSettingsWindowBackgroundColor,
   loadAppWindowRoute,
   MAIN_WINDOW_ROUTE_CONFIG,
   type MainWindowRoute,
@@ -12,13 +14,15 @@ import { mainLogger } from '@/lib/main/logger'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 
+// The main window only ever shows the launcher ('home'); settings has its own window.
 let mainWindow: BrowserWindow | null = null
+let settingsWindow: BrowserWindow | null = null
+let settingsLoadPromise: Promise<void> | null = null
 let isQuitting = false
 let currentRoute: MainWindowRoute | null = null
 let routeLoadPromise: Promise<void> | null = null
 let routeLoadTarget: MainWindowRoute | null = null
 const HIDDEN_WINDOW_BUTTON_POSITION = { x: -100, y: -100 }
-const SETTINGS_WINDOW_BUTTON_POSITION = { x: 14, y: 14 }
 const REGULAR_ACTIVATION_POLICY = 0
 const ACCESSORY_ACTIVATION_POLICY = 1
 
@@ -30,10 +34,15 @@ const isNavigationAbortError = (error: unknown) => {
   return error instanceof Error && error.message.includes('ERR_ABORTED')
 }
 
-const updateMainWindowActivationPolicy = (visible: boolean) => {
+const isWindowVisible = (window: BrowserWindow | null) => Boolean(window && !window.isDestroyed() && window.isVisible())
+
+const updateMainWindowActivationPolicy = (requestedVisible: boolean) => {
   if (process.platform !== 'darwin') {
     return
   }
+
+  // Stay a regular (Dock) app while either the launcher or the settings window is on screen.
+  const visible = requestedVisible || isWindowVisible(mainWindow) || isWindowVisible(settingsWindow)
 
   const activationPolicy = visible ? 'regular' : 'accessory'
   const nativeActivationPolicy = visible ? REGULAR_ACTIVATION_POLICY : ACCESSORY_ACTIVATION_POLICY
@@ -43,6 +52,10 @@ const updateMainWindowActivationPolicy = (visible: boolean) => {
   }
 
   app.setActivationPolicy(activationPolicy)
+}
+
+const logSettingsWindow = (event: string, details: Record<string, unknown> = {}) => {
+  mainLogger.info('[settings-window]', { event, ...details })
 }
 
 const logMainWindow = (event: string, details: Record<string, unknown> = {}) => {
@@ -125,23 +138,6 @@ const registerMainWindowSurface = (window: BrowserWindow) => {
         return true
       }
 
-      // Settings shares the main BrowserWindow. It should stay open for blur /
-      // selection noise, but hide when a translation or explain bubble takes over.
-      if (currentRoute !== 'home') {
-        const shouldHideSettingsForOverlay =
-          context.reason === 'surface-opened' &&
-          (context.target === 'translation' || context.target === 'selection-chat')
-
-        if (shouldHideSettingsForOverlay) {
-          logMainWindow('hide-settings-for-overlay', {
-            target: context.target,
-            reason: context.reason,
-          })
-        }
-
-        return shouldHideSettingsForOverlay
-      }
-
       if (context.reason === 'blur') {
         return true
       }
@@ -171,10 +167,6 @@ const attachMainWindowLifecycle = (window: BrowserWindow) => {
 
   window.on('blur', () => {
     if (isQuitting) {
-      return
-    }
-
-    if (currentRoute !== 'home') {
       return
     }
 
@@ -208,42 +200,24 @@ const isShowingRoute = (window: BrowserWindow, route: MainWindowRoute) => {
   }
 }
 
-const applyWindowRouteConfig = (window: BrowserWindow, route: MainWindowRoute) => {
-  const config = MAIN_WINDOW_ROUTE_CONFIG[route]
+const applyHomeWindowConfig = (window: BrowserWindow) => {
+  const config = MAIN_WINDOW_ROUTE_CONFIG.home
 
-  if (window.isMaximized()) {
-    window.unmaximize()
-  }
-
-  // Home route: transparent + no shadow (frosted glass effect via CSS)
-  // Settings route: opaque with system shadow
-  const isHome = route === 'home'
-  // Match the settings page background so opening it never flashes the wrong colour.
-  const settingsBackground = nativeTheme.shouldUseDarkColors ? '#1e1e1f' : config.backgroundColor
-  window.setBackgroundColor(isHome ? '#00000000' : settingsBackground)
-  window.setHasShadow(!isHome)
-  window.setAlwaysOnTop(isHome, isHome ? 'floating' : 'normal')
-  window.setVisibleOnAllWorkspaces(isHome, isHome ? { visibleOnFullScreen: true } : undefined)
+  // Transparent floating panel (frosted glass via CSS), above other apps and on every Space.
+  window.setBackgroundColor('#00000000')
+  window.setHasShadow(false)
+  window.setAlwaysOnTop(true, 'floating')
+  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   window.setResizable(config.resizable)
   window.setMaximizable(config.maximizable)
   window.setMinimumSize(config.minWidth, config.minHeight)
-
-  if (process.platform === 'darwin') {
-    const showWindowButtons = !isHome
-    window.setWindowButtonVisibility(showWindowButtons)
-    window.setWindowButtonPosition(showWindowButtons ? SETTINGS_WINDOW_BUTTON_POSITION : HIDDEN_WINDOW_BUTTON_POSITION)
-  }
-
   if (config.maxWidth && config.maxHeight) {
     window.setMaximumSize(config.maxWidth, config.maxHeight)
-  } else {
-    window.setMaximumSize(10000, 10000)
   }
 
-  const [currentWidth, currentHeight] = window.getSize()
-  if (currentWidth !== config.width || currentHeight !== config.height) {
-    window.setSize(config.width, config.height, true)
-    window.center()
+  if (process.platform === 'darwin') {
+    window.setWindowButtonVisibility(false)
+    window.setWindowButtonPosition(HIDDEN_WINDOW_BUTTON_POSITION)
   }
 }
 
@@ -263,7 +237,7 @@ const ensureMainWindowRoute = async (window: BrowserWindow, route: MainWindowRou
 
   currentRoute = route
   routeLoadTarget = route
-  applyWindowRouteConfig(window, route)
+  applyHomeWindowConfig(window)
 
   const pendingLoad = loadAppWindowRoute(window, route)
     .catch((error) => {
@@ -294,8 +268,86 @@ export const getOrCreateMainWindow = () => {
   return window
 }
 
-export const isMainWindowVisible = () => {
-  return Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible())
+export const isMainWindowVisible = () => isWindowVisible(mainWindow)
+
+export const isSettingsWindowVisible = () => isWindowVisible(settingsWindow)
+
+const concealSettingsWindow = (window: BrowserWindow) => {
+  if (window.isDestroyed() || !window.isVisible()) {
+    return
+  }
+
+  window.hide()
+  updateMainWindowActivationPolicy(false)
+  logSettingsWindow('concealed')
+}
+
+const getOrCreateSettingsWindow = () => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    return settingsWindow
+  }
+
+  const window = createSettingsWindow()
+  settingsWindow = window
+  settingsLoadPromise = loadAppWindowRoute(window, 'settings').catch((error) => {
+    if (!isNavigationAbortError(error)) {
+      mainLogger.error('[settings-window] failed to load', error)
+    }
+  })
+
+  const syncBackground = () => {
+    if (!window.isDestroyed()) {
+      window.setBackgroundColor(getSettingsWindowBackgroundColor())
+    }
+  }
+  nativeTheme.on('updated', syncBackground)
+
+  // Closing (red button / ⌘W) only hides, so reopening is instant and keeps size, position and state.
+  window.on('close', (event) => {
+    if (isQuitting) {
+      return
+    }
+
+    event.preventDefault()
+    concealSettingsWindow(window)
+  })
+
+  window.on('closed', () => {
+    nativeTheme.removeListener('updated', syncBackground)
+    if (settingsWindow === window) {
+      settingsWindow = null
+      settingsLoadPromise = null
+    }
+  })
+
+  logSettingsWindow('created')
+  return window
+}
+
+const showSettingsWindow = async () => {
+  const startedAt = performance.now()
+  const window = getOrCreateSettingsWindow()
+  await settingsLoadPromise
+
+  if (process.platform === 'darwin') {
+    updateMainWindowActivationPolicy(true)
+    app.focus({ steal: true })
+  }
+
+  if (window.isMinimized()) {
+    window.restore()
+  }
+
+  // Show the new window before hiding the old one so the app never has zero visible windows
+  // (that would flip the Dock activation policy and flash).
+  window.show()
+  window.focus()
+
+  if (isWindowVisible(mainWindow)) {
+    concealMainWindow(mainWindow!, { resetHomeState: true })
+  }
+  logSettingsWindow('presented', { ms: Math.round(performance.now() - startedAt) })
+  return window
 }
 
 export const showMainWindow = async (
@@ -304,13 +356,14 @@ export const showMainWindow = async (
     searchQuery?: string
   }
 ) => {
-  if (route === 'home') {
-    clipboardHistoryService.capturePasteTarget()
+  if (route === 'settings') {
+    return showSettingsWindow()
   }
 
+  const startedAt = performance.now()
+  clipboardHistoryService.capturePasteTarget()
+
   const window = getOrCreateMainWindow()
-  const shouldHideDuringRouteSwitch =
-    window.isVisible() && currentRoute !== null && (currentRoute !== route || !isShowingRoute(window, route))
 
   logMainWindow('show-requested', {
     requestedRoute: route,
@@ -318,12 +371,8 @@ export const showMainWindow = async (
     focused: window.isFocused(),
   })
 
-  if (shouldHideDuringRouteSwitch) {
-    concealMainWindow(window, { resetHomeState: false })
-  }
-
   try {
-    await ensureMainWindowRoute(window, route)
+    await ensureMainWindowRoute(window, 'home')
   } catch (error) {
     console.error('[window-manager] failed to load main window route', { route, error })
   }
@@ -333,9 +382,14 @@ export const showMainWindow = async (
     target: 'main',
   })
   presentMainWindow(window)
-  if (route === 'home' && options?.searchQuery?.trim()) {
+
+  if (isWindowVisible(settingsWindow)) {
+    concealSettingsWindow(settingsWindow!)
+  }
+  if (options?.searchQuery?.trim()) {
     sendMainWindowSearchQuery(window, options.searchQuery)
   }
+  logMainWindow('show-completed', { ms: Math.round(performance.now() - startedAt) })
   return window
 }
 
@@ -344,7 +398,19 @@ export const hideMainWindow = () => {
   concealMainWindow(window, { resetHomeState: true })
 }
 
+/** Create and load the hidden settings window ahead of time so the first open is instant. */
+export const primeSettingsWindow = async () => {
+  getOrCreateSettingsWindow()
+  await settingsLoadPromise
+  logSettingsWindow('primed')
+}
+
 export const primeMainWindow = async (route: MainWindowRoute = 'home') => {
+  if (route === 'settings') {
+    await primeSettingsWindow()
+    return settingsWindow
+  }
+
   const window = getOrCreateMainWindow()
 
   logMainWindow('prime-requested', {
@@ -375,7 +441,7 @@ export const toggleMainWindow = async (route: MainWindowRoute = 'home') => {
     focused: window.isFocused(),
   })
 
-  if (window.isVisible()) {
+  if (route === 'home' && window.isVisible()) {
     concealMainWindow(window, { resetHomeState: true })
     return window
   }

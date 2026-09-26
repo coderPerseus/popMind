@@ -6,12 +6,21 @@ import { initializeAppLogging, mainLogger } from '@/lib/main/logger'
 import { normalizeMacInstallLocation } from '@/lib/main/mac-install-location'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
+import { installedAppService } from '@/lib/app/installed-app-service'
 import { clipboardHistoryService } from '@/lib/clipboard/service'
 import { themeStore } from '@/lib/main/theme-store'
+import { shortcutManager } from '@/lib/shortcuts/shortcut-manager'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
 import appIcon from '@/resources/build/icon.png?asset'
 import { setupApplicationMenu } from './application-menu'
-import { isMainWindowVisible, primeMainWindow, showMainWindow, toggleMainWindow } from './window-manager'
+import {
+  isMainWindowVisible,
+  isSettingsWindowVisible,
+  primeMainWindow,
+  primeSettingsWindow,
+  showMainWindow,
+  toggleMainWindow,
+} from './window-manager'
 
 let textPickerFeature: TextPickerFeature | null = null
 let disposeApplicationMenu: (() => void) | null = null
@@ -64,33 +73,6 @@ const ensureMacAppInstalledInApplications = async () => {
   }
 }
 
-const registerGlobalShortcutWithLogging = (accelerator: string, label: string, handler: () => void) => {
-  globalShortcut.unregister(accelerator)
-
-  const registered = globalShortcut.register(accelerator, () => {
-    mainLogger.info('[shortcut] triggered', {
-      accelerator,
-      label,
-    })
-    handler()
-  })
-
-  mainLogger.info('[shortcut] register', {
-    accelerator,
-    label,
-    registered,
-  })
-
-  if (!registered) {
-    mainLogger.warn('[shortcut] registration failed', {
-      accelerator,
-      label,
-    })
-  }
-
-  return registered
-}
-
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -140,14 +122,21 @@ app.whenReady().then(async () => {
 
   // Preload the hidden home route so the first shortcut show is instant.
   void primeMainWindow('home')
+  // Settings has its own window; load it hidden a little later so opening it is instant too.
+  setTimeout(() => void primeSettingsWindow(), 3000)
 
-  // Register global shortcut Option+Space to toggle the main search window
-  registerGlobalShortcutWithLogging('Alt+Space', 'toggle-home', () => {
+  // Index installed apps in the background so the first app search doesn't wait on a scan.
+  setTimeout(() => installedAppService.warmup(), 1500)
+
+  // Global shortcuts are user-configurable (Settings → Shortcuts); the manager owns registration.
+  shortcutManager.setHandler('toggleHome', () => {
     void toggleMainWindow('home')
   })
-
-  registerGlobalShortcutWithLogging('Alt+V', 'clipboard-history', () => {
+  shortcutManager.setHandler('clipboardHistory', () => {
     void showMainWindow('home', { searchQuery: '/clip ' })
+  })
+  void shortcutManager.initialize().catch((error) => {
+    mainLogger.error('[shortcut] initialize failed', error)
   })
 
   // Default open or close DevTools by F12 in development
@@ -172,7 +161,7 @@ app.on('activate', () => {
     mainWindowVisible: isMainWindowVisible(),
   })
 
-  if (!isMainWindowVisible()) {
+  if (!isMainWindowVisible() && !isSettingsWindowVisible()) {
     void showMainWindow('home')
   }
 })
@@ -182,8 +171,10 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   disposeApplicationMenu?.()
   disposeApplicationMenu = null
+  shortcutManager.dispose()
   globalShortcut.unregisterAll()
   clipboardHistoryService.dispose()
+  installedAppService.dispose()
   textPickerFeature?.dispose()
   textPickerFeature = null
 })

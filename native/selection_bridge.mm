@@ -3293,6 +3293,287 @@ Napi::Value SetActivationPolicy(const Napi::CallbackInfo& info) {
   return Napi::Boolean::New(env, true);
 }
 
+// ---------- Installed application index ----------
+
+struct ApplicationInfoRecord {
+  std::string path;
+  std::string bundleId;
+  std::string name;
+  std::string displayName;
+  std::string fileDisplayName;
+  std::string executable;
+  std::vector<std::pair<std::string, std::string>> localizedNames;
+};
+
+static NSString* NormalizeLocaleKey(NSString* locale) {
+  return [[locale stringByReplacingOccurrencesOfString:@"-" withString:@"_"] lowercaseString];
+}
+
+static NSString* BundleNameFromDictionary(id value) {
+  if (![value isKindOfClass:[NSDictionary class]]) {
+    return nil;
+  }
+  NSDictionary* dict = (NSDictionary*)value;
+  id name = dict[@"CFBundleDisplayName"] ?: dict[@"CFBundleName"];
+  if ([name isKindOfClass:[NSString class]] && [(NSString*)name length] > 0) {
+    return (NSString*)name;
+  }
+  return nil;
+}
+
+static ApplicationInfoRecord ReadApplicationInfo(const std::string& appPath, NSSet<NSString*>* wantedLocales) {
+  ApplicationInfoRecord record;
+  record.path = appPath;
+
+  @autoreleasepool {
+    NSString* path = [NSString stringWithUTF8String:appPath.c_str()];
+    if (!path) {
+      return record;
+    }
+
+    // Read Info.plist directly: NSBundle caches instances and would miss app updates.
+    NSString* contentsPath = [path stringByAppendingPathComponent:@"Contents"];
+    NSDictionary* info =
+        [NSDictionary dictionaryWithContentsOfFile:[contentsPath stringByAppendingPathComponent:@"Info.plist"]];
+    id bundleId = info[@"CFBundleIdentifier"];
+    id name = info[@"CFBundleName"];
+    id displayName = info[@"CFBundleDisplayName"];
+    id executable = info[@"CFBundleExecutable"];
+    if ([bundleId isKindOfClass:[NSString class]]) record.bundleId = ToStdString(bundleId);
+    if ([name isKindOfClass:[NSString class]]) record.name = ToStdString(name);
+    if ([displayName isKindOfClass:[NSString class]]) record.displayName = ToStdString(displayName);
+    if ([executable isKindOfClass:[NSString class]]) record.executable = ToStdString(executable);
+
+    NSString* fileDisplayName = [[NSFileManager defaultManager] displayNameAtPath:path];
+    if (fileDisplayName.length > 0) {
+      if ([[fileDisplayName pathExtension] caseInsensitiveCompare:@"app"] == NSOrderedSame) {
+        fileDisplayName = [fileDisplayName stringByDeletingPathExtension];
+      }
+      record.fileDisplayName = ToStdString(fileDisplayName);
+    }
+
+    NSString* resourcesPath = [contentsPath stringByAppendingPathComponent:@"Resources"];
+    NSMutableSet<NSString*>* seenLocales = [NSMutableSet set];
+
+    // macOS 14+ system apps keep every localization in a single loctable.
+    NSDictionary* loctable =
+        [NSDictionary dictionaryWithContentsOfFile:[resourcesPath stringByAppendingPathComponent:@"InfoPlist.loctable"]];
+    for (NSString* locale in loctable) {
+      if (![locale isKindOfClass:[NSString class]]) continue;
+      NSString* key = NormalizeLocaleKey(locale);
+      if (![wantedLocales containsObject:key]) continue;
+      NSString* localizedName = BundleNameFromDictionary(loctable[locale]);
+      if (!localizedName) continue;
+      [seenLocales addObject:key];
+      record.localizedNames.emplace_back(ToStdString(locale), ToStdString(localizedName));
+    }
+
+    NSArray<NSString*>* entries = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:resourcesPath error:nil];
+    for (NSString* entry in entries) {
+      if (![[entry pathExtension] isEqualToString:@"lproj"]) continue;
+      NSString* locale = [entry stringByDeletingPathExtension];
+      NSString* key = NormalizeLocaleKey(locale);
+      if (![wantedLocales containsObject:key] || [seenLocales containsObject:key]) continue;
+      NSString* stringsPath =
+          [[resourcesPath stringByAppendingPathComponent:entry] stringByAppendingPathComponent:@"InfoPlist.strings"];
+      NSString* localizedName = BundleNameFromDictionary([NSDictionary dictionaryWithContentsOfFile:stringsPath]);
+      if (!localizedName) continue;
+      [seenLocales addObject:key];
+      record.localizedNames.emplace_back(ToStdString(locale), ToStdString(localizedName));
+    }
+  }
+
+  return record;
+}
+
+class ReadApplicationsInfoWorker : public Napi::AsyncWorker {
+public:
+  ReadApplicationsInfoWorker(Napi::Promise::Deferred deferred, std::vector<std::string> paths,
+                             std::vector<std::string> locales)
+    : Napi::AsyncWorker(deferred.Env()),
+      deferred_(deferred),
+      paths_(std::move(paths)),
+      locales_(std::move(locales)) {}
+
+  void Execute() override {
+    @autoreleasepool {
+      NSMutableSet<NSString*>* wanted = [NSMutableSet set];
+      for (const auto& locale : locales_) {
+        NSString* value = [NSString stringWithUTF8String:locale.c_str()];
+        if (value) [wanted addObject:NormalizeLocaleKey(value)];
+      }
+      records_.reserve(paths_.size());
+      for (const auto& path : paths_) {
+        records_.push_back(ReadApplicationInfo(path, wanted));
+      }
+    }
+  }
+
+  void OnOK() override {
+    Napi::Env env = Env();
+    Napi::Array result = Napi::Array::New(env, records_.size());
+    for (size_t i = 0; i < records_.size(); ++i) {
+      const auto& record = records_[i];
+      Napi::Object item = Napi::Object::New(env);
+      item.Set("path", record.path);
+      item.Set("bundleId", record.bundleId);
+      item.Set("name", record.name);
+      item.Set("displayName", record.displayName);
+      item.Set("fileDisplayName", record.fileDisplayName);
+      item.Set("executable", record.executable);
+      Napi::Object localizedNames = Napi::Object::New(env);
+      for (const auto& entry : record.localizedNames) {
+        localizedNames.Set(entry.first, entry.second);
+      }
+      item.Set("localizedNames", localizedNames);
+      result.Set(static_cast<uint32_t>(i), item);
+    }
+    deferred_.Resolve(result);
+  }
+
+  void OnError(const Napi::Error& error) override {
+    deferred_.Reject(error.Value());
+  }
+
+private:
+  Napi::Promise::Deferred deferred_;
+  std::vector<std::string> paths_;
+  std::vector<std::string> locales_;
+  std::vector<ApplicationInfoRecord> records_;
+};
+
+static bool WriteApplicationIconPng(const std::string& appPath, const std::string& outputPath, int size) {
+  bool ok = false;
+  @autoreleasepool {
+    NSString* path = [NSString stringWithUTF8String:appPath.c_str()];
+    NSString* output = [NSString stringWithUTF8String:outputPath.c_str()];
+    if (!path || !output) {
+      return false;
+    }
+
+    NSImage* icon = [[NSWorkspace sharedWorkspace] iconForFile:path];
+    if (!icon) {
+      return false;
+    }
+
+    NSBitmapImageRep* bitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                      pixelsWide:size
+                                                                      pixelsHigh:size
+                                                                   bitsPerSample:8
+                                                                 samplesPerPixel:4
+                                                                        hasAlpha:YES
+                                                                        isPlanar:NO
+                                                                  colorSpaceName:NSDeviceRGBColorSpace
+                                                                     bytesPerRow:0
+                                                                    bitsPerPixel:0];
+    if (!bitmap) {
+      return false;
+    }
+
+    NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithBitmapImageRep:bitmap];
+    if (context) {
+      [NSGraphicsContext saveGraphicsState];
+      [NSGraphicsContext setCurrentContext:context];
+      context.imageInterpolation = NSImageInterpolationHigh;
+      [icon drawInRect:NSMakeRect(0, 0, size, size)
+              fromRect:NSZeroRect
+             operation:NSCompositingOperationCopy
+              fraction:1.0];
+      [context flushGraphics];
+      [NSGraphicsContext restoreGraphicsState];
+
+      NSData* png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+      ok = png.length > 0 && [png writeToFile:output atomically:YES];
+    }
+    [bitmap release];
+  }
+  return ok;
+}
+
+class WriteApplicationIconsWorker : public Napi::AsyncWorker {
+public:
+  WriteApplicationIconsWorker(Napi::Promise::Deferred deferred,
+                              std::vector<std::pair<std::string, std::string>> items, int size)
+    : Napi::AsyncWorker(deferred.Env()), deferred_(deferred), items_(std::move(items)), size_(size) {}
+
+  void Execute() override {
+    results_.reserve(items_.size());
+    for (const auto& item : items_) {
+      results_.push_back(WriteApplicationIconPng(item.first, item.second, size_));
+    }
+  }
+
+  void OnOK() override {
+    Napi::Env env = Env();
+    Napi::Array result = Napi::Array::New(env, results_.size());
+    for (size_t i = 0; i < results_.size(); ++i) {
+      result.Set(static_cast<uint32_t>(i), Napi::Boolean::New(env, results_[i]));
+    }
+    deferred_.Resolve(result);
+  }
+
+  void OnError(const Napi::Error& error) override {
+    deferred_.Reject(error.Value());
+  }
+
+private:
+  Napi::Promise::Deferred deferred_;
+  std::vector<std::pair<std::string, std::string>> items_;
+  int size_;
+  std::vector<bool> results_;
+};
+
+static std::vector<std::string> ReadStringArray(const Napi::Value& value) {
+  std::vector<std::string> result;
+  if (!value.IsArray()) {
+    return result;
+  }
+  Napi::Array array = value.As<Napi::Array>();
+  for (uint32_t i = 0; i < array.Length(); ++i) {
+    Napi::Value entry = array.Get(i);
+    if (entry.IsString()) {
+      result.push_back(entry.As<Napi::String>().Utf8Value());
+    }
+  }
+  return result;
+}
+
+Napi::Value ReadApplicationsInfoAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  auto deferred = Napi::Promise::Deferred::New(env);
+  auto* worker = new ReadApplicationsInfoWorker(deferred, ReadStringArray(info.Length() >= 1 ? info[0] : env.Undefined()),
+                                                ReadStringArray(info.Length() >= 2 ? info[1] : env.Undefined()));
+  worker->Queue();
+  return deferred.Promise();
+}
+
+Napi::Value WriteApplicationIconsAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  std::vector<std::pair<std::string, std::string>> items;
+  if (info.Length() >= 1 && info[0].IsArray()) {
+    Napi::Array array = info[0].As<Napi::Array>();
+    for (uint32_t i = 0; i < array.Length(); ++i) {
+      Napi::Value entry = array.Get(i);
+      if (!entry.IsObject()) continue;
+      Napi::Object object = entry.As<Napi::Object>();
+      Napi::Value appPath = object.Get("appPath");
+      Napi::Value outputPath = object.Get("outputPath");
+      if (appPath.IsString() && outputPath.IsString()) {
+        items.emplace_back(appPath.As<Napi::String>().Utf8Value(), outputPath.As<Napi::String>().Utf8Value());
+      }
+    }
+  }
+  int size = 64;
+  if (info.Length() >= 2 && info[1].IsNumber()) {
+    size = std::max(16, std::min(512, info[1].As<Napi::Number>().Int32Value()));
+  }
+
+  auto deferred = Napi::Promise::Deferred::New(env);
+  auto* worker = new WriteApplicationIconsWorker(deferred, std::move(items), size);
+  worker->Queue();
+  return deferred.Promise();
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("checkPermission", Napi::Function::New(env, CheckPermission));
   exports.Set("getSelectionSnapshot", Napi::Function::New(env, GetSelectionSnapshot));
@@ -3313,6 +3594,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("configureBubbleWindow", Napi::Function::New(env, ConfigureBubbleWindow));
   exports.Set("orderBubbleFront", Napi::Function::New(env, OrderBubbleFront));
   exports.Set("setActivationPolicy", Napi::Function::New(env, SetActivationPolicy));
+  exports.Set("readApplicationsInfoAsync", Napi::Function::New(env, ReadApplicationsInfoAsync));
+  exports.Set("writeApplicationIconsAsync", Napi::Function::New(env, WriteApplicationIconsAsync));
   env.AddCleanupHook([]() { RemoveMonitors(); });
   return exports;
 }

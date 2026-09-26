@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, app } from 'electron'
+import { BrowserWindow, nativeTheme, shell, app } from 'electron'
 import { join } from 'path'
 import appIcon from '@/resources/build/icon.png?asset'
 import { registerResourcesProtocol } from './protocols'
@@ -105,4 +105,45 @@ export function createAppWindow(): BrowserWindow {
   })
 
   return mainWindow
+}
+
+export const getSettingsWindowBackgroundColor = () =>
+  nativeTheme.shouldUseDarkColors ? '#1e1e1f' : MAIN_WINDOW_ROUTE_CONFIG.settings.backgroundColor
+
+/**
+ * Settings lives in its own regular (opaque, resizable) window, like Raycast/Alfred preferences.
+ * Keeping it separate from the transparent launcher panel means switching never reloads a page
+ * or morphs one window's size/shadow/level — we just hide one window and show the other.
+ * IPC handlers are registered once by createAppWindow and shared by both windows.
+ */
+export function createSettingsWindow(): BrowserWindow {
+  const config = MAIN_WINDOW_ROUTE_CONFIG.settings
+
+  const settingsWindow = new BrowserWindow({
+    width: config.width,
+    height: config.height,
+    minWidth: config.minWidth,
+    minHeight: config.minHeight,
+    show: false,
+    paintWhenInitiallyHidden: true,
+    backgroundColor: getSettingsWindowBackgroundColor(),
+    icon: appIcon,
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: 14, y: 14 },
+    title: 'popMind',
+    resizable: config.resizable,
+    maximizable: config.maximizable,
+    fullscreenable: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/preload.js'),
+      sandbox: false,
+    },
+  })
+
+  settingsWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  return settingsWindow
 }

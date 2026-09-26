@@ -1,4 +1,4 @@
-import { app, clipboard, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
+import { app, clipboard, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
 import { POPMIND_RELEASES_URL } from '@/lib/app/release'
 import { exportMainProcessLogs } from '@/lib/main/logger'
@@ -15,6 +15,7 @@ import { SystemCommand, TextPickerChannel, type SelectionBridge } from '@/lib/te
 import type { PickedInfo } from '@/lib/text-picker/shared'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { showMainWindow } from '@/lib/main/window-manager'
+import { shortcutManager } from '@/lib/shortcuts/shortcut-manager'
 import { autoDismissController, type DismissContext } from '@/lib/windowing/auto-dismiss-controller'
 import { SelectionBubbleWindow } from './bubble-window'
 import { TextPickerManager } from './text-picker-manager'
@@ -41,10 +42,6 @@ const IPC_EVENT_CHANNELS = [
   TextPickerChannel.NotifyBubbleInteraction,
 ] as const
 
-const HIDE_BUBBLE_SHORTCUT = 'CommandOrControl+Shift+X'
-const INPUT_TRANSLATION_SHORTCUT = 'CommandOrControl+Shift+I'
-const SCREENSHOT_TRANSLATE_SHORTCUT = 'CommandOrControl+Alt+T'
-const SCREENSHOT_SEARCH_SHORTCUT = 'CommandOrControl+Alt+S'
 const MAX_COMMAND_CONTEXTS = 12
 const COMMAND_CONTEXT_TTL_MS = 2 * 60 * 1000
 
@@ -175,8 +172,7 @@ export class TextPickerFeature {
     this.registerAutoDismissSurfaces()
     this.createStatusTray()
     this.setupIpc()
-    this.registerInputTranslationShortcut()
-    this.registerScreenshotShortcuts()
+    this.registerShortcutHandlers()
     const settings = await capabilityService.getSettings()
     this.capabilitySettings = settings
     this.appLanguage = settings.appLanguage
@@ -212,7 +208,6 @@ export class TextPickerFeature {
     }
 
     this.stopPermissionRetryPolling()
-    this.registerSelectionShortcuts()
     return true
   }
 
@@ -230,10 +225,6 @@ export class TextPickerFeature {
   }
 
   dispose() {
-    globalShortcut.unregister(HIDE_BUBBLE_SHORTCUT)
-    globalShortcut.unregister(INPUT_TRANSLATION_SHORTCUT)
-    globalShortcut.unregister(SCREENSHOT_TRANSLATE_SHORTCUT)
-    globalShortcut.unregister(SCREENSHOT_SEARCH_SHORTCUT)
     this.stopPermissionRetryPolling()
 
     for (const channel of IPC_HANDLE_CHANNELS) {
@@ -496,7 +487,7 @@ export class TextPickerFeature {
     return Menu.buildFromTemplate([
       {
         label: translateMessage(language, 'tray.openHome'),
-        accelerator: 'Alt+Space',
+        accelerator: shortcutManager.getMenuAccelerator('toggleHome'),
         click: () => {
           this.manager?.hideBubble()
           this.inputTranslationWindowManager?.hide()
@@ -505,14 +496,14 @@ export class TextPickerFeature {
       },
       {
         label: translateMessage(language, 'tray.screenshotTranslate'),
-        accelerator: SCREENSHOT_TRANSLATE_SHORTCUT,
+        accelerator: shortcutManager.getMenuAccelerator('screenshotTranslate'),
         click: () => {
           void this.triggerScreenshotTranslation()
         },
       },
       {
         label: translateMessage(language, 'tray.screenshotSearch'),
-        accelerator: SCREENSHOT_SEARCH_SHORTCUT,
+        accelerator: shortcutManager.getMenuAccelerator('screenshotSearch'),
         click: () => {
           void this.triggerScreenshotSearch()
         },
@@ -564,54 +555,20 @@ export class TextPickerFeature {
     ])
   }
 
-  private registerSelectionShortcuts() {
-    this.registerGlobalShortcut(HIDE_BUBBLE_SHORTCUT, 'hide-bubble', () => {
+  private registerShortcutHandlers() {
+    shortcutManager.setHandler('hideBubble', () => {
       this.manager?.hideBubble()
       this.inputTranslationWindowManager?.hide()
     })
-  }
-
-  private registerInputTranslationShortcut() {
-    this.registerGlobalShortcut(INPUT_TRANSLATION_SHORTCUT, 'input-translation', () => {
+    shortcutManager.setHandler('inputTranslation', () => {
       void this.inputTranslationWindowManager?.showAtCursor()
     })
-  }
-
-  private registerScreenshotShortcuts() {
-    this.registerGlobalShortcut(SCREENSHOT_TRANSLATE_SHORTCUT, 'screenshot-translate', () => {
+    shortcutManager.setHandler('screenshotTranslate', () => {
       void this.triggerScreenshotTranslation()
     })
-
-    this.registerGlobalShortcut(SCREENSHOT_SEARCH_SHORTCUT, 'screenshot-search', () => {
+    shortcutManager.setHandler('screenshotSearch', () => {
       void this.triggerScreenshotSearch()
     })
-  }
-
-  private registerGlobalShortcut(accelerator: string, label: string, handler: () => void) {
-    globalShortcut.unregister(accelerator)
-
-    const registered = globalShortcut.register(accelerator, () => {
-      this.logger.info('[TextPickerFeature] shortcut triggered', {
-        accelerator,
-        label,
-      })
-      handler()
-    })
-
-    this.logger.info('[TextPickerFeature] shortcut registration', {
-      accelerator,
-      label,
-      registered,
-    })
-
-    if (!registered) {
-      this.logger.warn('[TextPickerFeature] shortcut registration failed', {
-        accelerator,
-        label,
-      })
-    }
-
-    return registered
   }
 
   private startPermissionRetryPolling() {
@@ -680,7 +637,6 @@ export class TextPickerFeature {
     }
 
     this.stopPermissionRetryPolling()
-    this.registerSelectionShortcuts()
     return true
   }
 

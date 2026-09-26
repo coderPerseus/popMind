@@ -1,3 +1,4 @@
+import type { ShortcutBindings } from '@/lib/shortcuts/shared'
 import type { TranslationEngineId } from '@/lib/translation/types'
 
 export type AppLanguage = 'zh-CN' | 'en'
@@ -44,6 +45,7 @@ export interface CapabilitySettings {
   selection: {
     defaultAction: SelectionDefaultAction
   }
+  shortcuts: ShortcutBindings
   enabledEngines: Record<TranslationEngineId, boolean>
   firstLanguage: string
   secondLanguage: string
@@ -73,6 +75,7 @@ export interface CapabilitySettingsPatch {
   selection?: {
     defaultAction?: SelectionDefaultAction
   }
+  shortcuts?: Partial<ShortcutBindings>
   enabledEngines?: Partial<Record<TranslationEngineId, boolean>>
   firstLanguage?: string
   secondLanguage?: string

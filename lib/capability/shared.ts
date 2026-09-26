@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { join } from 'node:path'
+import { defaultShortcutBindings, normalizeShortcutBindings } from '@/lib/shortcuts/shared'
 import { DEFAULT_ELEVENLABS_VOICE_ID, normalizeElevenLabsVoiceId } from '@/lib/speech-service/shared'
 import type {
   AppLanguage,
@@ -72,6 +73,7 @@ export const defaultCapabilitySettings: CapabilitySettings = {
   selection: {
     defaultAction: 'bubble',
   },
+  shortcuts: { ...defaultShortcutBindings },
   enabledEngines: {
     google: true,
     deepl: false,
@@ -256,6 +258,7 @@ export const mergeCapabilitySettings = (
         patch.selection?.defaultAction ?? previous.selection?.defaultAction
       ),
     },
+    shortcuts: normalizeShortcutBindings(patch.shortcuts, normalizeShortcutBindings(previous.shortcuts)),
     speechService: {
       ...previous.speechService,
       ...patch.speechService,

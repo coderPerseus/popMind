@@ -34,6 +34,19 @@ export interface NativeMacOSAddon {
   orderBubbleFront(nativeHandle: Buffer): boolean
   setActivationPolicy(policy: number): boolean
   recognizeTextInImageAsync(imagePath: string): Promise<string>
+  readApplicationsInfoAsync?(appPaths: string[], locales: string[]): Promise<NativeApplicationInfo[]>
+  writeApplicationIconsAsync?(items: Array<{ appPath: string; outputPath: string }>, size: number): Promise<boolean[]>
+}
+
+export interface NativeApplicationInfo {
+  path: string
+  bundleId: string
+  name: string
+  displayName: string
+  /** Finder name in the current system language, without ".app". */
+  fileDisplayName: string
+  executable: string
+  localizedNames: Record<string, string>
 }
 
 const require = createRequire(import.meta.url)

@@ -14,4 +14,6 @@ export class AppApi extends ConveyorApi {
   openInstalledApp = (appPath: string) => this.invoke('openInstalledApp', appPath)
   getBlockedSelectionApps = () => this.invoke('getBlockedSelectionApps')
   removeBlockedSelectionApp = (bundleId: string) => this.invoke('removeBlockedSelectionApp', bundleId)
+  getShortcutStatus = () => this.invoke('getShortcutStatus')
+  setShortcutRecording = (recording: boolean) => this.invoke('setShortcutRecording', recording)
 }

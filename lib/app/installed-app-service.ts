@@ -1,16 +1,24 @@
 import { execFile } from 'node:child_process'
-import { access, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { watch, type FSWatcher } from 'node:fs'
+import { access, mkdir, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { homedir, tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { app, nativeImage } from 'electron'
 import { mainLogger } from '@/lib/main/logger'
+import { nativeMacOSAddon } from '@/lib/native/macos-addon'
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_RESULT_LIMIT = 8
 const APPLICATION_INDEX_TTL_MS = 1000 * 60 * 5
-const FALLBACK_FIND_MAX_DEPTH = '3'
-const FIND_MAX_BUFFER = 1024 * 1024 * 16
+const APPLICATION_SCAN_MAX_DEPTH = 3
+const APPLICATION_WATCH_DEBOUNCE_MS = 1500
+const ICON_SIZE = 64
+const ICON_CACHE_VERSION = 'v1'
+const ICON_PREWARM_BATCH_SIZE = 16
+// Localizations worth indexing: English + Chinese names cover nearly every search in practice.
+const INDEXED_LOCALES = ['en', 'English', 'Base', 'zh_CN', 'zh-Hans', 'zh_TW', 'zh-Hant', 'zh_HK']
 const LSREGISTER_MAX_BUFFER = 1024 * 1024 * 64
 const LSREGISTER_PATH =
   '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
@@ -303,7 +311,37 @@ const parseLaunchServicesBundleRecord = (block: string): LaunchServicesBundleRec
 
 class InstalledAppService {
   private iconCache = new Map<string, Promise<string | null>>()
-  private applicationIndexCache: { expiresAt: number; promise: Promise<InstalledAppIndexEntry[]> } | null = null
+  private applicationIndex: { builtAt: number; entries: InstalledAppIndexEntry[] } | null = null
+  private applicationIndexBuild: Promise<InstalledAppIndexEntry[]> | null = null
+  private applicationIndexDirty = false
+  private watchers: FSWatcher[] = []
+  private watchRefreshTimer: NodeJS.Timeout | null = null
+  private iconCacheDirectory: Promise<string> | null = null
+
+  /** Build the index (and icon cache) in the background so the first search is instant. */
+  warmup() {
+    if (process.platform !== 'darwin') {
+      return
+    }
+
+    void this.getIndexedApplications()
+      .then((entries) => this.prewarmIcons(entries))
+      .catch((error) => {
+        mainLogger.warn('[installed-app-service] warmup failed', { error })
+      })
+    void this.watchApplicationDirectories()
+  }
+
+  dispose() {
+    for (const watcher of this.watchers) {
+      watcher.close()
+    }
+    this.watchers = []
+    if (this.watchRefreshTimer) {
+      clearTimeout(this.watchRefreshTimer)
+      this.watchRefreshTimer = null
+    }
+  }
 
   async search(query: string, limit = DEFAULT_RESULT_LIMIT): Promise<InstalledAppSearchResult[]> {
     if (process.platform !== 'darwin') {
@@ -315,7 +353,9 @@ class InstalledAppService {
       return []
     }
 
+    const startedAt = performance.now()
     const indexedApplications = await this.getIndexedApplications()
+    const indexReadyAt = performance.now()
     const ranked = indexedApplications
       .map((item) => ({
         item,
@@ -325,7 +365,7 @@ class InstalledAppService {
       .sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name, 'zh-Hans-CN'))
       .slice(0, limit)
 
-    return Promise.all(
+    const results = await Promise.all(
       ranked.map(async ({ item }) => ({
         path: item.path,
         name: item.name,
@@ -334,40 +374,141 @@ class InstalledAppService {
         iconDataUrl: await this.getIconDataUrl(item.path),
       }))
     )
+
+    const finishedAt = performance.now()
+    mainLogger.info('[installed-app-service] search', {
+      query: normalizedQuery,
+      results: results.length,
+      indexMs: Math.round(indexReadyAt - startedAt),
+      iconMs: Math.round(finishedAt - indexReadyAt),
+      totalMs: Math.round(finishedAt - startedAt),
+    })
+
+    return results
   }
 
   private scoreResult(item: InstalledAppIndexEntry, normalizedQuery: string) {
     return item.aliases.reduce((best, alias) => Math.max(best, scoreField(alias, normalizedQuery)), 0)
   }
 
+  /**
+   * Stale-while-revalidate: once an index exists it is returned immediately and refreshed in the
+   * background when it expires or an application folder changes. Only the very first call waits.
+   */
   private async getIndexedApplications() {
-    const now = Date.now()
-    if (this.applicationIndexCache && this.applicationIndexCache.expiresAt > now) {
-      return this.applicationIndexCache.promise
-    }
-
-    const promise = this.loadIndexedApplications().catch((error) => {
-      mainLogger.warn('[installed-app-service] application index build failed', { error })
-      if (this.applicationIndexCache?.promise === promise) {
-        this.applicationIndexCache = null
+    const index = this.applicationIndex
+    if (index) {
+      if (this.applicationIndexDirty || Date.now() - index.builtAt > APPLICATION_INDEX_TTL_MS) {
+        void this.rebuildIndex('stale')
       }
-      return []
-    })
-
-    this.applicationIndexCache = {
-      expiresAt: now + APPLICATION_INDEX_TTL_MS,
-      promise,
+      return index.entries
     }
 
-    return promise
+    return this.rebuildIndex('initial')
+  }
+
+  private rebuildIndex(reason: string) {
+    if (this.applicationIndexBuild) {
+      return this.applicationIndexBuild
+    }
+
+    this.applicationIndexDirty = false
+    const startedAt = performance.now()
+    const build = this.loadIndexedApplications()
+      .then((entries) => {
+        this.applicationIndex = { builtAt: Date.now(), entries }
+        mainLogger.info('[installed-app-service] index built', {
+          reason,
+          apps: entries.length,
+          source: this.canUseNativeIndex() ? 'native' : 'launch-services',
+          ms: Math.round(performance.now() - startedAt),
+        })
+        return entries
+      })
+      .catch((error) => {
+        mainLogger.warn('[installed-app-service] application index build failed', { reason, error })
+        return this.applicationIndex?.entries ?? []
+      })
+      .finally(() => {
+        if (this.applicationIndexBuild === build) {
+          this.applicationIndexBuild = null
+        }
+      })
+
+    this.applicationIndexBuild = build
+    return build
+  }
+
+  private async watchApplicationDirectories() {
+    if (this.watchers.length) {
+      return
+    }
+
+    for (const directory of await this.getSearchDirectories()) {
+      try {
+        const watcher = watch(directory, { persistent: false }, () => this.scheduleWatchRefresh())
+        watcher.on('error', (error) => {
+          mainLogger.warn('[installed-app-service] directory watcher failed', { directory, error })
+        })
+        this.watchers.push(watcher)
+      } catch (error) {
+        mainLogger.warn('[installed-app-service] cannot watch directory', { directory, error })
+      }
+    }
+  }
+
+  private scheduleWatchRefresh() {
+    this.applicationIndexDirty = true
+    if (this.watchRefreshTimer) {
+      clearTimeout(this.watchRefreshTimer)
+    }
+    this.watchRefreshTimer = setTimeout(() => {
+      this.watchRefreshTimer = null
+      void this.rebuildIndex('directory-changed')
+    }, APPLICATION_WATCH_DEBOUNCE_MS)
+  }
+
+  private canUseNativeIndex() {
+    return typeof nativeMacOSAddon?.readApplicationsInfoAsync === 'function'
+  }
+
+  private getIndexedLocales() {
+    const locales = new Set(INDEXED_LOCALES)
+    try {
+      for (const locale of app.getPreferredSystemLanguages()) {
+        locales.add(locale)
+        locales.add(locale.split('-')[0] ?? locale)
+      }
+    } catch {
+      // Not critical: the fixed list already covers English and Chinese.
+    }
+    return [...locales]
   }
 
   private async loadIndexedApplications() {
-    const [filesystemPaths, launchServicesRecords] = await Promise.all([
-      this.listFilesystemApplicationPaths(),
-      this.readLaunchServicesRecords(),
-    ])
+    const filesystemPaths = await this.listFilesystemApplicationPaths()
 
+    if (this.canUseNativeIndex()) {
+      const records = await nativeMacOSAddon!.readApplicationsInfoAsync!(filesystemPaths, this.getIndexedLocales())
+      return records.map((record) =>
+        buildIndexEntry(record.path, {
+          bundleId: record.bundleId,
+          displayName: record.fileDisplayName || record.displayName,
+          fileName: basename(record.path),
+          itemName: record.displayName,
+          localizedNames: record.localizedNames,
+          localizedShortNames: {},
+          name: record.name,
+        })
+      )
+    }
+
+    return this.loadIndexedApplicationsFromLaunchServices(filesystemPaths)
+  }
+
+  /** Fallback when the native addon is unavailable: slower (lsregister dump takes seconds). */
+  private async loadIndexedApplicationsFromLaunchServices(filesystemPaths: string[]) {
+    const launchServicesRecords = await this.readLaunchServicesRecords()
     const launchServicesMap = new Map(launchServicesRecords.map((record) => [record.path, record]))
     const entries = await Promise.all(
       filesystemPaths.map(async (appPath) => {
@@ -401,35 +542,50 @@ class InstalledAppService {
 
   private async listFilesystemApplicationPaths() {
     const searchDirectories = await this.getSearchDirectories()
-    if (!searchDirectories.length) {
+    const pathSets = await Promise.all(searchDirectories.map((directory) => this.collectApplicationPaths(directory, 1)))
+
+    return [...new Set(pathSets.flat())]
+  }
+
+  /** Walk app folders a few levels deep. Symlinked bundles count too (e.g. /Applications/Safari.app). */
+  private async collectApplicationPaths(directory: string, depth: number): Promise<string[]> {
+    let entries
+    try {
+      entries = await readdir(directory, { withFileTypes: true })
+    } catch (error) {
+      if (depth === 1) {
+        mainLogger.warn('[installed-app-service] filesystem app enumeration failed', { directory, error })
+      }
       return []
     }
 
-    const pathSets = await Promise.all(
-      searchDirectories.map(async (directory) => {
-        try {
-          const { stdout } = await execFileAsync(
-            'find',
-            [directory, '-maxdepth', FALLBACK_FIND_MAX_DEPTH, '-type', 'd', '-name', '*.app'],
-            {
-              encoding: 'utf8',
-              maxBuffer: FIND_MAX_BUFFER,
-            }
-          )
-
-          return stdout
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .filter((appPath) => !isNestedApplication(appPath))
-        } catch (error) {
-          mainLogger.warn('[installed-app-service] filesystem app enumeration failed', { directory, error })
+    const nested = await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.name.startsWith('.')) {
           return []
         }
+
+        const entryPath = join(directory, entry.name)
+        if (entry.name.toLowerCase().endsWith('.app')) {
+          if (entry.isDirectory()) {
+            return [entryPath]
+          }
+          if (entry.isSymbolicLink()) {
+            const target = await stat(entryPath).catch(() => null)
+            return target?.isDirectory() ? [entryPath] : []
+          }
+          return []
+        }
+
+        if (entry.isDirectory() && depth < APPLICATION_SCAN_MAX_DEPTH) {
+          return this.collectApplicationPaths(entryPath, depth + 1)
+        }
+
+        return []
       })
     )
 
-    return [...new Set(pathSets.flat())]
+    return nested.flat()
   }
 
   private async readLaunchServicesRecords() {
@@ -518,27 +674,102 @@ class InstalledAppService {
       return cached
     }
 
-    const iconPromise = this.getBundleIconDataUrl(appPath)
-      .then((iconDataUrl) => {
-        if (iconDataUrl) {
-          return iconDataUrl
-        }
-
-        return app.getFileIcon(appPath).then((icon) => {
-          if (icon.isEmpty()) {
-            return null
-          }
-
-          return icon.resize({ width: 64, height: 64 }).toDataURL()
-        })
-      })
-      .catch((error) => {
-        mainLogger.warn('[installed-app-service] getFileIcon failed', { appPath, error })
-        return null
-      })
+    const iconPromise = this.loadIconDataUrl(appPath).catch((error) => {
+      mainLogger.warn('[installed-app-service] icon load failed', { appPath, error })
+      return null
+    })
 
     this.iconCache.set(appPath, iconPromise)
     return iconPromise
+  }
+
+  private async loadIconDataUrl(appPath: string) {
+    if (typeof nativeMacOSAddon?.writeApplicationIconsAsync === 'function') {
+      const iconPath = await this.getCachedIconPath(appPath)
+      if (iconPath) {
+        const png = await readFile(iconPath).catch(() => null)
+        if (!png) {
+          const [written] = await nativeMacOSAddon.writeApplicationIconsAsync(
+            [{ appPath, outputPath: iconPath }],
+            ICON_SIZE
+          )
+          if (written) {
+            return `data:image/png;base64,${(await readFile(iconPath)).toString('base64')}`
+          }
+        } else {
+          return `data:image/png;base64,${png.toString('base64')}`
+        }
+      }
+    }
+
+    return this.loadIconDataUrlFallback(appPath)
+  }
+
+  /** Disk cache keyed by bundle path + modification time, so app updates get a fresh icon. */
+  private async getCachedIconPath(appPath: string) {
+    const [directory, info] = await Promise.all([
+      this.getIconCacheDirectory(),
+      stat(join(appPath, 'Contents', 'Info.plist')).catch(() => stat(appPath).catch(() => null)),
+    ])
+    if (!info) {
+      return null
+    }
+
+    const key = createHash('sha1')
+      .update(`${ICON_CACHE_VERSION}:${ICON_SIZE}:${appPath}:${Math.round(info.mtimeMs)}`)
+      .digest('hex')
+    return join(directory, `${key}.png`)
+  }
+
+  private getIconCacheDirectory() {
+    if (!this.iconCacheDirectory) {
+      const directory = join(app.getPath('userData'), 'app-icons')
+      this.iconCacheDirectory = mkdir(directory, { recursive: true }).then(() => directory)
+    }
+    return this.iconCacheDirectory
+  }
+
+  /** Generate missing icons for every indexed app so later searches never wait on icon rendering. */
+  private async prewarmIcons(entries: InstalledAppIndexEntry[]) {
+    const writeIcons = nativeMacOSAddon?.writeApplicationIconsAsync
+    if (typeof writeIcons !== 'function') {
+      return
+    }
+
+    const startedAt = performance.now()
+    const missing: Array<{ appPath: string; outputPath: string }> = []
+    for (const entry of entries) {
+      const outputPath = await this.getCachedIconPath(entry.path)
+      if (outputPath && !(await this.pathExists(outputPath))) {
+        missing.push({ appPath: entry.path, outputPath })
+      }
+    }
+
+    for (let index = 0; index < missing.length; index += ICON_PREWARM_BATCH_SIZE) {
+      await writeIcons(missing.slice(index, index + ICON_PREWARM_BATCH_SIZE), ICON_SIZE)
+    }
+
+    mainLogger.info('[installed-app-service] icon cache prewarmed', {
+      apps: entries.length,
+      generated: missing.length,
+      ms: Math.round(performance.now() - startedAt),
+    })
+  }
+
+  private loadIconDataUrlFallback(appPath: string) {
+    return this.getBundleIconDataUrl(appPath).then((iconDataUrl) => {
+      if (iconDataUrl) {
+        return iconDataUrl
+      }
+
+      return app.getFileIcon(appPath).then((icon) => {
+        if (icon.isEmpty()) {
+          return null
+        }
+
+        return icon.resize({ width: 64, height: 64 }).toDataURL()
+      })
+    })
   }
 
   private async getBundleIconDataUrl(appPath: string) {

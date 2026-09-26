@@ -13,6 +13,7 @@ import {
   SettingsRow,
   StatusText,
 } from '@/app/components/settings/settings-kit'
+import { ShortcutKeys, ShortcutRecorder } from '@/app/components/settings/shortcut-recorder'
 import { compareReleaseVersions } from '@/lib/app/release'
 import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
 import {
@@ -36,6 +37,13 @@ import type {
   SearchHistoryListItem,
   SearchHistorySummary,
 } from '@/lib/search-history/types'
+import {
+  canonicalizeAccelerator,
+  defaultShortcutBindings,
+  shortcutActionIds,
+  type ShortcutActionId,
+  type ShortcutStatus,
+} from '@/lib/shortcuts/shared'
 import type { ThemeMode } from '@/lib/theme/shared'
 import { getVisibleTranslationEngineIds, translationEngineLabels, translationLanguages } from '@/lib/translation/shared'
 import {
@@ -44,14 +52,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Clipboard,
+  Crop,
+  EyeOff,
   Hand,
   History,
+  Keyboard,
   Languages,
   LockKeyhole,
   Monitor,
   Moon,
   RefreshCw,
+  RotateCcw,
+  ScanSearch,
   ScreenShare,
+  Search,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -69,6 +84,7 @@ type PermissionStatus = {
 
 type SettingsSection =
   | 'general'
+  | 'shortcuts'
   | 'permissions'
   | 'selection'
   | 'translation'
@@ -102,7 +118,7 @@ type UpdateState = {
 }
 
 const navGroups: SettingsSection[][] = [
-  ['general', 'permissions'],
+  ['general', 'shortcuts', 'permissions'],
   ['selection', 'translation', 'ai', 'speech'],
   ['history', 'advanced'],
 ]
@@ -130,6 +146,33 @@ const speechProviderOptions: Array<{ id: SpeechProviderId; label: string }> = [
 ]
 
 const CUSTOM_ELEVENLABS_VOICE_OPTION = '__custom__'
+
+const isMacPlatform = navigator.platform.toLowerCase().includes('mac')
+
+const shortcutGroups: Array<{
+  title: I18nKey
+  items: Array<{ id: ShortcutActionId; icon: LucideIcon; tint: string }>
+}> = [
+  {
+    title: 'settings.shortcuts.group.launcher',
+    items: [
+      { id: 'toggleHome', icon: Search, tint: 'blue' },
+      { id: 'clipboardHistory', icon: Clipboard, tint: 'slate' },
+    ],
+  },
+  {
+    title: 'settings.shortcuts.group.translation',
+    items: [
+      { id: 'inputTranslation', icon: Languages, tint: 'teal' },
+      { id: 'screenshotTranslate', icon: Crop, tint: 'indigo' },
+      { id: 'screenshotSearch', icon: ScanSearch, tint: 'orange' },
+    ],
+  },
+  {
+    title: 'settings.shortcuts.group.selection',
+    items: [{ id: 'hideBubble', icon: EyeOff, tint: 'purple' }],
+  },
+]
 
 const getProviderLabel = (provider: AiProviderId | null | undefined, fallbackLabel = 'None') => {
   return aiProviderOptions.find((item) => item.id === provider)?.label ?? fallbackLabel
@@ -227,6 +270,8 @@ export function SettingsPage() {
   })
   const [testingWebSearchProviderId, setTestingWebSearchProviderId] = useState<WebSearchProviderId | null>(null)
   const [blockedSelectionApps, setBlockedSelectionApps] = useState<string[]>([])
+  const [shortcutStatus, setShortcutStatus] = useState<Partial<Record<ShortcutActionId, ShortcutStatus>>>({})
+  const [shortcutErrors, setShortcutErrors] = useState<Partial<Record<ShortcutActionId, string>>>({})
   const [webSearchTestMessages, setWebSearchTestMessages] = useState<
     Partial<Record<WebSearchProviderId, { tone: StatusTone; message: string }>>
   >({})
@@ -239,6 +284,7 @@ export function SettingsPage() {
   const navItems: NavItem[] = useMemo(
     () => [
       { id: 'general', label: t('settings.nav.general'), icon: Settings2, tint: 'gray' },
+      { id: 'shortcuts', label: t('settings.nav.shortcuts'), icon: Keyboard, tint: 'pink' },
       { id: 'permissions', label: t('settings.nav.permissions'), icon: LockKeyhole, tint: 'blue' },
       { id: 'selection', label: t('settings.nav.selection'), icon: TextCursorInput, tint: 'purple' },
       { id: 'translation', label: t('settings.nav.translation'), icon: Languages, tint: 'teal' },
@@ -289,6 +335,11 @@ export function SettingsPage() {
     setSettings(result)
   }, [capability])
 
+  const refreshShortcutStatus = useCallback(async () => {
+    const statuses = await app.getShortcutStatus()
+    setShortcutStatus(Object.fromEntries(statuses.map((status) => [status.id, status])))
+  }, [app])
+
   const refreshBlockedSelectionApps = useCallback(async () => {
     setBlockedSelectionApps(await app.getBlockedSelectionApps())
   }, [app])
@@ -308,22 +359,47 @@ export function SettingsPage() {
     void refreshPermissions()
     void refreshSettings()
     void refreshBlockedSelectionApps()
+    void refreshShortcutStatus()
     void refreshHistory('search')
     void refreshHistory('explain')
 
     const unsubscribe = capability.onState((nextSettings) => {
       setSettings(nextSettings)
+      void refreshShortcutStatus()
     })
 
+    // The settings window stays alive while hidden, so only poll while it's on screen
+    // and refresh everything that may have changed elsewhere whenever it is shown again.
     const timer = window.setInterval(() => {
-      void refreshPermissions()
+      if (!document.hidden) {
+        void refreshPermissions()
+      }
     }, 2500)
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) return
+      void refreshPermissions()
+      void refreshBlockedSelectionApps()
+      void refreshShortcutStatus()
+      void refreshHistory('search')
+      void refreshHistory('explain')
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       unsubscribe()
       window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [app, capability, refreshBlockedSelectionApps, refreshHistory, refreshPermissions, refreshSettings])
+  }, [
+    app,
+    capability,
+    refreshBlockedSelectionApps,
+    refreshHistory,
+    refreshPermissions,
+    refreshSettings,
+    refreshShortcutStatus,
+  ])
 
   useEffect(() => {
     return () => {
@@ -365,6 +441,49 @@ export function SettingsPage() {
   const updateSelectionDefaultAction = (defaultAction: SelectionDefaultAction) => {
     setSettings((current) => (current ? { ...current, selection: { ...current.selection, defaultAction } } : current))
     void persistPatch({ selection: { defaultAction } })
+  }
+
+  const handleShortcutRecording = useCallback(
+    (recording: boolean) => {
+      void app.setShortcutRecording(recording).then(() => refreshShortcutStatus())
+    },
+    [app, refreshShortcutStatus]
+  )
+
+  const updateShortcut = async (id: ShortcutActionId, accelerator: string) => {
+    if (!settings) return
+
+    if (accelerator) {
+      const canonical = canonicalizeAccelerator(accelerator, isMacPlatform)
+      const duplicate = shortcutActionIds.find(
+        (otherId) =>
+          otherId !== id &&
+          settings.shortcuts[otherId] &&
+          canonicalizeAccelerator(settings.shortcuts[otherId], isMacPlatform) === canonical
+      )
+
+      if (duplicate) {
+        setShortcutErrors((current) => ({
+          ...current,
+          [id]: t('settings.shortcuts.conflict', { name: t(`settings.shortcuts.action.${duplicate}` as I18nKey) }),
+        }))
+        return
+      }
+    }
+
+    setShortcutErrors((current) => ({ ...current, [id]: undefined }))
+    setSettings((current) =>
+      current ? { ...current, shortcuts: { ...current.shortcuts, [id]: accelerator } } : current
+    )
+    await persistPatch({ shortcuts: { [id]: accelerator } })
+    await refreshShortcutStatus()
+  }
+
+  const resetAllShortcuts = async () => {
+    setShortcutErrors({})
+    setSettings((current) => (current ? { ...current, shortcuts: { ...defaultShortcutBindings } } : current))
+    await persistPatch({ shortcuts: { ...defaultShortcutBindings } })
+    await refreshShortcutStatus()
   }
 
   const checkForUpdates = async () => {
@@ -915,6 +1034,93 @@ export function SettingsPage() {
       )
     }
 
+    if (activeSection === 'shortcuts' && settings) {
+      const isAllDefault = shortcutActionIds.every((id) => settings.shortcuts[id] === defaultShortcutBindings[id])
+
+      return (
+        <>
+          <p className="st-page-intro">{t('settings.shortcuts.intro')}</p>
+
+          {shortcutGroups.map((group, groupIndex) => (
+            <SettingsGroup
+              key={group.title}
+              title={t(group.title)}
+              accessory={
+                groupIndex === 0 ? (
+                  <Button size="sm" variant="ghost" disabled={isAllDefault} onClick={() => void resetAllShortcuts()}>
+                    <RotateCcw />
+                    {t('settings.shortcuts.resetAll')}
+                  </Button>
+                ) : undefined
+              }
+            >
+              {group.items.map((item) => {
+                const Icon = item.icon
+                const value = settings.shortcuts[item.id]
+                const status = shortcutStatus[item.id]
+                const error = shortcutErrors[item.id]
+                const isTaken = Boolean(value) && status?.accelerator === value && status.state === 'failed'
+                const description = error ?? (isTaken ? t('settings.shortcuts.failed') : undefined)
+
+                return (
+                  <SettingsRow
+                    key={item.id}
+                    icon={
+                      <span className={`st-tile is-${item.tint}`}>
+                        <Icon size={14} />
+                      </span>
+                    }
+                    label={t(`settings.shortcuts.action.${item.id}` as I18nKey)}
+                    description={
+                      description ? (
+                        <span className="st-text-error">{description}</span>
+                      ) : (
+                        t(`settings.shortcuts.action.${item.id}Desc` as I18nKey)
+                      )
+                    }
+                  >
+                    <ShortcutRecorder
+                      value={value}
+                      invalid={Boolean(description)}
+                      placeholder={t('settings.shortcuts.placeholder')}
+                      recordingLabel={t('settings.shortcuts.recording')}
+                      invalidLabel={t('settings.shortcuts.invalid')}
+                      clearLabel={t('settings.shortcuts.clear')}
+                      onRecordingChange={handleShortcutRecording}
+                      onChange={(accelerator) => void updateShortcut(item.id, accelerator)}
+                    />
+                    <button
+                      type="button"
+                      className="st-icon-button"
+                      aria-label={t('settings.shortcuts.reset')}
+                      title={t('settings.shortcuts.reset')}
+                      disabled={value === defaultShortcutBindings[item.id]}
+                      onClick={() => void updateShortcut(item.id, defaultShortcutBindings[item.id])}
+                    >
+                      <RotateCcw size={13} />
+                    </button>
+                  </SettingsRow>
+                )
+              })}
+            </SettingsGroup>
+          ))}
+
+          <SettingsGroup title={t('settings.shortcuts.group.inApp')} description={t('settings.shortcuts.inAppDesc')}>
+            <SettingsRow
+              icon={
+                <span className="st-tile is-gray">
+                  <Settings2 size={14} />
+                </span>
+              }
+              label={t('settings.shortcuts.action.openSettings')}
+            >
+              <ShortcutKeys tokens={isMacPlatform ? ['⌘', ','] : ['Ctrl', ',']} className="is-static" />
+            </SettingsRow>
+          </SettingsGroup>
+        </>
+      )
+    }
+
     if (activeSection === 'permissions') {
       const permissionRows = [
         {
@@ -1080,7 +1286,6 @@ export function SettingsPage() {
     if (activeSection === 'ai') {
       return (
         <SettingsGroup
-          title={t('settings.ai.service')}
           description={t('settings.capability.ai.desc')}
           accessory={
             <Button
