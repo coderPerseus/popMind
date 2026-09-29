@@ -30,7 +30,9 @@ export const createClipboardHistoryPlugin = (language: AppLanguage): MainSearchP
     slashAliases: ['/clip', '/clipboard'],
     order: 0,
     typeLabel: translateMessage(language, 'plugin.type.utility'),
-    mode: 'panel',
+    // Not a launcher panel any more: `/clip [text]` opens the bottom clipboard panel and hides the launcher.
+    mode: 'link',
+    runsWithoutQuery: true,
     keywords: ['clipboard', 'history', 'paste', 'copy', '剪切板', '剪贴板', '粘贴', '复制'],
     logo: {
       src: clipboardHistoryLogo,
@@ -45,5 +47,7 @@ export const createClipboardHistoryPlugin = (language: AppLanguage): MainSearchP
   toResult() {
     return this.manifest
   },
-  async run() {},
+  async run({ query, openClipboardPanel }) {
+    await openClipboardPanel(query)
+  },
 })

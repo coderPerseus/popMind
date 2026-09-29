@@ -59,7 +59,7 @@ const clipListItemSchema = z.custom<ClipListItem>()
 const clipDetailSchema = z.custom<ClipDetail>()
 const pinboardSchema = z.custom<Pinboard>()
 
-/** New clipboard channels (docs/clipboard-paste-redesign.md). */
+/** Clipboard channels (docs/clipboard-paste-redesign.md). */
 export const clipIpcSchema = {
   'clip-list': { args: z.tuple([clipQuerySchema]), return: clipListResultSchema },
   'clip-get-detail': { args: z.tuple([z.string()]), return: clipDetailSchema.nullable() },
@@ -105,6 +105,8 @@ export const clipIpcSchema = {
   'clip-ai-test': { args: z.tuple([clipAiSettingsSchema]), return: z.custom<ClipAiTestResult>() },
   'clip-stats': { args: z.tuple([]), return: z.custom<ClipStats>() },
   'clip-clear-history': { args: z.tuple([]), return: z.object({ ok: z.boolean(), deletedCount: z.number() }) },
+  /** Open the clipboard panel (e.g. from the launcher's `/clip`), optionally with an initial search text. */
+  'clip-panel-show': { args: z.tuple([z.string().optional()]), return: okSchema },
   /** Renderer finished its exit animation (or wants to close); main hides the window. */
   'clip-panel-hide': { args: z.tuple([]), return: okSchema },
   /** Renderer drag-resized the panel's top edge. */
@@ -118,101 +120,4 @@ export const clipIpcSchema = {
   'clip-open-accessibility-settings': { args: z.tuple([]), return: okSchema },
 } as const
 
-const clipboardFilterSchema = z.enum(['all', 'text', 'image', 'file', 'link', 'color'])
-
-const clipboardSourceAppSchema = z.object({
-  name: z.string().optional(),
-  bundleId: z.string().optional(),
-  pid: z.number().optional(),
-})
-
-const clipboardImageSchema = z.object({
-  width: z.number(),
-  height: z.number(),
-  thumbnailDataUrl: z.string().optional(),
-})
-
-const clipboardListItemSchema = z.object({
-  id: z.string(),
-  kind: z.enum(['text', 'image', 'file', 'link', 'color']),
-  title: z.string(),
-  previewText: z.string(),
-  primaryValue: z.string().optional(),
-  sourceApp: clipboardSourceAppSchema.optional(),
-  copiedAt: z.number(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-  lastPastedAt: z.number().optional(),
-  copyCount: z.number(),
-  isPinned: z.boolean(),
-  characterCount: z.number(),
-  wordCount: z.number(),
-  bytes: z.number(),
-  fileCount: z.number(),
-  image: clipboardImageSchema.optional(),
-})
-
-const clipboardEntrySchema = clipboardListItemSchema.extend({
-  textContent: z.string().optional(),
-  htmlContent: z.string().optional(),
-  imageDataUrl: z.string().optional(),
-  filePaths: z.array(z.string()),
-})
-
-/** @deprecated legacy channels, removed together with lib/clipboard/legacy. */
-export const clipboardIpcSchema = {
-  ...clipIpcSchema,
-  'clipboard-history-list': {
-    args: z.tuple([
-      z
-        .object({
-          query: z.string().optional(),
-          filter: clipboardFilterSchema.optional(),
-          limit: z.number().optional(),
-        })
-        .optional(),
-    ]),
-    return: z.object({
-      items: z.array(clipboardListItemSchema),
-    }),
-  },
-  'clipboard-history-get': {
-    args: z.tuple([z.string()]),
-    return: clipboardEntrySchema.nullable(),
-  },
-  'clipboard-history-copy': {
-    args: z.tuple([z.string()]),
-    return: z.object({
-      ok: z.boolean(),
-      reason: z.enum(['not_found', 'write_failed', 'unsupported']).optional(),
-    }),
-  },
-  'clipboard-history-paste': {
-    args: z.tuple([z.string()]),
-    return: z.object({
-      ok: z.boolean(),
-      reason: z.enum(['not_found', 'no_target', 'write_failed', 'paste_failed', 'unsupported']).optional(),
-    }),
-  },
-  'clipboard-history-delete': {
-    args: z.tuple([z.string()]),
-    return: z.object({
-      ok: z.boolean(),
-      deletedCount: z.number(),
-    }),
-  },
-  'clipboard-history-clear': {
-    args: z.tuple([]),
-    return: z.object({
-      ok: z.boolean(),
-      deletedCount: z.number(),
-    }),
-  },
-  'clipboard-history-toggle-pin': {
-    args: z.tuple([z.string()]),
-    return: z.object({
-      ok: z.boolean(),
-      isPinned: z.boolean(),
-    }),
-  },
-} as const
+export const clipboardIpcSchema = clipIpcSchema

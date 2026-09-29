@@ -7,6 +7,7 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #endif
 #import <Vision/Vision.h>
+#import <objc/message.h>
 
 #include <algorithm>
 #include <atomic>
@@ -101,6 +102,9 @@ static constexpr double kScrollGestureDeltaThreshold = 4.0;
 static constexpr double kDragThreshold = 3.0;
 static constexpr double kWindowResizeHandleMargin = 14.0;
 static constexpr int64_t kSimulatedKeyboardEventTag = 0x504F504D494E44;
+// Keep in sync with POPMIND_PASTEBOARD_MARKER in lib/clipboard/types.ts.
+static NSString* const kPopMindPasteboardMarkerType = @"app.popmind.clipboard.writeback";
+static NSString* const kTextPickerRestoreMarker = @"text-picker-restore";
 
 void HandleKeyEvent(NSEvent* event);
 bool RaiseWindowAtPoint(pid_t pid, NSPoint point);
@@ -950,8 +954,11 @@ std::string NormalizeMergedOCRText(const std::string& text) {
   return TrimAsciiWhitespace(ToStdString(normalized));
 }
 
+// `languages == nullptr` keeps the legacy language list; `fast` selects the fast recognition level.
 bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outText,
-                                std::string* outError) {
+                                std::string* outError,
+                                const std::vector<std::string>* languages = nullptr,
+                                bool fast = false) {
   if (!outText || !outError) return false;
 
   *outText = "";
@@ -968,7 +975,7 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
     __block NSString* requestErrorMessage = nil;
 
     VNRecognizeTextRequest* request =
-        [[VNRecognizeTextRequest alloc] initWithCompletionHandler:^(
+        [[[VNRecognizeTextRequest alloc] initWithCompletionHandler:^(
             VNRequest* _Nonnull req, NSError* _Nullable error) {
           if (error) {
             requestErrorMessage = error.localizedDescription ?: @"ocr_request_failed";
@@ -996,11 +1003,21 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
             fragment.centerY = (fragment.top + fragment.bottom) / 2.0;
             fragments.push_back(std::move(fragment));
           }
-        }];
+        }] autorelease];
 
-    request.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
-    request.usesLanguageCorrection = YES;
-    request.recognitionLanguages = @[ @"zh-Hans", @"zh-Hant", @"en-US", @"ja-JP", @"ko-KR" ];
+    request.recognitionLevel =
+        fast ? VNRequestTextRecognitionLevelFast : VNRequestTextRecognitionLevelAccurate;
+    request.usesLanguageCorrection = fast ? NO : YES;
+    if (languages && !languages->empty()) {
+      NSMutableArray<NSString*>* languageList = [NSMutableArray arrayWithCapacity:languages->size()];
+      for (const auto& language : *languages) {
+        NSString* value = [NSString stringWithUTF8String:language.c_str()];
+        if (value.length > 0) [languageList addObject:value];
+      }
+      request.recognitionLanguages = languageList;
+    } else {
+      request.recognitionLanguages = @[ @"zh-Hans", @"zh-Hant", @"en-US", @"ja-JP", @"ko-KR" ];
+    }
 
     NSError* handlerError = nil;
     NSData* imageData = [NSData dataWithContentsOfFile:nsImagePath options:0 error:&handlerError];
@@ -1010,7 +1027,7 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
     }
 
     VNImageRequestHandler* handler =
-        [[VNImageRequestHandler alloc] initWithData:imageData options:@{}];
+        [[[VNImageRequestHandler alloc] initWithData:imageData options:@{}] autorelease];
     if (handlerError) {
       *outError = ToStdString(handlerError.localizedDescription ?: @"ocr_handler_init_failed");
       return false;
@@ -1141,7 +1158,9 @@ NSArray* SavePasteboardItems() {
   return [snapshot copy];
 }
 
-void RestorePasteboardItems(NSArray* snapshot) {
+// `marker` (optional) is written as kPopMindPasteboardMarkerType on the first restored item so the
+// clipboard history recognises the restore as popMind's own write.
+void RestorePasteboardItems(NSArray* snapshot, NSString* marker = nil) {
   NSPasteboard* pb = [NSPasteboard generalPasteboard];
   [pb clearContents];
 
@@ -1157,7 +1176,7 @@ void RestorePasteboardItems(NSArray* snapshot) {
     }
 
     NSDictionary* itemSnapshot = (NSDictionary*)rawItemSnapshot;
-    NSPasteboardItem* restoredItem = [[NSPasteboardItem alloc] init];
+    NSPasteboardItem* restoredItem = [[[NSPasteboardItem alloc] init] autorelease];
     bool hasData = false;
 
     for (id rawType in itemSnapshot) {
@@ -1176,6 +1195,9 @@ void RestorePasteboardItems(NSArray* snapshot) {
     }
 
     if (hasData) {
+      if (marker.length > 0 && restoredItems.count == 0) {
+        [restoredItem setString:marker forType:kPopMindPasteboardMarkerType];
+      }
       [restoredItems addObject:restoredItem];
     }
   }
@@ -1600,7 +1622,7 @@ std::string GetSelectedTextByClipboardFallback(AXUIElementRef app) {
       const NSInteger now = [pb changeCount];
       if (copied && now == changeCountAfterCopy) {
         *textOut = ToStdString([pb stringForType:NSPasteboardTypeString]);
-        RestorePasteboardItems(savedItems);
+        RestorePasteboardItems(savedItems, kTextPickerRestoreMarker);
       } else if (copied && now != changeCountAfterCopy) {
         NSLog(@"[selection_bridge] pasteboard change count not equal, pre: %ld now=%ld skip restore",
               (long)changeCountAfterCopy, (long)now);
@@ -2820,13 +2842,17 @@ private:
 
 class RecognizeTextInImageWorker : public Napi::AsyncWorker {
 public:
-  RecognizeTextInImageWorker(Napi::Promise::Deferred deferred, std::string imagePath)
+  RecognizeTextInImageWorker(Napi::Promise::Deferred deferred, std::string imagePath,
+                             std::vector<std::string> languages = {}, bool fast = false)
     : Napi::AsyncWorker(deferred.Env()),
       deferred_(deferred),
-      imagePath_(std::move(imagePath)) {}
+      imagePath_(std::move(imagePath)),
+      languages_(std::move(languages)),
+      fast_(fast) {}
 
   void Execute() override {
-    if (!RecognizeTextFromImagePath(imagePath_, &recognizedText_, &errorMessage_)) {
+    if (!RecognizeTextFromImagePath(imagePath_, &recognizedText_, &errorMessage_,
+                                    languages_.empty() ? nullptr : &languages_, fast_)) {
       if (errorMessage_.empty()) {
         errorMessage_ = "ocr_failed";
       }
@@ -2845,6 +2871,8 @@ public:
 private:
   Napi::Promise::Deferred deferred_;
   std::string imagePath_;
+  std::vector<std::string> languages_;
+  bool fast_ = false;
   std::string recognizedText_;
   std::string errorMessage_;
 };
@@ -2892,6 +2920,40 @@ Napi::Value RecognizeTextInImageAsync(const Napi::CallbackInfo& info) {
   auto deferred = Napi::Promise::Deferred::New(env);
   auto* worker =
       new RecognizeTextInImageWorker(deferred, info[0].As<Napi::String>().Utf8Value());
+  worker->Queue();
+  return deferred.Promise();
+}
+
+// recognizeTextInImageWithOptionsAsync(imagePath, { languages?, fast? })
+Napi::Value RecognizeTextInImageWithOptionsAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "imagePath required").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  std::vector<std::string> languages;
+  bool fast = false;
+  if (info.Length() >= 2 && info[1].IsObject()) {
+    Napi::Object options = info[1].As<Napi::Object>();
+    Napi::Value languagesValue = options.Get("languages");
+    if (languagesValue.IsArray()) {
+      Napi::Array list = languagesValue.As<Napi::Array>();
+      for (uint32_t i = 0; i < list.Length(); ++i) {
+        Napi::Value entry = list.Get(i);
+        if (entry.IsString()) languages.push_back(entry.As<Napi::String>().Utf8Value());
+      }
+    }
+    Napi::Value fastValue = options.Get("fast");
+    fast = fastValue.IsBoolean() && fastValue.As<Napi::Boolean>().Value();
+  }
+  if (languages.empty()) {
+    languages = {"zh-Hans", "zh-Hant", "en-US"};
+  }
+
+  auto deferred = Napi::Promise::Deferred::New(env);
+  auto* worker = new RecognizeTextInImageWorker(
+      deferred, info[0].As<Napi::String>().Utf8Value(), std::move(languages), fast);
   worker->Queue();
   return deferred.Promise();
 }
@@ -3574,6 +3636,531 @@ Napi::Value WriteApplicationIconsAsync(const Napi::CallbackInfo& info) {
   return deferred.Promise();
 }
 
+// ---------- Clipboard history support (docs/clipboard-paste-redesign.md §5) ----------
+
+// readPasteboard({ allowTypes, maxBytes }): reads only allow-listed types (other types are never
+// loaded, so apps that render lazy data such as Excel are not forced to produce it).
+Napi::Value ReadPasteboard(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  NSMutableSet<NSString*>* allowSet = [NSMutableSet set];
+  double maxBytes = 20.0 * 1024.0 * 1024.0;
+  if (info.Length() >= 1 && info[0].IsObject()) {
+    Napi::Object options = info[0].As<Napi::Object>();
+    Napi::Value allowValue = options.Get("allowTypes");
+    if (allowValue.IsArray()) {
+      Napi::Array list = allowValue.As<Napi::Array>();
+      for (uint32_t i = 0; i < list.Length(); ++i) {
+        Napi::Value entry = list.Get(i);
+        if (!entry.IsString()) continue;
+        NSString* type = [NSString stringWithUTF8String:entry.As<Napi::String>().Utf8Value().c_str()];
+        if (type.length > 0) [allowSet addObject:type];
+      }
+    }
+    Napi::Value maxBytesValue = options.Get("maxBytes");
+    if (maxBytesValue.IsNumber()) {
+      maxBytes = maxBytesValue.As<Napi::Number>().DoubleValue();
+    }
+  }
+
+  Napi::Object result = Napi::Object::New(env);
+
+  @autoreleasepool {
+    NSPasteboard* pb = [NSPasteboard generalPasteboard];
+    // Taken before reading: if the clipboard changes mid-read the caller's next poll sees a newer
+    // count and simply reads again.
+    const NSInteger changeCount = pb.changeCount;
+    NSArray<NSPasteboardItem*>* pasteboardItems = [pb pasteboardItems] ?: @[];
+
+    NSMutableOrderedSet<NSString*>* allTypes = [NSMutableOrderedSet orderedSet];
+    for (NSPasteboardItem* item in pasteboardItems) {
+      for (NSPasteboardType type in item.types) {
+        if (type.length > 0) [allTypes addObject:type];
+      }
+    }
+
+    const bool concealed = [allTypes containsObject:@"org.nspasteboard.ConcealedType"];
+    const bool transient = [allTypes containsObject:@"org.nspasteboard.TransientType"] ||
+                           [allTypes containsObject:@"de.petermaurer.TransientPasteboardType"];
+    const bool autoGenerated = [allTypes containsObject:@"org.nspasteboard.AutoGeneratedType"];
+    const bool remote = [allTypes containsObject:@"com.apple.is-remote-clipboard"];
+
+    NSString* marker = nil;
+    NSString* sourceBundleId = nil;
+    for (NSPasteboardItem* item in pasteboardItems) {
+      NSArray<NSPasteboardType>* itemTypes = item.types;
+      if (!marker && [itemTypes containsObject:kPopMindPasteboardMarkerType]) {
+        marker = [item stringForType:kPopMindPasteboardMarkerType] ?: @"";
+      }
+      if (!sourceBundleId && [itemTypes containsObject:@"org.nspasteboard.source"]) {
+        sourceBundleId = [item stringForType:@"org.nspasteboard.source"];
+      }
+    }
+
+    struct Representation {
+      NSString* type;
+      NSData* data;
+    };
+    std::vector<std::vector<Representation>> collected;
+    double totalBytes = 0;
+    bool tooLarge = false;
+
+    for (NSPasteboardItem* item in pasteboardItems) {
+      std::vector<Representation> representations;
+      for (NSPasteboardType type in item.types) {
+        if (![allowSet containsObject:type]) continue;
+        NSData* data = [item dataForType:type];
+        if (!data) continue;
+        totalBytes += static_cast<double>(data.length);
+        if (totalBytes > maxBytes) {
+          tooLarge = true;
+          break;
+        }
+        representations.push_back({type, data});
+      }
+      if (tooLarge) break;
+      if (!representations.empty()) collected.push_back(std::move(representations));
+    }
+
+    Napi::Array itemsArray = Napi::Array::New(env);
+    if (!tooLarge) {
+      uint32_t itemIndex = 0;
+      for (const auto& representations : collected) {
+        Napi::Object itemObject = Napi::Object::New(env);
+        Napi::Array representationArray = Napi::Array::New(env, representations.size());
+        uint32_t representationIndex = 0;
+        for (const auto& representation : representations) {
+          Napi::Object record = Napi::Object::New(env);
+          record.Set("type", ToStdString(representation.type));
+          record.Set("data", Napi::Buffer<uint8_t>::Copy(
+                                 env, static_cast<const uint8_t*>(representation.data.bytes),
+                                 representation.data.length));
+          representationArray.Set(representationIndex++, record);
+        }
+        itemObject.Set("representations", representationArray);
+        itemsArray.Set(itemIndex++, itemObject);
+      }
+    }
+
+    Napi::Array allTypesArray = Napi::Array::New(env, allTypes.count);
+    uint32_t typeIndex = 0;
+    for (NSString* type in allTypes) {
+      allTypesArray.Set(typeIndex++, ToStdString(type));
+    }
+
+    Napi::Object flags = Napi::Object::New(env);
+    flags.Set("concealed", concealed);
+    flags.Set("transient", transient);
+    flags.Set("autoGenerated", autoGenerated);
+    flags.Set("remote", remote);
+
+    result.Set("changeCount", static_cast<double>(changeCount));
+    result.Set("items", itemsArray);
+    result.Set("allTypes", allTypesArray);
+    result.Set("flags", flags);
+    if (marker) result.Set("popMindMarker", ToStdString(marker));
+    if (sourceBundleId) result.Set("sourceBundleId", ToStdString(sourceBundleId));
+    result.Set("tooLarge", tooLarge);
+    result.Set("totalBytes", totalBytes);
+  }
+
+  return result;
+}
+
+// writePasteboard(items, { marker }): clears the pasteboard and writes one NSPasteboardItem per input
+// item through a single writeObjects call. File URLs travel one per item (see §5.1), so writeObjects
+// gives Finder / editors real multi-file pastes. The marker goes on the first item.
+Napi::Value WritePasteboard(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsArray()) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  NSString* marker = nil;
+  if (info.Length() >= 2 && info[1].IsObject()) {
+    Napi::Value markerValue = info[1].As<Napi::Object>().Get("marker");
+    if (markerValue.IsString()) {
+      marker = [NSString stringWithUTF8String:markerValue.As<Napi::String>().Utf8Value().c_str()];
+    }
+  }
+
+  bool ok = false;
+  @autoreleasepool {
+    NSMutableArray<NSPasteboardItem*>* pasteboardItems = [NSMutableArray array];
+    Napi::Array items = info[0].As<Napi::Array>();
+    for (uint32_t i = 0; i < items.Length(); ++i) {
+      Napi::Value itemValue = items.Get(i);
+      if (!itemValue.IsObject()) continue;
+      Napi::Value representationsValue = itemValue.As<Napi::Object>().Get("representations");
+      if (!representationsValue.IsArray()) continue;
+
+      NSPasteboardItem* pasteboardItem = [[[NSPasteboardItem alloc] init] autorelease];
+      bool hasData = false;
+      Napi::Array representations = representationsValue.As<Napi::Array>();
+      for (uint32_t j = 0; j < representations.Length(); ++j) {
+        Napi::Value recordValue = representations.Get(j);
+        if (!recordValue.IsObject()) continue;
+        Napi::Object record = recordValue.As<Napi::Object>();
+        Napi::Value typeValue = record.Get("type");
+        Napi::Value dataValue = record.Get("data");
+        if (!typeValue.IsString() || !dataValue.IsBuffer()) continue;
+
+        NSString* type = [NSString stringWithUTF8String:typeValue.As<Napi::String>().Utf8Value().c_str()];
+        if (type.length == 0) continue;
+        auto buffer = dataValue.As<Napi::Buffer<uint8_t>>();
+        NSData* data = [NSData dataWithBytes:buffer.Data() length:buffer.Length()];
+        if ([pasteboardItem setData:data forType:type]) {
+          hasData = true;
+        }
+      }
+
+      if (hasData) [pasteboardItems addObject:pasteboardItem];
+    }
+
+    // Validate before clearing so a malformed request never wipes the user's clipboard.
+    if (pasteboardItems.count > 0) {
+      if (marker.length > 0) {
+        [pasteboardItems[0] setString:marker forType:kPopMindPasteboardMarkerType];
+      }
+      NSPasteboard* pb = [NSPasteboard generalPasteboard];
+      [pb clearContents];
+      ok = [pb writeObjects:pasteboardItems];
+    }
+  }
+
+  NSLog(@"[selection_bridge] writePasteboard ok=%d marker=%@", ok, marker ?: @"(none)");
+  return Napi::Boolean::New(env, ok);
+}
+
+// Looks for the key that types `wanted` in `source`'s layout at the given UCKeyTranslate modifier state.
+bool FindKeyCodeForCharacter(TISInputSourceRef source, UniChar wanted, UInt32 modifierKeyState,
+                             CGKeyCode* outKeyCode) {
+  if (!source) return false;
+  CFDataRef layoutData =
+      (CFDataRef)TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData);
+  if (!layoutData) return false;
+
+  const UCKeyboardLayout* layout =
+      reinterpret_cast<const UCKeyboardLayout*>(CFDataGetBytePtr(layoutData));
+  const UInt32 keyboardType = LMGetKbdType();
+  for (CGKeyCode code = 0; code < 128; ++code) {
+    UInt32 deadKeyState = 0;
+    UniChar chars[4] = {0, 0, 0, 0};
+    UniCharCount length = 0;
+    const OSStatus status = UCKeyTranslate(layout, code, kUCKeyActionDown, modifierKeyState,
+                                           keyboardType, kUCKeyTranslateNoDeadKeysBit,
+                                           &deadKeyState, 4, &length, chars);
+    if (status == noErr && length == 1 && chars[0] == wanted) {
+      *outKeyCode = code;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Virtual key code that produces "v" for the current keyboard layout. The ⌘ level is tried first
+// because the system matches key equivalents against it: on "Dvorak - QWERTY ⌘" style layouts
+// that level is QWERTY, so the result is kVK_ANSI_V there without special-casing layout names
+// (names ending in QWERTYCMD are still short-circuited as a safety net).
+CGKeyCode ResolvePasteKeyCode(std::string* outVia = nullptr) {
+  __block CGKeyCode result = kVK_ANSI_V;
+  __block std::string via = "fallback";
+
+  RunOnMainThreadSync(^{
+    const UInt32 commandState = (cmdKey >> 8) & 0xFF;
+    TISInputSourceRef current = TISCopyCurrentKeyboardLayoutInputSource();
+    TISInputSourceRef ascii = TISCopyCurrentASCIICapableKeyboardLayoutInputSource();
+
+    if (current) {
+      CFStringRef sourceId = (CFStringRef)TISGetInputSourceProperty(current, kTISPropertyInputSourceID);
+      NSString* identifier = sourceId ? (__bridge NSString*)sourceId : @"";
+      if ([[identifier uppercaseString] hasSuffix:@"QWERTYCMD"]) {
+        via = "qwerty-cmd-layout";
+        if (current) CFRelease(current);
+        if (ascii) CFRelease(ascii);
+        return;
+      }
+    }
+
+    CGKeyCode code = kVK_ANSI_V;
+    if (FindKeyCodeForCharacter(current, 'v', commandState, &code)) {
+      result = code;
+      via = "current-layout-cmd";
+    } else if (FindKeyCodeForCharacter(current, 'v', 0, &code)) {
+      result = code;
+      via = "current-layout";
+    } else if (FindKeyCodeForCharacter(ascii, 'v', commandState, &code)) {
+      result = code;
+      via = "ascii-layout-cmd";
+    } else if (FindKeyCodeForCharacter(ascii, 'v', 0, &code)) {
+      result = code;
+      via = "ascii-layout";
+    }
+
+    if (current) CFRelease(current);
+    if (ascii) CFRelease(ascii);
+  });
+
+  if (outVia) *outVia = via;
+  return result;
+}
+
+// postPasteKeystroke(): synthetic ⌘V for the frontmost app.
+Napi::Value PostPasteKeystroke(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::Object result = Napi::Object::New(env);
+
+  if (!AXIsProcessTrusted()) {
+    NSLog(@"[selection_bridge] postPasteKeystroke skipped: accessibility permission missing");
+    result.Set("ok", false);
+    result.Set("reason", "no_permission");
+    return result;
+  }
+
+  if (IsSecureEventInputEnabled()) {
+    NSLog(@"[selection_bridge] postPasteKeystroke skipped: secure event input is enabled");
+    result.Set("ok", false);
+    result.Set("reason", "secure_input");
+    return result;
+  }
+
+  std::string via;
+  const CGKeyCode keyCode = ResolvePasteKeyCode(&via);
+
+  CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateCombinedSessionState);
+  if (!source) {
+    NSLog(@"[selection_bridge] postPasteKeystroke failed: cannot create event source");
+    result.Set("ok", false);
+    return result;
+  }
+  // Keep the user's still-held keys from mixing into the synthetic paste.
+  CGEventSourceSetLocalEventsFilterDuringSuppressionState(
+      source,
+      (kCGEventFilterMaskPermitLocalMouseEvents | kCGEventFilterMaskPermitSystemDefinedEvents),
+      kCGEventSuppressionStateSuppressionInterval);
+
+  // 0x000008 is the left-⌘ device bit; some apps ignore ⌘ without it.
+  const CGEventFlags flags = static_cast<CGEventFlags>(kCGEventFlagMaskCommand | 0x000008);
+  bool posted = true;
+  for (const bool isKeyDown : {true, false}) {
+    CGEventRef event = CGEventCreateKeyboardEvent(source, keyCode, isKeyDown);
+    if (!event) {
+      posted = false;
+      continue;
+    }
+    CGEventSetFlags(event, flags);
+    CGEventSetIntegerValueField(event, kCGEventSourceUserData, kSimulatedKeyboardEventTag);
+    CGEventPost(kCGSessionEventTap, event);
+    CFRelease(event);
+  }
+  CFRelease(source);
+
+  NSLog(@"[selection_bridge] postPasteKeystroke ok=%d keyCode=%d via=%s", posted, (int)keyCode, via.c_str());
+  result.Set("ok", posted);
+  return result;
+}
+
+Napi::Value ResolvePasteKeyCodeValue(const Napi::CallbackInfo& info) {
+  return Napi::Number::New(info.Env(), static_cast<double>(ResolvePasteKeyCode()));
+}
+
+Napi::Value IsSecureInputEnabledValue(const Napi::CallbackInfo& info) {
+  return Napi::Boolean::New(info.Env(), IsSecureEventInputEnabled());
+}
+
+// presentPanelWithoutActivation(nativeHandle): show an Electron `type: 'panel'` window above other
+// apps and make it key without activating popMind, so the previously focused app keeps focus
+// (paste later lands there).
+Napi::Value PresentPanelWithoutActivation(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsBuffer()) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  auto buf = info[0].As<Napi::Buffer<void*>>();
+  if (buf.ByteLength() < sizeof(void*)) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  void* viewPtr = *reinterpret_cast<void**>(buf.Data());
+  if (!viewPtr) return Napi::Boolean::New(env, false);
+
+  __block bool ok = false;
+  RunOnMainThreadSync(^{
+    NSView* nsView = (__bridge NSView*)viewPtr;
+    NSWindow* nsWindow = [nsView window];
+    if (!nsWindow) return;
+
+    const bool isPanel = [nsWindow isKindOfClass:[NSPanel class]];
+    if (isPanel) {
+      if (!([nsWindow styleMask] & NSWindowStyleMaskNonactivatingPanel)) {
+        [nsWindow setStyleMask:[nsWindow styleMask] | NSWindowStyleMaskNonactivatingPanel];
+        // Changing the mask after creation does not update the WindowServer "prevents activation"
+        // tag; AppKit's own setter for it is private, so only use it when present.
+        SEL preventsActivation = NSSelectorFromString(@"_setPreventsActivation:");
+        if ([nsWindow respondsToSelector:preventsActivation]) {
+          ((void (*)(id, SEL, BOOL))objc_msgSend)(nsWindow, preventsActivation, YES);
+        }
+      }
+    } else {
+      NSLog(@"[selection_bridge] presentPanelWithoutActivation: window is not an NSPanel (class=%@), "
+            @"cannot guarantee non-activating behavior",
+            NSStringFromClass([nsWindow class]));
+    }
+
+    [nsWindow setIgnoresMouseEvents:NO];
+    [nsWindow setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                   NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                   NSWindowCollectionBehaviorStationary];
+    // Above Chrome's autofill popup (level 999).
+    [nsWindow setLevel:NSScreenSaverWindowLevel];
+    [nsWindow setHidesOnDeactivate:NO];
+    [nsWindow orderFrontRegardless];
+    [nsWindow makeKeyWindow];
+
+    NSLog(@"[selection_bridge] presentPanelWithoutActivation class=%@ isPanel=%d windowNumber=%ld "
+          @"styleMask=0x%lx level=%ld isKey=%d appActive=%d",
+          NSStringFromClass([nsWindow class]), isPanel, (long)nsWindow.windowNumber,
+          (unsigned long)[nsWindow styleMask], (long)[nsWindow level], [nsWindow isKeyWindow],
+          [NSApp isActive]);
+    ok = true;
+  });
+
+  return Napi::Boolean::New(env, ok);
+}
+
+// ---------- Physical ⌘V monitor ----------
+
+id gPasteMonitor = nil;
+Napi::ThreadSafeFunction* gPasteTsfn = nullptr;
+std::mutex gPasteMonitorMutex;
+// Key code of a physical ⌘V key-down awaiting its key-up. Only touched on the main thread.
+int gPendingPasteKeyCode = -1;
+
+void EmitUserPaste(double timestampMs) {
+  std::lock_guard<std::mutex> lock(gPasteMonitorMutex);
+  if (!gPasteTsfn) return;
+
+  auto* timestamp = new double(timestampMs);
+  auto status = gPasteTsfn->NonBlockingCall(timestamp, [](Napi::Env env, Napi::Function cb,
+                                                          double* value) {
+    Napi::Object payload = Napi::Object::New(env);
+    payload.Set("type", "user-paste");
+    payload.Set("timestamp", *value);
+    cb.Call({payload});
+    delete value;
+  });
+
+  if (status != napi_ok) {
+    delete timestamp;
+  }
+}
+
+void RemovePasteMonitorLocked() {
+  if (gPasteMonitor) {
+    [NSEvent removeMonitor:gPasteMonitor];
+    gPasteMonitor = nil;
+  }
+  gPendingPasteKeyCode = -1;
+
+  if (gPasteTsfn) {
+    gPasteTsfn->Release();
+    delete gPasteTsfn;
+    gPasteTsfn = nullptr;
+  }
+}
+
+void RemovePasteMonitor() {
+  RunOnMainThreadSync(^{
+    std::lock_guard<std::mutex> lock(gPasteMonitorMutex);
+    RemovePasteMonitorLocked();
+  });
+}
+
+void HandlePasteMonitorEvent(NSEvent* event) {
+  CGEventRef cgEvent = event.CGEvent;
+  const int64_t eventTag =
+      cgEvent ? CGEventGetIntegerValueField(cgEvent, kCGEventSourceUserData) : 0;
+  if (eventTag == kSimulatedKeyboardEventTag) return;
+
+  if (event.type == NSEventTypeKeyDown) {
+    if (event.isARepeat) return;
+    const NSEventModifierFlags flags = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+    if (!(flags & NSEventModifierFlagCommand) || (flags & NSEventModifierFlagControl)) return;
+    gPendingPasteKeyCode = (event.keyCode == ResolvePasteKeyCode()) ? (int)event.keyCode : -1;
+    return;
+  }
+
+  if (event.type == NSEventTypeKeyUp) {
+    // Key-up of the paste key completes the paste even if ⌘ was released first.
+    if (gPendingPasteKeyCode >= 0 && event.keyCode == gPendingPasteKeyCode) {
+      gPendingPasteKeyCode = -1;
+      EmitUserPaste([[NSDate date] timeIntervalSince1970] * 1000.0);
+    }
+  }
+}
+
+Napi::Value StartPasteMonitor(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsFunction()) {
+    Napi::TypeError::New(env, "callback required").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  // Global key monitors receive nothing without the accessibility permission.
+  if (!IsTrusted(false)) return Napi::Boolean::New(env, false);
+
+  Napi::Function cb = info[0].As<Napi::Function>();
+  __block bool ok = false;
+
+  RunOnMainThreadSync(^{
+    std::lock_guard<std::mutex> lock(gPasteMonitorMutex);
+    // Restart so the newest callback wins.
+    RemovePasteMonitorLocked();
+
+    auto tsfn = Napi::ThreadSafeFunction::New(env, cb, "PasteMonitor", 0, 1);
+    gPasteTsfn = new Napi::ThreadSafeFunction(std::move(tsfn));
+    gPasteMonitor = [NSEvent
+        addGlobalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskKeyUp)
+                                      handler:^(NSEvent* event) {
+      HandlePasteMonitorEvent(event);
+    }];
+
+    if (!gPasteMonitor) {
+      RemovePasteMonitorLocked();
+      return;
+    }
+    ok = true;
+  });
+
+  return Napi::Boolean::New(env, ok);
+}
+
+Napi::Value StopPasteMonitor(const Napi::CallbackInfo& info) {
+  RemovePasteMonitor();
+  return Napi::Boolean::New(info.Env(), true);
+}
+
+Napi::Value ResolveAppPathByBundleId(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    return env.Null();
+  }
+
+  Napi::Value result = env.Null();
+  @autoreleasepool {
+    NSString* bundleId =
+        [NSString stringWithUTF8String:info[0].As<Napi::String>().Utf8Value().c_str()];
+    if (bundleId.length > 0) {
+      NSURL* url = [[NSWorkspace sharedWorkspace] URLForApplicationWithBundleIdentifier:bundleId];
+      if (url && url.path.length > 0) {
+        result = Napi::String::New(env, ToStdString(url.path));
+      }
+    }
+  }
+  return result;
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("checkPermission", Napi::Function::New(env, CheckPermission));
   exports.Set("getSelectionSnapshot", Napi::Function::New(env, GetSelectionSnapshot));
@@ -3596,7 +4183,21 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setActivationPolicy", Napi::Function::New(env, SetActivationPolicy));
   exports.Set("readApplicationsInfoAsync", Napi::Function::New(env, ReadApplicationsInfoAsync));
   exports.Set("writeApplicationIconsAsync", Napi::Function::New(env, WriteApplicationIconsAsync));
-  env.AddCleanupHook([]() { RemoveMonitors(); });
+  exports.Set("readPasteboard", Napi::Function::New(env, ReadPasteboard));
+  exports.Set("writePasteboard", Napi::Function::New(env, WritePasteboard));
+  exports.Set("postPasteKeystroke", Napi::Function::New(env, PostPasteKeystroke));
+  exports.Set("resolvePasteKeyCode", Napi::Function::New(env, ResolvePasteKeyCodeValue));
+  exports.Set("isSecureInputEnabled", Napi::Function::New(env, IsSecureInputEnabledValue));
+  exports.Set("presentPanelWithoutActivation", Napi::Function::New(env, PresentPanelWithoutActivation));
+  exports.Set("startPasteMonitor", Napi::Function::New(env, StartPasteMonitor));
+  exports.Set("stopPasteMonitor", Napi::Function::New(env, StopPasteMonitor));
+  exports.Set("resolveAppPathByBundleId", Napi::Function::New(env, ResolveAppPathByBundleId));
+  exports.Set("recognizeTextInImageWithOptionsAsync",
+              Napi::Function::New(env, RecognizeTextInImageWithOptionsAsync));
+  env.AddCleanupHook([]() {
+    RemoveMonitors();
+    RemovePasteMonitor();
+  });
   return exports;
 }
 

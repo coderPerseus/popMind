@@ -9,7 +9,7 @@ import {
   type MainWindowRoute,
 } from './app'
 import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
-import { clipboardHistoryService } from '@/lib/clipboard/legacy/service'
+import { clipboardPanel } from '@/lib/clipboard/window/clipboard-panel-window'
 import { mainLogger } from '@/lib/main/logger'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
@@ -361,7 +361,8 @@ export const showMainWindow = async (
   }
 
   const startedAt = performance.now()
-  clipboardHistoryService.capturePasteTarget()
+  // Remember the app the user came from (while it is still frontmost) so the launcher's `/clip` can paste back into it.
+  clipboardPanel.rememberLauncherTarget()
 
   const window = getOrCreateMainWindow()
 

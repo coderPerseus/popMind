@@ -40,6 +40,8 @@ export interface NativeMacOSAddon {
   readPasteboard?(options: NativePasteboardReadOptions): NativePasteboardReadResult
   writePasteboard?(items: NativePasteboardItem[], options: NativePasteboardWriteOptions): boolean
   postPasteKeystroke?(): NativePasteKeystrokeResult
+  /** Virtual key code that types "v" in the current keyboard layout (diagnostics; nothing is sent). */
+  resolvePasteKeyCode?(): number
   isSecureInputEnabled?(): boolean
   presentPanelWithoutActivation?(nativeHandle: Buffer): boolean
   startPasteMonitor?(callback: (event: NativePasteMonitorEvent) => void): boolean
