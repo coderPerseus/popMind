@@ -1,3 +1,4 @@
+import './dev-user-data'
 import { app, dialog, globalShortcut, nativeImage } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerExplainHandlers } from '@/lib/conveyor/handlers/explain-handler'
