@@ -3,6 +3,7 @@
 export const shortcutActionIds = [
   'toggleHome',
   'clipboardHistory',
+  'clipboardPasteStack',
   'inputTranslation',
   'screenshotTranslate',
   'screenshotSearch',
@@ -25,6 +26,8 @@ export interface ShortcutStatus {
 export const defaultShortcutBindings: ShortcutBindings = {
   toggleHome: 'Alt+Space',
   clipboardHistory: 'Alt+V',
+  // Off by default: a global ⇧⌘C would steal the shortcut from every app (Chrome DevTools, Finder…).
+  clipboardPasteStack: '',
   inputTranslation: 'CommandOrControl+Shift+I',
   screenshotTranslate: 'CommandOrControl+Alt+T',
   screenshotSearch: 'CommandOrControl+Alt+S',

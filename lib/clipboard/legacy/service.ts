@@ -18,7 +18,7 @@ import type {
   ClipboardHistoryPinResult,
   ClipboardHistoryQueryInput,
   ClipboardHistoryWriteResult,
-} from '@/lib/clipboard/types'
+} from '@/lib/clipboard/legacy/types'
 
 const CLIPBOARD_POLL_MS = 550
 const CLIPBOARD_HISTORY_MAX_COUNT = 240

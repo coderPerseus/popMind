@@ -1,5 +1,5 @@
 import { handle } from '@/lib/main/shared'
-import { clipboardHistoryService } from '@/lib/clipboard/service'
+import { clipboardHistoryService } from '@/lib/clipboard/legacy/service'
 
 export const registerClipboardHandlers = () => {
   handle('clipboard-history-list', (input) => clipboardHistoryService.listEntries(input))

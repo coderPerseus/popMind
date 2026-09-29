@@ -29,7 +29,7 @@ import {
 import { clipboardHistoryPluginId } from '@/app/plugins/main-search/clipboard-history-plugin'
 import { getThemeLogoUrl } from '@/app/theme-assets'
 import { compareReleaseVersions } from '@/lib/app/release'
-import type { ClipboardHistoryEntry, ClipboardHistoryFilter, ClipboardHistoryListItem } from '@/lib/clipboard/types'
+import type { ClipboardHistoryEntry, ClipboardHistoryFilter, ClipboardHistoryListItem } from '@/lib/clipboard/legacy/types'
 import { getMainPlaceholderOptions } from '@/lib/i18n/shared'
 import './styles.css'
 
@@ -752,7 +752,7 @@ export function MainSearch() {
   }
 
   const handleClipboardClear = async () => {
-    await clipboardApi.clearHistory()
+    await clipboardApi.clearHistoryLegacy()
     setClipboardHint('Clipboard history cleared.')
     await refreshClipboardSelection()
   }

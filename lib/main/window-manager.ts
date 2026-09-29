@@ -9,7 +9,7 @@ import {
   type MainWindowRoute,
 } from './app'
 import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
-import { clipboardHistoryService } from '@/lib/clipboard/service'
+import { clipboardHistoryService } from '@/lib/clipboard/legacy/service'
 import { mainLogger } from '@/lib/main/logger'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'

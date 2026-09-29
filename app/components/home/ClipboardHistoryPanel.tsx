@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { FileImage, Link2, Palette, Pin, PinOff, Trash2 } from 'lucide-react'
-import type { ClipboardHistoryEntry, ClipboardHistoryFilter, ClipboardHistoryListItem } from '@/lib/clipboard/types'
+import type { ClipboardHistoryEntry, ClipboardHistoryFilter, ClipboardHistoryListItem } from '@/lib/clipboard/legacy/types'
 
 type ClipboardHistoryPanelCopy = {
   countLabel: (count: number) => string
