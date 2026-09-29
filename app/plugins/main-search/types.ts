@@ -14,6 +14,8 @@ export type MainSearchPluginManifest = {
   order: number
   typeLabel: string
   mode: 'link' | 'panel'
+  /** `link` plugins normally need text after the alias; this one can run with nothing typed (e.g. `/clip`). */
+  runsWithoutQuery?: boolean
   keywords: string[]
   logo: MainSearchPluginLogo
   description: string
@@ -25,6 +27,8 @@ export type MainSearchPluginExecutionContext = {
   query: string
   openUrl: (url: string) => Promise<void>
   copyText: (text: string) => Promise<boolean>
+  /** Opens the Paste-style clipboard panel, optionally pre-filled with a search text. */
+  openClipboardPanel: (initialQuery?: string) => Promise<void>
 }
 
 export type MainSearchPluginPanelContext = {
