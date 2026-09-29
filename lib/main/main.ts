@@ -7,7 +7,9 @@ import { normalizeMacInstallLocation } from '@/lib/main/mac-install-location'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
 import { installedAppService } from '@/lib/app/installed-app-service'
-import { clipboardHistoryService } from '@/lib/clipboard/legacy/service'
+import { disposeClipboard, initializeClipboard, registerClipboardScheme } from '@/lib/clipboard/service'
+import { clipboardPanel, isClipboardPanelVisible } from '@/lib/clipboard/window/clipboard-panel-window'
+import { pasteStack } from '@/lib/clipboard/write'
 import { themeStore } from '@/lib/main/theme-store'
 import { shortcutManager } from '@/lib/shortcuts/shortcut-manager'
 import { TextPickerFeature } from '@/lib/text-picker/main/text-picker-feature'
@@ -21,6 +23,9 @@ import {
   showMainWindow,
   toggleMainWindow,
 } from './window-manager'
+
+// Custom schemes must be declared before the app is ready.
+registerClipboardScheme()
 
 let textPickerFeature: TextPickerFeature | null = null
 let disposeApplicationMenu: (() => void) | null = null
@@ -107,7 +112,9 @@ app.whenReady().then(async () => {
   registerExplainHandlers()
   registerTranslationHandlers()
   registerSearchHandlers()
-  clipboardHistoryService.initialize()
+  void initializeClipboard().catch((error) => {
+    mainLogger.error('[app] clipboard initialize failed', error)
+  })
 
   // Initialize text picker feature (non-blocking)
   textPickerFeature = new TextPickerFeature()
@@ -133,7 +140,10 @@ app.whenReady().then(async () => {
     void toggleMainWindow('home')
   })
   shortcutManager.setHandler('clipboardHistory', () => {
-    void showMainWindow('home', { searchQuery: '/clip ' })
+    void clipboardPanel.toggle()
+  })
+  shortcutManager.setHandler('clipboardPasteStack', () => {
+    void pasteStack.toggle()
   })
   void shortcutManager.initialize().catch((error) => {
     mainLogger.error('[shortcut] initialize failed', error)
@@ -161,7 +171,8 @@ app.on('activate', () => {
     mainWindowVisible: isMainWindowVisible(),
   })
 
-  if (!isMainWindowVisible() && !isSettingsWindowVisible()) {
+  // The clipboard panel is a non-activating panel; if it ever activates the app (native fallback) do not pop the launcher.
+  if (!isMainWindowVisible() && !isSettingsWindowVisible() && !isClipboardPanelVisible()) {
     void showMainWindow('home')
   }
 })
@@ -173,7 +184,7 @@ app.on('will-quit', () => {
   disposeApplicationMenu = null
   shortcutManager.dispose()
   globalShortcut.unregisterAll()
-  clipboardHistoryService.dispose()
+  disposeClipboard()
   installedAppService.dispose()
   textPickerFeature?.dispose()
   textPickerFeature = null

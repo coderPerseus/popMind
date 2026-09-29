@@ -1,6 +1,5 @@
 import { ConveyorApi } from '@/lib/preload/shared'
 import { ClipboardChannel } from '@/lib/conveyor/schemas/clipboard-schema'
-import type { ClipboardHistoryQueryInput } from '@/lib/clipboard/legacy/types'
 import type {
   ClipItemsChangedEvent,
   ClipPanelShowEvent,
@@ -11,7 +10,6 @@ import type {
 } from '@/lib/clipboard/types'
 
 export class ClipboardApi extends ConveyorApi {
-  // ---- new panel API ----
   list = (query: ClipQuery) => this.invoke('clip-list', query)
   getDetail = (id: string) => this.invoke('clip-get-detail', id)
   paste = (ids: string[], mode: ClipPasteMode = 'default') => this.invoke('clip-paste', ids, mode)
@@ -42,6 +40,7 @@ export class ClipboardApi extends ConveyorApi {
   aiTest = (settings: ClipboardSettings['ai']) => this.invoke('clip-ai-test', settings)
   stats = () => this.invoke('clip-stats')
   clearHistory = () => this.invoke('clip-clear-history')
+  showPanel = (initialQuery?: string) => this.invoke('clip-panel-show', initialQuery)
   hidePanel = () => this.invoke('clip-panel-hide')
   setPanelHeight = (height: number) => this.invoke('clip-panel-set-height', height)
   togglePasteStack = () => this.invoke('clip-paste-stack-toggle')
@@ -64,13 +63,4 @@ export class ClipboardApi extends ConveyorApi {
       this.renderer.removeListener(channel, listener)
     }
   }
-
-  // ---- legacy (removed with lib/clipboard/legacy) ----
-  listHistory = (input?: ClipboardHistoryQueryInput) => this.invoke('clipboard-history-list', input)
-  getHistoryEntry = (id: string) => this.invoke('clipboard-history-get', id)
-  copyHistoryEntry = (id: string) => this.invoke('clipboard-history-copy', id)
-  pasteHistoryEntry = (id: string) => this.invoke('clipboard-history-paste', id)
-  deleteHistoryEntry = (id: string) => this.invoke('clipboard-history-delete', id)
-  clearHistoryLegacy = () => this.invoke('clipboard-history-clear')
-  togglePinHistoryEntry = (id: string) => this.invoke('clipboard-history-toggle-pin', id)
 }
