@@ -3640,6 +3640,21 @@ Napi::Value WriteApplicationIconsAsync(const Napi::CallbackInfo& info) {
 
 // readPasteboard({ allowTypes, maxBytes }): reads only allow-listed types (other types are never
 // loaded, so apps that render lazy data such as Excel are not forced to produce it).
+// Finder copies file *reference* URLs (file:///.file/id=…), which only the OS can map to a path.
+// Resolve them here so the rest of the pipeline always sees plain file:// path URLs.
+NSData* ResolveFileReferenceURLData(NSData* data) {
+  NSString* raw = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
+  if (![raw hasPrefix:@"file:///.file/id="]) return data;
+
+  NSURL* url = [NSURL URLWithString:[raw stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]];
+  NSURL* pathURL = url.filePathURL;
+  if (!pathURL.absoluteString.length) {
+    NSLog(@"[selection_bridge] unresolved file reference url");
+    return data;
+  }
+  return [pathURL.absoluteString dataUsingEncoding:NSUTF8StringEncoding];
+}
+
 Napi::Value ReadPasteboard(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
@@ -3711,6 +3726,9 @@ Napi::Value ReadPasteboard(const Napi::CallbackInfo& info) {
         if (![allowSet containsObject:type]) continue;
         NSData* data = [item dataForType:type];
         if (!data) continue;
+        if ([type isEqualToString:@"public.file-url"]) {
+          data = ResolveFileReferenceURLData(data);
+        }
         totalBytes += static_cast<double>(data.length);
         if (totalBytes > maxBytes) {
           tooLarge = true;
