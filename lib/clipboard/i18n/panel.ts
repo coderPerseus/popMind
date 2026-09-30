@@ -50,13 +50,13 @@ export const clipPanelMessages = {
 
     // pinboards
     'clip.panel.tab.history': '剪贴板历史',
-    'clip.panel.pinboard.new': '新建 Pinboard',
-    'clip.panel.pinboard.namePlaceholder': 'Pinboard 名称',
+    'clip.panel.pinboard.new': '新建收藏夹',
+    'clip.panel.pinboard.namePlaceholder': '收藏夹名称',
     'clip.panel.pinboard.create': '创建',
     'clip.panel.pinboard.rename': '重命名',
     'clip.panel.pinboard.color': '颜色',
     'clip.panel.pinboard.delete': '删除',
-    'clip.panel.pinboard.deleteTitle': '删除 Pinboard？',
+    'clip.panel.pinboard.deleteTitle': '删除收藏夹？',
     'clip.panel.pinboard.deleteHint': '「{name}」会被删除，里面的内容不会被删除，仍保留在剪贴板历史中。',
     'clip.panel.color.red': '红色',
     'clip.panel.color.orange': '橙色',
@@ -71,8 +71,8 @@ export const clipPanelMessages = {
     'clip.panel.menu.pasteCount': '粘贴 {count} 项',
     'clip.panel.menu.pastePlain': '粘贴为纯文本',
     'clip.panel.menu.copy': '复制',
-    'clip.panel.menu.addToPinboard': '加入 Pinboard',
-    'clip.panel.menu.newPinboard': '新建 Pinboard…',
+    'clip.panel.menu.addToPinboard': '加入收藏夹',
+    'clip.panel.menu.newPinboard': '新建收藏夹…',
     'clip.panel.menu.quickLook': '预览',
     'clip.panel.menu.rename': '重命名…',
     'clip.panel.menu.edit': '编辑…',
@@ -105,16 +105,20 @@ export const clipPanelMessages = {
     'clip.panel.paste.not_found': '这条内容已经不存在',
 
     // footer
-    'clip.panel.footer.pasteTo': '粘贴到 {app}',
-    'clip.panel.footer.pasteToFront': '粘贴到当前应用',
-    'clip.panel.footer.copyOnly': '回车只复制到剪贴板',
     'clip.panel.footer.openSettings': '打开系统设置',
-    'clip.panel.footer.selected': '已选 {count} 项',
-    'clip.panel.footer.count': '{count} 项',
-    'clip.panel.footer.countMore': '已加载 {count} 项',
-    'clip.panel.footer.keyPaste': '粘贴',
-    'clip.panel.footer.keyPlain': '纯文本',
-    'clip.panel.footer.keyPreview': '预览',
+
+    // count next to ⋯ and rotating search hints
+    'clip.panel.count.total': '{count} 项',
+    'clip.panel.count.more': '{count}+ 项',
+    'clip.panel.count.selected': '已选 {count} 项',
+    'clip.panel.hint.pasteTo': '↩ 粘贴到 {app}',
+    'clip.panel.hint.pasteFront': '↩ 粘贴到当前应用',
+    'clip.panel.hint.copyOnly': '↩ 仅复制到剪贴板',
+    'clip.panel.hint.plain': '⇧↩ 粘贴为纯文本',
+    'clip.panel.hint.preview': '空格 预览',
+    'clip.panel.hint.quickPaste': '⌘1–9 快速粘贴',
+    'clip.panel.hint.filters': '试试 type:图片 app:微信 上周',
+    'clip.panel.hint.ai': '⌘↩ AI 搜索',
 
     // states
     'clip.panel.state.loading': '加载中…',
@@ -219,13 +223,13 @@ export const clipPanelMessages = {
 
     // pinboards
     'clip.panel.tab.history': 'Clipboard History',
-    'clip.panel.pinboard.new': 'New Pinboard',
-    'clip.panel.pinboard.namePlaceholder': 'Pinboard name',
+    'clip.panel.pinboard.new': 'New Collection',
+    'clip.panel.pinboard.namePlaceholder': 'Collection name',
     'clip.panel.pinboard.create': 'Create',
     'clip.panel.pinboard.rename': 'Rename',
     'clip.panel.pinboard.color': 'Color',
     'clip.panel.pinboard.delete': 'Delete',
-    'clip.panel.pinboard.deleteTitle': 'Delete Pinboard?',
+    'clip.panel.pinboard.deleteTitle': 'Delete Collection?',
     'clip.panel.pinboard.deleteHint':
       '"{name}" will be deleted. Its items are kept and stay in your clipboard history.',
     'clip.panel.color.red': 'Red',
@@ -241,8 +245,8 @@ export const clipPanelMessages = {
     'clip.panel.menu.pasteCount': 'Paste {count} items',
     'clip.panel.menu.pastePlain': 'Paste as Plain Text',
     'clip.panel.menu.copy': 'Copy',
-    'clip.panel.menu.addToPinboard': 'Add to Pinboard',
-    'clip.panel.menu.newPinboard': 'New Pinboard…',
+    'clip.panel.menu.addToPinboard': 'Add to Collection',
+    'clip.panel.menu.newPinboard': 'New Collection…',
     'clip.panel.menu.quickLook': 'Quick Look',
     'clip.panel.menu.rename': 'Rename…',
     'clip.panel.menu.edit': 'Edit…',
@@ -275,16 +279,20 @@ export const clipPanelMessages = {
     'clip.panel.paste.not_found': 'This item no longer exists',
 
     // footer
-    'clip.panel.footer.pasteTo': 'Paste to {app}',
-    'clip.panel.footer.pasteToFront': 'Paste to the frontmost app',
-    'clip.panel.footer.copyOnly': 'Return only copies to the clipboard',
     'clip.panel.footer.openSettings': 'Open System Settings',
-    'clip.panel.footer.selected': '{count} selected',
-    'clip.panel.footer.count': '{count} items',
-    'clip.panel.footer.countMore': '{count} items loaded',
-    'clip.panel.footer.keyPaste': 'Paste',
-    'clip.panel.footer.keyPlain': 'Plain text',
-    'clip.panel.footer.keyPreview': 'Preview',
+
+    // count next to ⋯ and rotating search hints
+    'clip.panel.count.total': '{count} items',
+    'clip.panel.count.more': '{count}+ items',
+    'clip.panel.count.selected': '{count} selected',
+    'clip.panel.hint.pasteTo': '↩ Paste to {app}',
+    'clip.panel.hint.pasteFront': '↩ Paste to the frontmost app',
+    'clip.panel.hint.copyOnly': '↩ Copy to clipboard only',
+    'clip.panel.hint.plain': '⇧↩ Paste as plain text',
+    'clip.panel.hint.preview': 'Space Quick Look',
+    'clip.panel.hint.quickPaste': '⌘1–9 Quick paste',
+    'clip.panel.hint.filters': 'Try type:image app:Safari last week',
+    'clip.panel.hint.ai': '⌘↩ AI search',
 
     // states
     'clip.panel.state.loading': 'Loading…',

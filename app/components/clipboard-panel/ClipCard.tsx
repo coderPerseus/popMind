@@ -178,9 +178,12 @@ export const ClipCard = memo(function ClipCard({
         <div className="cp-card-head-text">
           <span className="cp-card-kind">
             <CardKindLabel item={item} t={t} />
-            {item.isRemote ? <Smartphone className="cp-card-remote" /> : null}
           </span>
-          <span className="cp-card-time">{formatRelativeTime(t, language, item.lastCopiedAt, now)}</span>
+          {item.isRemote ? <Smartphone className="cp-card-remote" /> : null}
+          <span className="cp-card-time">
+            {' · '}
+            {formatRelativeTime(t, language, item.lastCopiedAt, now)}
+          </span>
         </div>
         {item.source ? (
           <AppIcon url={item.source.iconUrl} name={item.source.name} className="cp-card-app-icon" />
