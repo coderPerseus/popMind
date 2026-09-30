@@ -3660,6 +3660,7 @@ Napi::Value ReadPasteboard(const Napi::CallbackInfo& info) {
 
   NSMutableSet<NSString*>* allowSet = [NSMutableSet set];
   double maxBytes = 20.0 * 1024.0 * 1024.0;
+  double maxImageBytes = maxBytes;
   if (info.Length() >= 1 && info[0].IsObject()) {
     Napi::Object options = info[0].As<Napi::Object>();
     Napi::Value allowValue = options.Get("allowTypes");
@@ -3675,6 +3676,11 @@ Napi::Value ReadPasteboard(const Napi::CallbackInfo& info) {
     Napi::Value maxBytesValue = options.Get("maxBytes");
     if (maxBytesValue.IsNumber()) {
       maxBytes = maxBytesValue.As<Napi::Number>().DoubleValue();
+    }
+    maxImageBytes = maxBytes;
+    Napi::Value maxImageBytesValue = options.Get("maxImageBytes");
+    if (maxImageBytesValue.IsNumber()) {
+      maxImageBytes = maxImageBytesValue.As<Napi::Number>().DoubleValue();
     }
   }
 
@@ -3717,20 +3723,35 @@ Napi::Value ReadPasteboard(const Napi::CallbackInfo& info) {
       NSData* data;
     };
     std::vector<std::vector<Representation>> collected;
-    double totalBytes = 0;
+    // Raw image data (TIFF especially) is re-encoded to PNG by the caller, which enforces the stored-size limit,
+    // so images get their own budget and never count against the text/data budget.
+    NSSet<NSString*>* imageTypes =
+        [NSSet setWithObjects:@"public.png", @"public.tiff", @"public.jpeg", @"public.heic", nil];
+    NSSet<NSString*>* compressedImageTypes = [NSSet setWithObjects:@"public.png", @"public.jpeg", @"public.heic", nil];
+    double dataBytes = 0;
+    double imageBytes = 0;
     bool tooLarge = false;
 
     for (NSPasteboardItem* item in pasteboardItems) {
       std::vector<Representation> representations;
-      for (NSPasteboardType type in item.types) {
+      NSArray<NSPasteboardType>* itemTypes = item.types;
+      bool hasCompressedImage = false;
+      for (NSPasteboardType type in itemTypes) {
+        if ([compressedImageTypes containsObject:type] && [allowSet containsObject:type]) hasCompressedImage = true;
+      }
+      for (NSPasteboardType type in itemTypes) {
         if (![allowSet containsObject:type]) continue;
+        // A screenshot usually carries PNG plus an uncompressed TIFF that can be 10x larger; skip the TIFF.
+        if (hasCompressedImage && [type isEqualToString:@"public.tiff"]) continue;
         NSData* data = [item dataForType:type];
         if (!data) continue;
         if ([type isEqualToString:@"public.file-url"]) {
           data = ResolveFileReferenceURLData(data);
         }
-        totalBytes += static_cast<double>(data.length);
-        if (totalBytes > maxBytes) {
+        const bool isImage = [imageTypes containsObject:type];
+        double& budgetUsed = isImage ? imageBytes : dataBytes;
+        budgetUsed += static_cast<double>(data.length);
+        if (budgetUsed > (isImage ? maxImageBytes : maxBytes)) {
           tooLarge = true;
           break;
         }
@@ -3779,7 +3800,7 @@ Napi::Value ReadPasteboard(const Napi::CallbackInfo& info) {
     if (marker) result.Set("popMindMarker", ToStdString(marker));
     if (sourceBundleId) result.Set("sourceBundleId", ToStdString(sourceBundleId));
     result.Set("tooLarge", tooLarge);
-    result.Set("totalBytes", totalBytes);
+    result.Set("totalBytes", dataBytes + imageBytes);
   }
 
   return result;

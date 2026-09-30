@@ -11,6 +11,10 @@ import type { ClipboardSettings } from '@/lib/clipboard/types'
 import { mainLogger } from '@/lib/main/logger'
 
 const POLL_INTERVAL_MS = 250
+/** ~2 s of polls for a writer to finish after clearing the pasteboard. */
+const EMPTY_RETRY_LIMIT = 8
+/** Raw image data is re-encoded to PNG, and the PNG is checked against maxItemMb, so allow big TIFFs in. */
+const MAX_RAW_IMAGE_BYTES = 256 * 1024 * 1024
 const TEXT_PICKER_RESTORE_MARKER = 'text-picker-restore'
 const ITEM_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -23,6 +27,8 @@ const round = (value: number) => Math.round(value * 10) / 10
 export class ClipboardWatcher {
   private timer: NodeJS.Timeout | null = null
   private lastChangeCount = -1
+  /** Retries of a change whose pasteboard was still empty (the writer cleared it but had not written yet). */
+  private emptyRetry = { changeCount: -1, attempts: 0 }
   private busy = false
   private deps: ClipboardWatcherDeps | null = null
 
@@ -84,6 +90,7 @@ export class ClipboardWatcher {
 
   private async handleChange(changeCount: number, settings: ClipboardSettings) {
     const startedAt = performance.now()
+    const previousChangeCount = this.lastChangeCount
     this.lastChangeCount = changeCount
     const now = Date.now()
 
@@ -103,6 +110,7 @@ export class ClipboardWatcher {
     const snapshot = clipboardNative.read({
       allowTypes: PASTEBOARD_ALLOW_TYPES,
       maxBytes: Math.max(1, settings.maxItemMb) * 1024 * 1024,
+      maxImageBytes: MAX_RAW_IMAGE_BYTES,
     })
     const readMs = performance.now() - readStartedAt
 
@@ -113,6 +121,19 @@ export class ClipboardWatcher {
 
     // Use the snapshot's own count so a change that happened during the read is picked up by the next poll.
     this.lastChangeCount = snapshot.changeCount
+
+    // Writers clear the pasteboard and then write, without a new changeCount for the write. A poll that lands in
+    // between sees nothing; re-read the same change a few times instead of marking it handled.
+    if (snapshot.allTypes.length === 0 && !snapshot.tooLarge) {
+      const attempts = this.emptyRetry.changeCount === snapshot.changeCount ? this.emptyRetry.attempts + 1 : 1
+      this.emptyRetry = { changeCount: snapshot.changeCount, attempts }
+      if (attempts <= EMPTY_RETRY_LIMIT) {
+        this.lastChangeCount = previousChangeCount
+        return
+      }
+      this.skip('empty', { attempts })
+      return
+    }
 
     if (snapshot.popMindMarker) {
       if (ITEM_ID_PATTERN.test(snapshot.popMindMarker)) {

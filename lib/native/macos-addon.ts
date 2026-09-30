@@ -66,6 +66,11 @@ export type NativePasteboardReadOptions = {
   allowTypes: string[]
   /** Abort (return `tooLarge: true`, no items) when the allowed data exceeds this many bytes. */
   maxBytes: number
+  /**
+   * Separate budget for raw image data (png/tiff/jpeg/heic), which the caller re-encodes and size-checks itself.
+   * A TIFF is skipped when the same item also offers a compressed image. Defaults to `maxBytes`.
+   */
+  maxImageBytes?: number
 }
 
 export type NativePasteboardReadResult = {
