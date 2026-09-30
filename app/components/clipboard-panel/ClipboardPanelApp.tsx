@@ -22,7 +22,6 @@ import { PanelActionsContext, type PanelActionsValue } from '@/app/components/cl
 import { FilterRow } from '@/app/components/clipboard-panel/FilterRow'
 import { ConfirmDialog, NameDialog, TextDialog } from '@/app/components/clipboard-panel/PanelDialogs'
 import {
-  PanelFooter,
   PanelToast,
   PasteStackIndicator,
   ResizeHandle,
@@ -55,8 +54,6 @@ import { hasActiveFilters, useClipList } from '@/app/components/clipboard-panel/
 import { useEvent } from '@/app/components/clipboard-panel/use-event'
 import '@/app/styles/clipboard-panel.css'
 
-type Phase = 'hidden' | 'shown' | 'leaving'
-
 type DialogState =
   | { type: 'rename'; item: ClipListItem }
   | { type: 'edit'; item: ClipListItem; text: string; loading: boolean }
@@ -64,7 +61,6 @@ type DialogState =
   | { type: 'pinboardRename'; pinboard: Pinboard }
   | { type: 'pinboardDelete'; pinboard: Pinboard }
 
-const EXIT_ANIMATION_MS = 160
 const COPY_HINT_MS = 2800
 const CLOSE_OVERLAY_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
 
@@ -201,12 +197,10 @@ export function ClipboardPanelApp() {
   })
 
   // ---- panel lifecycle ----
-  const [phase, setPhase] = useState<Phase>('hidden')
-  const phaseRef = useRef(phase)
-  phaseRef.current = phase
+  // The window is pre-warmed: the content is always rendered, show/hide is instant and state is reset in place.
+  const visibleRef = useRef(false)
   const [showEpoch, setShowEpoch] = useState(0)
   const showEpochRef = useRef(0)
-  const hideTimerRef = useRef<number | undefined>(undefined)
   const [panelMeta, setPanelMeta] = useState<{ targetAppName?: string; canDirectPaste: boolean }>({
     canDirectPaste: true,
   })
@@ -251,14 +245,10 @@ export function ClipboardPanelApp() {
     toastTimerRef.current = window.setTimeout(() => setToast(null), duration)
   })
 
-  const enter = useEvent((event?: ClipPanelShowEvent) => {
-    showEpochRef.current += 1
-    window.clearTimeout(hideTimerRef.current)
+  /** Bring every piece of transient state back to its default (done when hiding, so the next show is clean). */
+  const resetInPlace = useEvent((initialQuery?: string) => {
     window.clearTimeout(toastTimerRef.current)
     window.clearTimeout(hintCloseTimerRef.current)
-    setShowEpoch(showEpochRef.current)
-    setPanelMeta({ targetAppName: event?.targetAppName, canDirectPaste: event?.canDirectPaste ?? true })
-    setNow(Date.now())
     setMetaHeld(false)
     setQuickLookOpen(false)
     setDialog(null)
@@ -268,37 +258,29 @@ export function ClipboardPanelApp() {
     lastDeleteRef.current = null
     pendingSelectRef.current = null
     ai.cancel()
-    list.resetForShow(event?.initialQuery)
+    list.resetForShow(initialQuery)
+  })
+
+  const enter = useEvent((event?: ClipPanelShowEvent) => {
+    showEpochRef.current += 1
+    visibleRef.current = true
+    setShowEpoch(showEpochRef.current)
+    setPanelMeta({ targetAppName: event?.targetAppName, canDirectPaste: event?.canDirectPaste ?? true })
+    setNow(Date.now())
+    resetInPlace(event?.initialQuery)
     void refreshPinboards()
     void clipboard.getPasteStack().then(setStack, () => undefined)
-
-    // Start from the off-screen position without a transition, then slide in.
-    setPhase('hidden')
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        setPhase('shown')
-        focusSearch()
-      })
-    )
+    focusSearch()
   })
 
   const requestClose = useEvent(() => {
-    if (phaseRef.current === 'leaving') {
+    if (!visibleRef.current) {
       return
     }
 
-    const epoch = showEpochRef.current
-    setPhase('leaving')
-    window.clearTimeout(hideTimerRef.current)
-    hideTimerRef.current = window.setTimeout(() => {
-      // A newer show event (or an already hidden window) must not be hidden again.
-      if (epoch !== showEpochRef.current) {
-        return
-      }
-
-      setPhase('hidden')
-      void clipboard.hidePanel()
-    }, EXIT_ANIMATION_MS)
+    visibleRef.current = false
+    resetInPlace()
+    void clipboard.hidePanel()
   })
 
   const refreshTimerRef = useRef<number | undefined>(undefined)
@@ -317,7 +299,7 @@ export function ClipboardPanelApp() {
         ai.removeIds(event.ids)
       }
 
-      if (phaseRef.current === 'hidden') {
+      if (!visibleRef.current) {
         return
       }
 
@@ -331,7 +313,6 @@ export function ClipboardPanelApp() {
       offStack()
       offChanged()
       window.clearTimeout(refreshTimerRef.current)
-      window.clearTimeout(hideTimerRef.current)
       window.clearTimeout(toastTimerRef.current)
       window.clearTimeout(hintCloseTimerRef.current)
     }
@@ -341,13 +322,13 @@ export function ClipboardPanelApp() {
 
   // Relative times tick while the panel is open.
   useEffect(() => {
-    if (phase === 'hidden') {
-      return
-    }
-
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    const timer = window.setInterval(() => {
+      if (visibleRef.current) {
+        setNow(Date.now())
+      }
+    }, 30_000)
     return () => window.clearInterval(timer)
-  }, [phase])
+  }, [])
 
   // Compact mode for a squeezed panel.
   useEffect(() => {
@@ -430,9 +411,9 @@ export function ClipboardPanelApp() {
   // ---- actions ----
   const handlePasteResult = useEvent((result: ClipPasteResult) => {
     if (result.ok && result.action === 'pasted') {
-      // The main process already hid the window right before sending ⌘V; only reset the local animation state.
-      window.clearTimeout(hideTimerRef.current)
-      setPhase('hidden')
+      // The main process already hid the window right before sending ⌘V; only reset the local state.
+      visibleRef.current = false
+      resetInPlace()
       return
     }
 
@@ -822,7 +803,7 @@ export function ClipboardPanelApp() {
       return
     }
 
-    if (phaseRef.current !== 'shown' || event.defaultPrevented) {
+    if (!visibleRef.current || event.defaultPrevented) {
       return
     }
 
@@ -1145,13 +1126,46 @@ export function ClipboardPanelApp() {
           }).format(settings.pausedUntil),
         })
 
-  const aiNote = ai.state.status === 'none' && ai.state.reason === 'no_match' ? t('clip.panel.ai.noMatch') : undefined
+  // Rotating hints in the search box replace the old footer bar.
+  const placeholders = useMemo(() => {
+    const hints = [
+      t('clip.panel.search.placeholder'),
+      panelMeta.canDirectPaste
+        ? panelMeta.targetAppName
+          ? t('clip.panel.hint.pasteTo', { app: panelMeta.targetAppName })
+          : t('clip.panel.hint.pasteFront')
+        : t('clip.panel.hint.copyOnly'),
+      t('clip.panel.hint.plain'),
+      t('clip.panel.hint.preview'),
+      t('clip.panel.hint.quickPaste'),
+      t('clip.panel.hint.filters'),
+    ]
+
+    if (aiEnabled) {
+      hints.push(t('clip.panel.hint.ai'))
+    }
+
+    return hints
+  }, [t, panelMeta.canDirectPaste, panelMeta.targetAppName, aiEnabled])
+
+  const countLabel =
+    selection.ids.length > 1
+      ? t('clip.panel.count.selected', { count: selection.ids.length })
+      : t(list.nextCursor ? 'clip.panel.count.more' : 'clip.panel.count.total', { count: cards.length })
+
+  // "AI found nothing" is a quiet, transient note.
+  useEffect(() => {
+    if (ai.state.status === 'none' && ai.state.reason === 'no_match') {
+      showToast({ text: t('clip.panel.ai.noMatch') }, 2200)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ai.state.status, ai.state.reason])
 
   return (
     <PanelActionsContext.Provider value={actionsValue}>
       <div ref={rootRef} className="cp-root" data-compact={compact || undefined}>
-        <div className="cp-content" data-phase={phase}>
-          <div className="cp-strip" key={showEpoch}>
+        <div className="cp-content">
+          <div className="cp-strip">
             <ResizeHandle onResize={resizePanel} />
 
             <TopBar
@@ -1159,7 +1173,8 @@ export function ClipboardPanelApp() {
               search={{
                 inputRef: searchRef,
                 text: filters.text,
-                placeholder: t('clip.panel.search.placeholder'),
+                placeholders,
+                resetKey: showEpoch,
                 tokens: parsed?.tokens ?? [],
                 suggestions: parsed?.suggestions ?? [],
                 uiChips,
@@ -1202,6 +1217,8 @@ export function ClipboardPanelApp() {
               onResume={() => setPaused('resume')}
               onPause={setPaused}
               stackActive={stack.active}
+              countLabel={countLabel}
+              countHighlighted={selection.ids.length > 1}
               stackIndicator={<PasteStackIndicator t={t} state={stack} onStop={() => void toggleStack()} />}
               onToggleStack={() => void toggleStack()}
               onOpenSettings={openSettings}
@@ -1250,17 +1267,6 @@ export function ClipboardPanelApp() {
               />
               <PanelToast toast={toast} onDismiss={dismissToast} />
             </div>
-
-            <PanelFooter
-              t={t}
-              targetAppName={panelMeta.targetAppName}
-              canDirectPaste={panelMeta.canDirectPaste}
-              selectedCount={selection.ids.length}
-              totalCount={cards.length}
-              hasMore={Boolean(list.nextCursor)}
-              aiNote={aiNote}
-              onOpenAccessibility={() => void clipboard.openAccessibilitySettings()}
-            />
 
             {quickLookOpen && activeItem ? (
               <QuickLook

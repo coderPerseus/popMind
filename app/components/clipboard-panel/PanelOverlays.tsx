@@ -1,5 +1,5 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
-import { CircleAlert, Info, Layers, ShieldAlert, X } from 'lucide-react'
+import { Info, Layers, ShieldAlert, X } from 'lucide-react'
 import type { ClipPasteStackState } from '@/lib/clipboard/types'
 import { cn } from '@/lib/utils'
 import { MAX_PANEL_HEIGHT, MIN_PANEL_HEIGHT, type PanelTranslate } from '@/app/components/clipboard-panel/panel-utils'
@@ -34,67 +34,6 @@ export function PanelToast({ toast, onDismiss }: { toast: PanelToastState | null
           {toast.actionLabel}
         </button>
       ) : null}
-    </div>
-  )
-}
-
-export function PanelFooter({
-  t,
-  targetAppName,
-  canDirectPaste,
-  selectedCount,
-  totalCount,
-  hasMore,
-  aiNote,
-  onOpenAccessibility,
-}: {
-  t: PanelTranslate
-  targetAppName?: string
-  canDirectPaste: boolean
-  selectedCount: number
-  totalCount: number
-  hasMore: boolean
-  aiNote?: string
-  onOpenAccessibility: () => void
-}) {
-  return (
-    <div className="cp-footer">
-      <div className="cp-footer-left">
-        {canDirectPaste ? (
-          <span>
-            {targetAppName
-              ? t('clip.panel.footer.pasteTo', { app: targetAppName })
-              : t('clip.panel.footer.pasteToFront')}
-          </span>
-        ) : (
-          <>
-            <CircleAlert className="text-[var(--mac-orange)]" />
-            <span>{t('clip.panel.footer.copyOnly')}</span>
-            {targetAppName ? (
-              <button type="button" className="cp-footer-link" onClick={onOpenAccessibility}>
-                {t('clip.panel.footer.openSettings')}
-              </button>
-            ) : null}
-          </>
-        )}
-        {aiNote ? <span className="cp-footer-note">{aiNote}</span> : null}
-      </div>
-      <div className="cp-footer-right">
-        {selectedCount > 1 ? (
-          <span className="cp-footer-selected">{t('clip.panel.footer.selected', { count: selectedCount })}</span>
-        ) : null}
-        <span className="cp-footer-count">
-          {t(hasMore ? 'clip.panel.footer.countMore' : 'clip.panel.footer.count', { count: totalCount })}
-        </span>
-        <span className="cp-footer-keys">
-          <kbd>↩</kbd>
-          {t('clip.panel.footer.keyPaste')}
-          <kbd>⇧↩</kbd>
-          {t('clip.panel.footer.keyPlain')}
-          <kbd>Space</kbd>
-          {t('clip.panel.footer.keyPreview')}
-        </span>
-      </div>
     </div>
   )
 }
