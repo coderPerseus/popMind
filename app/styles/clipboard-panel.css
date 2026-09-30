@@ -26,6 +26,8 @@ body,
   --cp-card-hairline: rgba(0, 0, 0, 0.1);
   --cp-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   --cp-ring: var(--mac-accent);
+  --cp-head-bg: rgba(0, 0, 0, 0.05);
+  --cp-image-backdrop: rgba(0, 0, 0, 0.045);
   --cp-side: 120px;
 
   position: fixed;
@@ -47,6 +49,8 @@ body,
   --cp-card-bg: #2c2c2e;
   --cp-card-hairline: rgba(255, 255, 255, 0.1);
   --cp-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --cp-head-bg: rgba(255, 255, 255, 0.06);
+  --cp-image-backdrop: rgba(255, 255, 255, 0.05);
 }
 
 .cp-root *,
@@ -563,6 +567,8 @@ body,
   gap: 6px;
   height: 30px;
   padding: 0 8px 0 10px;
+  background: var(--cp-head-bg);
+  color: var(--mac-secondary-label);
 }
 
 .cp-card-head-text {
@@ -574,6 +580,7 @@ body,
 }
 
 .cp-card-kind {
+  color: var(--mac-secondary-label);
   font-size: 12.5px;
   font-weight: 600;
 }
@@ -688,7 +695,8 @@ body,
   width: 100%;
   height: 56px;
   border-radius: 6px;
-  object-fit: cover;
+  background: var(--cp-image-backdrop);
+  object-fit: contain;
 }
 
 .cp-link-title {
@@ -735,14 +743,15 @@ body,
 .cp-image {
   position: absolute;
   inset: 0;
-  background: var(--mac-fill);
+  background: var(--cp-image-backdrop);
 }
 
 .cp-image img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
 }
 
 .cp-image-placeholder {
@@ -829,7 +838,7 @@ body,
   width: 100%;
   height: 60px;
   border-radius: 6px;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .cp-file-names {
@@ -1343,47 +1352,7 @@ body,
   color: var(--mac-secondary-label);
 }
 
-/* ---- portal content (menus, popovers, dialogs live outside .cp-root): native menu look ---- */
-
-.cp-menu {
-  padding: 4px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--mac-elevated);
-  box-shadow: var(--mac-shadow-popover);
-  font-family: var(--font-ui);
-  font-size: 13px;
-}
-
-.cp-menu [role='menuitem'],
-.cp-menu [role='menuitemcheckbox'],
-.cp-menu [role='menuitemradio'] {
-  padding: 3px 8px;
-  border-radius: 5px;
-}
-
-.cp-menu svg {
-  width: 14px;
-  height: 14px;
-}
-
-.cp-menu [data-highlighted]:not([data-variant='destructive']),
-.cp-menu [data-slot$='sub-trigger'][data-state='open'] {
-  background: var(--mac-accent) !important;
-  color: #fff !important;
-}
-
-.cp-menu [data-highlighted] svg,
-.cp-menu [data-highlighted] [data-slot$='shortcut'],
-.cp-menu [data-slot$='sub-trigger'][data-state='open'] svg {
-  color: #fff !important;
-}
-
-.cp-menu [data-slot$='separator'] {
-  margin: 4px 6px;
-  height: 0.5px;
-  background: var(--mac-separator);
-}
+/* ---- portal content (menus, popovers, dialogs live outside .cp-root) ---- */
 
 .cp-menu .cp-color-dot {
   width: 9px;
@@ -1495,4 +1464,185 @@ body,
   margin: 0 0 8px;
   font-size: 11px;
   color: var(--mac-tertiary-label);
+}
+
+/* ---- file cards: real Finder icon + name ---- */
+
+.cp-files.is-single {
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 2px;
+  text-align: center;
+}
+
+.cp-file-real-icon {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.cp-files:not(.is-single) .cp-file-real-icon,
+.cp-files:not(.is-single) .cp-file-glyph {
+  width: 34px;
+  height: 34px;
+}
+
+.cp-file-glyph {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  color: var(--mac-secondary-label);
+  stroke-width: 1.25;
+}
+
+.cp-file-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 12.5px;
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+/* ---- native macOS menus (context menus and dropdowns): vibrancy, 22px rows, accent highlight ---- */
+
+.cp-menu {
+  --cp-menu-bg: rgba(246, 246, 246, 0.74);
+  --cp-menu-hairline: rgba(0, 0, 0, 0.14);
+
+  position: relative;
+  min-width: 180px;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  isolation: isolate;
+  background: transparent;
+  box-shadow:
+    0 0 0 0.5px var(--cp-menu-hairline),
+    0 6px 18px rgba(0, 0, 0, 0.16);
+  color: var(--mac-label);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  animation: none !important;
+}
+
+/* The vibrancy layer lives on a pseudo element: a backdrop-filter on the menu itself would become the containing
+   block of submenus (position: fixed) and clip them. */
+.cp-menu::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--cp-menu-bg);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  backdrop-filter: blur(30px) saturate(1.8);
+}
+
+.dark .cp-menu {
+  --cp-menu-bg: rgba(48, 48, 50, 0.72);
+  --cp-menu-hairline: rgba(255, 255, 255, 0.16);
+}
+
+.cp-menu [role='menuitem'],
+.cp-menu [role='menuitemcheckbox'],
+.cp-menu [role='menuitemradio'],
+.cp-menu [data-slot$='sub-trigger'] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 8px 0 22px;
+  border-radius: 4px;
+  color: inherit;
+  font-size: 13px;
+  line-height: 22px;
+}
+
+/* Items with a leading icon share the checkmark column, like native menus with icons. */
+.cp-menu [role='menuitem'] > svg:first-child,
+.cp-menu [data-slot$='sub-trigger'] > svg:first-child {
+  margin-left: -16px;
+}
+
+.cp-menu svg {
+  width: 14px;
+  height: 14px;
+  color: var(--mac-secondary-label);
+}
+
+/* Checkmark column on the left (toggle items). */
+.cp-menu [data-slot$='checkbox-item'] > span:first-child,
+.cp-menu [data-slot$='radio-item'] > span:first-child {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  width: 12px;
+}
+
+.cp-menu [data-slot$='checkbox-item'] > span:first-child svg,
+.cp-menu [data-slot$='radio-item'] > span:first-child svg {
+  width: 12px;
+  height: 12px;
+  color: inherit;
+  stroke-width: 2.5;
+}
+
+.cp-menu [data-highlighted]:not([data-variant='destructive']),
+.cp-menu [data-slot$='sub-trigger'][data-state='open'] {
+  background: var(--mac-accent) !important;
+  color: #fff !important;
+}
+
+.cp-menu [data-highlighted]:not([data-variant='destructive']) svg,
+.cp-menu [data-highlighted]:not([data-variant='destructive']) [data-slot$='shortcut'],
+.cp-menu [data-slot$='sub-trigger'][data-state='open'] svg {
+  color: #fff !important;
+}
+
+.cp-menu [data-variant='destructive'] {
+  color: var(--mac-red);
+}
+
+.cp-menu [data-variant='destructive'][data-highlighted] {
+  background: var(--mac-red) !important;
+  color: #fff !important;
+}
+
+.cp-menu [data-variant='destructive'] svg {
+  color: currentColor !important;
+}
+
+.cp-menu [data-disabled] {
+  opacity: 1;
+  color: var(--mac-tertiary-label) !important;
+}
+
+.cp-menu [data-slot$='shortcut'] {
+  margin-left: auto;
+  padding-left: 18px;
+  color: var(--mac-secondary-label);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.cp-menu [data-slot$='sub-trigger'] > svg:last-child {
+  width: 10px;
+  height: 10px;
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.cp-menu [data-slot$='separator'] {
+  margin: 5px 8px;
+  height: 0.5px;
+  background: var(--mac-border);
 }

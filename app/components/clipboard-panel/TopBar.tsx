@@ -1,12 +1,10 @@
 import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
-import { Ellipsis, ListFilter, Pause, Play, Settings, SlidersHorizontal, Sparkles, Layers } from 'lucide-react'
+import { Ellipsis, ListFilter, Pause, Play, Settings, SlidersHorizontal, Sparkles } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
@@ -118,18 +116,20 @@ export function TopBar({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="cp-menu w-40" onCloseAutoFocus={closeFocus}>
-            <DropdownMenuRadioGroup
-              value={kindValue}
-              onValueChange={(value) => onKindChange(value === 'all' ? null : (value as ClipKind))}
-            >
-              <DropdownMenuRadioItem value="all">{t('clip.panel.filter.allTypes')}</DropdownMenuRadioItem>
-              {kindOptions.map((kind) => (
-                <DropdownMenuRadioItem key={kind} value={kind}>
-                  <KindIcon kind={kind} className="size-3.5" />
-                  {t(`clip.panel.kind.${kind}`)}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
+            <DropdownMenuCheckboxItem checked={kindValue === 'all'} onCheckedChange={() => onKindChange(null)}>
+              {t('clip.panel.filter.allTypes')}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator />
+            {kindOptions.map((kind) => (
+              <DropdownMenuCheckboxItem
+                key={kind}
+                checked={kindValue === kind}
+                onCheckedChange={() => onKindChange(kind)}
+              >
+                <KindIcon kind={kind} className="size-3.5" />
+                {t(`clip.panel.kind.${kind}`)}
+              </DropdownMenuCheckboxItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -219,7 +219,6 @@ export function TopBar({
               </DropdownMenuSub>
             )}
             <DropdownMenuCheckboxItem checked={stackActive} onCheckedChange={onToggleStack}>
-              <Layers />
               {t('clip.panel.stack.toggle')}
               <DropdownMenuShortcut>⇧⌘C</DropdownMenuShortcut>
             </DropdownMenuCheckboxItem>

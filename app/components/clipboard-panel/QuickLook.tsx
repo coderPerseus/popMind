@@ -75,7 +75,6 @@ export function QuickLook({
   const hasHtml = Boolean(detail?.html)
   const [mode, setMode] = useState<'rich' | 'plain'>('rich')
   const srcDoc = useMemo(() => (detail?.html ? buildSrcDoc(detail.html) : ''), [detail?.html])
-  const headerColor = item.source?.color
 
   const copyOcr = async () => {
     if (detail?.ocrText && (await copyTextToClipboard(detail.ocrText))) {
@@ -176,7 +175,7 @@ export function QuickLook({
         aria-label={t('clip.panel.quickLook.title')}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="cp-ql-head" style={headerColor ? { boxShadow: `inset 0 -2px 0 ${headerColor}` } : undefined}>
+        <header className="cp-ql-head">
           <div className="cp-ql-head-title">
             {item.source ? (
               <AppIcon url={item.source.iconUrl} name={item.source.name} className="cp-ql-app-icon" />

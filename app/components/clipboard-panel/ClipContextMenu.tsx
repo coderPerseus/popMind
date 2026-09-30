@@ -1,6 +1,5 @@
 import { createContext, useContext } from 'react'
 import {
-  Check,
   ClipboardCopy,
   ClipboardPaste,
   ExternalLink,
@@ -13,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import {
+  ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
@@ -96,11 +96,14 @@ export function ClipContextMenuContent() {
             const included = count > 0 && targets.every((item) => item.pinboardIds.includes(pinboard.id))
 
             return (
-              <ContextMenuItem key={pinboard.id} onSelect={() => actions.togglePinboard(pinboard.id)}>
+              <ContextMenuCheckboxItem
+                key={pinboard.id}
+                checked={included}
+                onSelect={() => actions.togglePinboard(pinboard.id)}
+              >
                 <i className="cp-color-dot" style={{ background: getPinboardColor(pinboard.color) }} />
                 <span className="flex-1 truncate">{pinboard.name}</span>
-                {included ? <Check /> : null}
-              </ContextMenuItem>
+              </ContextMenuCheckboxItem>
             )
           })}
           {pinboards.length > 0 ? <ContextMenuSeparator /> : null}

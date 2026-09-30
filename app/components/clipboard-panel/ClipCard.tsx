@@ -1,14 +1,15 @@
 import { memo } from 'react'
-import { Files, Globe, Smartphone } from 'lucide-react'
+import { Globe, Smartphone } from 'lucide-react'
 import type { AppLanguage } from '@/lib/capability/types'
 import type { ClipListItem } from '@/lib/clipboard/types'
 import { cn } from '@/lib/utils'
-import { AppIcon, HighlightedText, KindIcon } from '@/app/components/clipboard-panel/panel-parts'
+import { AppIcon, FileTypeIcon, HighlightedText, KindIcon } from '@/app/components/clipboard-panel/panel-parts'
 import {
   NEUTRAL_HEADER_COLOR,
   formatBytes,
   formatRelativeTime,
   getDomain,
+  middleEllipsis,
   readableTextColor,
   type PanelTranslate,
 } from '@/app/components/clipboard-panel/panel-utils'
@@ -117,19 +118,30 @@ function ColorBody({ item }: { item: ClipListItem }) {
 
 function FileBody({ item, t }: { item: ClipListItem; t: PanelTranslate }) {
   const names = item.fileNames?.length ? item.fileNames : [item.title]
+  const multiple = item.fileCount > 1
+
+  if (!multiple) {
+    return (
+      <div className="cp-files is-single">
+        <FileTypeIcon itemId={item.id} />
+        <div className="cp-file-name" title={names[0]}>
+          {middleEllipsis(names[0])}
+        </div>
+      </div>
+    )
+  }
+
   const shown = names.slice(0, 4)
   const rest = Math.max(0, item.fileCount - shown.length)
 
   return (
     <div className="cp-files">
-      {item.thumbnailUrl ? (
-        <img className="cp-file-thumb" src={item.thumbnailUrl} alt="" draggable={false} loading="lazy" />
-      ) : (
-        <div className="cp-file-icon">{item.fileCount > 1 ? <Files /> : <KindIcon kind="file" />}</div>
-      )}
+      <FileTypeIcon itemId={item.id} multiple />
       <ul className="cp-file-names">
         {shown.map((name, index) => (
-          <li key={`${name}-${index}`}>{name}</li>
+          <li key={`${name}-${index}`} title={name}>
+            {middleEllipsis(name, 26)}
+          </li>
         ))}
         {rest > 0 ? <li className="is-more">{t('clip.panel.card.moreFiles', { count: rest })}</li> : null}
       </ul>
@@ -162,8 +174,6 @@ export const ClipCard = memo(function ClipCard({
   t,
   pinboardColors,
 }: ClipCardProps) {
-  const headerColor = item.source?.color ?? NEUTRAL_HEADER_COLOR
-  const headerText = readableTextColor(headerColor)
   const pinDots = item.pinboardIds.slice(0, 3)
 
   return (
@@ -174,7 +184,7 @@ export const ClipCard = memo(function ClipCard({
       data-active={active || undefined}
       data-clip-id={item.id}
     >
-      <div className="cp-card-head" style={{ background: headerColor, color: headerText }}>
+      <div className="cp-card-head">
         <div className="cp-card-head-text">
           <span className="cp-card-kind">
             <CardKindLabel item={item} t={t} />

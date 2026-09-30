@@ -3,6 +3,7 @@ import { Check, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/app/components/ui/button'
 import {
   ContextMenu,
+  ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
@@ -229,11 +230,14 @@ export function PinboardTabs({
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="cp-menu w-40">
                 {pinboardColors.map((color) => (
-                  <ContextMenuItem key={color} onSelect={() => onRecolor(pinboard, color)}>
+                  <ContextMenuCheckboxItem
+                    key={color}
+                    checked={pinboard.color === color}
+                    onSelect={() => onRecolor(pinboard, color)}
+                  >
                     <i className="cp-color-dot" style={{ background: pinboardColorValues[color] }} />
                     <span className="flex-1">{t(`clip.panel.color.${color}`)}</span>
-                    {pinboard.color === color ? <Check /> : null}
-                  </ContextMenuItem>
+                  </ContextMenuCheckboxItem>
                 ))}
               </ContextMenuSubContent>
             </ContextMenuSub>

@@ -8,7 +8,7 @@ export const STRIP_PADDING = 16
 export const GROUP_WIDTH = 34
 export const PAGE_SIZE = 100
 export const OVERSCAN_PX = 480
-export const MIN_PANEL_HEIGHT = 160
+export const MIN_PANEL_HEIGHT = 280
 export const MAX_PANEL_HEIGHT = 900
 export const NEUTRAL_HEADER_COLOR = '#8e8e93'
 export const UNDO_WINDOW_MS = 5000
@@ -243,4 +243,30 @@ export const copyTextToClipboard = async (text: string) => {
     document.body.removeChild(textarea)
     return ok
   }
+}
+
+/** Finder icon of the item's first file / folder (served by the main process, 404 when unavailable). */
+export const getFileIconUrl = (itemId: string): string => {
+  // Dev-only browser preview can provide its own icons; this branch is removed from production builds.
+  if (import.meta.env.DEV) {
+    const custom = (window as unknown as { __cpFileIconUrl?: (id: string) => string | undefined }).__cpFileIconUrl?.(
+      itemId
+    )
+
+    if (custom) {
+      return custom
+    }
+  }
+
+  return `popmind-clip://file-icon/${itemId}`
+}
+
+/** Shorten a file name in the middle so the extension stays visible: "very-long-na….pdf". */
+export const middleEllipsis = (name: string, max = 34) => {
+  if (name.length <= max) {
+    return name
+  }
+
+  const tail = Math.min(14, Math.floor(max / 2.4))
+  return `${name.slice(0, max - tail - 1)}…${name.slice(-tail)}`
 }
