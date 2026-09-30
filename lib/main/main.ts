@@ -7,6 +7,8 @@ import { initializeAppLogging, mainLogger } from '@/lib/main/logger'
 import { normalizeMacInstallLocation } from '@/lib/main/mac-install-location'
 import { registerSearchHandlers } from '@/lib/conveyor/handlers/search-handler'
 import { registerTranslationHandlers } from '@/lib/conveyor/handlers/translation-handler'
+import { registerTodoHandlers } from '@/lib/conveyor/handlers/todo-handler'
+import { focusService } from '@/lib/todo-focus/focus-service'
 import { installedAppService } from '@/lib/app/installed-app-service'
 import { disposeClipboard, initializeClipboard, registerClipboardScheme } from '@/lib/clipboard/service'
 import { clipboardPanel, isClipboardPanelVisible } from '@/lib/clipboard/window/clipboard-panel-window'
@@ -113,6 +115,7 @@ app.whenReady().then(async () => {
   registerExplainHandlers()
   registerTranslationHandlers()
   registerSearchHandlers()
+  registerTodoHandlers()
   void initializeClipboard().catch((error) => {
     mainLogger.error('[app] clipboard initialize failed', error)
   })
@@ -186,6 +189,7 @@ app.on('will-quit', () => {
   shortcutManager.dispose()
   globalShortcut.unregisterAll()
   disposeClipboard()
+  focusService.dispose()
   installedAppService.dispose()
   textPickerFeature?.dispose()
   textPickerFeature = null

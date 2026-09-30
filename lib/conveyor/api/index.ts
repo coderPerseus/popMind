@@ -4,6 +4,7 @@ import { CapabilityApi } from './capability-api'
 import { ClipboardApi } from './clipboard-api'
 import { ExplainApi } from './explain-api'
 import { SearchApi } from './search-api'
+import { TodoApi } from './todo-api'
 import { TranslationApi } from './translation-api'
 import { WindowApi } from './window-api'
 
@@ -15,6 +16,7 @@ export const conveyor = {
   translation: new TranslationApi(electronAPI),
   explain: new ExplainApi(electronAPI),
   search: new SearchApi(electronAPI),
+  todo: new TodoApi(electronAPI),
 }
 
 export type ConveyorApi = typeof conveyor

@@ -1,4 +1,4 @@
-import { app, nativeImage, type NativeImage } from 'electron'
+import { app, nativeImage, type NativeImage, type Tray } from 'electron'
 
 const TRAY_ICON_SIZE = 18
 // Dev badge geometry in points, relative to the 18pt icon.
@@ -58,4 +58,20 @@ export const createTrayIcon = (logoPath: string) => {
   }
   icon.setTemplateImage(true)
   return icon
+}
+
+let statusTray: Tray | null = null
+let statusTitle = ''
+
+/** The menu bar tray, so other features (focus timer) can show text next to the icon. */
+export const registerStatusTray = (tray: Tray | null) => {
+  statusTray = tray
+  if (tray && statusTitle) tray.setTitle(statusTitle, { fontType: 'monospacedDigit' })
+}
+
+/** Text shown right of the menu bar icon (macOS); '' clears it. */
+export const setStatusTrayTitle = (title: string) => {
+  if (title === statusTitle) return
+  statusTitle = title
+  if (statusTray && !statusTray.isDestroyed()) statusTray.setTitle(title, { fontType: 'monospacedDigit' })
 }
