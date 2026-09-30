@@ -87,6 +87,21 @@ type PermissionStatus = {
   supported: boolean
 }
 
+const settingsSections = [
+  'general',
+  'shortcuts',
+  'permissions',
+  'selection',
+  'translation',
+  'ai',
+  'speech',
+  'clipboard',
+  'history',
+  'advanced',
+] as const
+const isSettingsSection = (value: string | null): value is SettingsSection =>
+  Boolean(value && (settingsSections as readonly string[]).includes(value))
+
 type SettingsSection =
   | 'general'
   | 'shortcuts'
@@ -242,7 +257,8 @@ export function SettingsPage() {
   const app = useConveyor('app')
   const capability = useConveyor('capability')
   const search = useConveyor('search')
-  const { webOpenUrl, windowShowRoute } = useConveyor('window')
+  const windowApi = useConveyor('window')
+  const { webOpenUrl, windowShowRoute } = windowApi
   const { language, t } = useI18n()
   const [accessibilityStatus, setAccessibilityStatus] = useState<PermissionStatus | null>(null)
   const [screenRecordingStatus, setScreenRecordingStatus] = useState<PermissionStatus | null>(null)
@@ -259,6 +275,17 @@ export function SettingsPage() {
   })
   const [isSaving, setIsSaving] = useState(false)
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
+
+  // Other windows can open settings at a section (e.g. the clipboard panel's "Open Settings").
+  useEffect(() => {
+    void windowApi.windowTakeSettingsSection().then((section) => {
+      if (isSettingsSection(section)) setActiveSection(section)
+    })
+    return windowApi.onSettingsNavigate((section) => {
+      if (isSettingsSection(section)) setActiveSection(section)
+      void windowApi.windowTakeSettingsSection()
+    })
+  }, [windowApi])
   const [activeHistoryTab, setActiveHistoryTab] = useState<HistoryTab>('search')
   const [historyMessage, setHistoryMessage] = useState('')
   const [themeMode, setThemeMode] = useState<ThemeMode>('system')

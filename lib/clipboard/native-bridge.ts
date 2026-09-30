@@ -47,6 +47,12 @@ export const clipboardNative = {
   /** Fallback path when the panel could not keep the target app active. */
   activateAppAndPaste: (pid: number): boolean => Boolean(addon?.activateAppAndPaste(pid)),
 
+  setWindowAppearance: (nativeHandle: Buffer, mode: 'dark' | 'light' | 'inherit'): boolean =>
+    Boolean(addon?.setWindowAppearance?.(nativeHandle, mode)),
+
+  setVibrancyTopCornerRadius: (nativeHandle: Buffer, radius: number): boolean =>
+    Boolean(addon?.setVibrancyTopCornerRadius?.(nativeHandle, radius)),
+
   presentPanelWithoutActivation: (nativeHandle: Buffer): boolean =>
     Boolean(addon?.presentPanelWithoutActivation?.(nativeHandle)),
 

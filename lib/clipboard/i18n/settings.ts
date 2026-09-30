@@ -9,6 +9,12 @@ export const clipSettingsMessages = {
 
     // General
     'clip.settings.group.record': '记录',
+    'clip.settings.group.appearance': '外观',
+    'clip.settings.appearance.title': '面板主题',
+    'clip.settings.appearance.desc': '只影响剪贴板面板，不改变应用其他窗口。',
+    'clip.settings.appearance.light': '浅色',
+    'clip.settings.appearance.dark': '深色',
+    'clip.settings.appearance.app': '跟随应用',
     'clip.settings.capture.title': '记录剪贴板',
     'clip.settings.capture.desc': '关闭后不再保存新复制的内容，已有历史不受影响。',
     'clip.settings.retention.title': '保留时长',
@@ -133,6 +139,12 @@ export const clipSettingsMessages = {
 
     // General
     'clip.settings.group.record': 'Recording',
+    'clip.settings.group.appearance': 'Appearance',
+    'clip.settings.appearance.title': 'Panel theme',
+    'clip.settings.appearance.desc': 'Only affects the clipboard panel, not other popMind windows.',
+    'clip.settings.appearance.light': 'Light',
+    'clip.settings.appearance.dark': 'Dark',
+    'clip.settings.appearance.app': 'Match app',
     'clip.settings.capture.title': 'Record clipboard',
     'clip.settings.capture.desc': 'When off, new copies are not saved. Existing history is kept.',
     'clip.settings.retention.title': 'Keep history for',

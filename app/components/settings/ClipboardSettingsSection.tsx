@@ -37,7 +37,7 @@ import {
   type ClipboardSettings,
   type ClipboardSettingsPatch,
 } from '@/lib/clipboard/types'
-import { ArrowUpRight, Eye, EyeOff, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, Eye, EyeOff, Monitor, Moon, Plus, RefreshCw, Sun, Trash2, X } from 'lucide-react'
 
 type ClipboardTab = 'general' | 'privacy' | 'search' | 'data'
 
@@ -222,6 +222,21 @@ function GeneralTab({
 }) {
   return (
     <>
+      <SettingsGroup title={c('group.appearance')}>
+        <SettingsRow label={c('appearance.title')} description={c('appearance.desc')}>
+          <SegmentedControl
+            ariaLabel={c('appearance.title')}
+            value={settings.appearance}
+            onChange={(appearance) => onPatch({ appearance })}
+            options={[
+              { value: 'dark', label: c('appearance.dark'), icon: <Moon size={13} /> },
+              { value: 'light', label: c('appearance.light'), icon: <Sun size={13} /> },
+              { value: 'app', label: c('appearance.app'), icon: <Monitor size={13} /> },
+            ]}
+          />
+        </SettingsRow>
+      </SettingsGroup>
+
       <SettingsGroup title={c('group.record')}>
         <SettingsRow label={c('capture.title')} description={c('capture.desc')}>
           <Switch checked={settings.enabled} onCheckedChange={(enabled) => onPatch({ enabled })} />

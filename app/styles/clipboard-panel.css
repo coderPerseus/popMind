@@ -79,7 +79,8 @@ body,
   overflow: hidden;
   border: 0.5px solid var(--cp-strip-border);
   border-bottom: 0;
-  border-radius: 12px 12px 0 0;
+  /* keep in sync with PANEL_CORNER_RADIUS in clipboard-panel-window.ts */
+  border-radius: 4px 4px 0 0;
   background: var(--cp-strip-bg);
   box-shadow: inset 0 0.5px 0 var(--cp-strip-highlight);
   -webkit-backdrop-filter: blur(48px) saturate(1.8);
@@ -535,28 +536,87 @@ body,
 
 .cp-slot {
   position: absolute;
-  top: 4px;
-  bottom: 12px;
+  /* room for the hover / selected lift, ring and glow */
+  top: 8px;
+  bottom: 14px;
 }
 
 .cp-card {
+  --cp-card-tint: var(--cp-card-bg);
+  --cp-card-head-tint: var(--cp-head-bg);
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
   border-radius: 10px;
-  background: var(--cp-card-bg);
+  background: var(--cp-card-tint);
   box-shadow:
     0 0 0 0.5px var(--cp-card-hairline),
     var(--cp-card-shadow);
+  transition:
+    background-color 0.18s ease-out,
+    box-shadow 0.18s ease-out,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.cp-card .cp-card-head {
+  background: var(--cp-card-head-tint);
+  transition: background-color 0.18s ease-out;
+}
+
+.cp-card .cp-card-kind {
+  transition: color 0.18s ease-out;
+}
+
+/* hover: a gentle lift and a slightly deeper surface */
+.cp-card:hover {
+  --cp-card-tint: color-mix(in srgb, var(--mac-label) 3%, var(--cp-card-bg));
+  --cp-card-head-tint: color-mix(in srgb, var(--mac-label) 9%, var(--cp-card-bg));
+  box-shadow:
+    0 0 0 0.5px var(--cp-card-hairline),
+    0 6px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* selected: accent tint on the surface and header, accent ring and glow */
 .cp-card[data-selected] {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cp-ring) 55%, transparent);
+  --cp-card-tint: color-mix(in srgb, var(--cp-ring) 7%, var(--cp-card-bg));
+  --cp-card-head-tint: color-mix(in srgb, var(--cp-ring) 16%, var(--cp-card-bg));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--cp-ring) 55%, transparent),
+    0 8px 20px color-mix(in srgb, var(--cp-ring) 14%, transparent);
+  transform: translateY(-3px);
 }
 
 .cp-card[data-selected][data-active] {
-  box-shadow: 0 0 0 2px var(--cp-ring);
+  box-shadow:
+    0 0 0 2px var(--cp-ring),
+    0 8px 22px color-mix(in srgb, var(--cp-ring) 22%, transparent);
+}
+
+.cp-card[data-selected] .cp-card-kind {
+  color: var(--cp-ring);
+}
+
+.dark .cp-card:hover {
+  --cp-card-tint: color-mix(in srgb, #fff 5%, var(--cp-card-bg));
+  --cp-card-head-tint: color-mix(in srgb, #fff 11%, var(--cp-card-bg));
+  box-shadow:
+    0 0 0 0.5px var(--cp-card-hairline),
+    0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.dark .cp-card[data-selected] {
+  --cp-card-tint: color-mix(in srgb, var(--cp-ring) 14%, var(--cp-card-bg));
+  --cp-card-head-tint: color-mix(in srgb, var(--cp-ring) 26%, var(--cp-card-bg));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-card,
+  .cp-card:hover,
+  .cp-card[data-selected] {
+    transform: none;
+  }
 }
 
 .cp-card-head {

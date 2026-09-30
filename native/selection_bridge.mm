@@ -4077,6 +4077,113 @@ Napi::Value IsSecureInputEnabledValue(const Napi::CallbackInfo& info) {
 // presentPanelWithoutActivation(nativeHandle): show an Electron `type: 'panel'` window above other
 // apps and make it key without activating popMind, so the previously focused app keeps focus
 // (paste later lands there).
+NSVisualEffectView* FindVisualEffectView(NSView* view, int depth) {
+  if (!view || depth > 4) return nil;
+  if ([view isKindOfClass:[NSVisualEffectView class]]) return (NSVisualEffectView*)view;
+  for (NSView* subview in view.subviews) {
+    NSVisualEffectView* found = FindVisualEffectView(subview, depth + 1);
+    if (found) return found;
+  }
+  return nil;
+}
+
+// setVibrancyTopCornerRadius(handle, radius): rounds only the top corners of the window's vibrancy view.
+// With `roundedCorners: false` the window itself is square, so this mask defines the visible shape.
+Napi::Value SetVibrancyTopCornerRadius(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[0].IsBuffer() || !info[1].IsNumber()) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  auto buf = info[0].As<Napi::Buffer<void*>>();
+  if (buf.ByteLength() < sizeof(void*)) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  void* viewPtr = *reinterpret_cast<void**>(buf.Data());
+  if (!viewPtr) return Napi::Boolean::New(env, false);
+  const CGFloat radius = std::max(0.0, info[1].As<Napi::Number>().DoubleValue());
+
+  __block bool ok = false;
+  RunOnMainThreadSync(^{
+    NSView* nsView = (__bridge NSView*)viewPtr;
+    NSWindow* nsWindow = [nsView window];
+    if (!nsWindow) return;
+
+    NSView* root = nsWindow.contentView.superview ?: nsWindow.contentView;
+    NSVisualEffectView* effectView = FindVisualEffectView(root, 0);
+    if (!effectView) return;
+
+    if (radius <= 0) {
+      effectView.maskImage = nil;
+      ok = true;
+      return;
+    }
+
+    const CGFloat side = radius * 2 + 1;
+    NSImage* mask = [NSImage imageWithSize:NSMakeSize(side, side)
+                                   flipped:NO
+                            drawingHandler:^BOOL(NSRect rect) {
+                              // Non-flipped: maxY is the top edge. Round only the two top corners.
+                              NSBezierPath* path = [NSBezierPath bezierPath];
+                              [path moveToPoint:NSMakePoint(NSMinX(rect), NSMinY(rect))];
+                              [path lineToPoint:NSMakePoint(NSMaxX(rect), NSMinY(rect))];
+                              [path appendBezierPathWithArcFromPoint:NSMakePoint(NSMaxX(rect), NSMaxY(rect))
+                                                             toPoint:NSMakePoint(NSMinX(rect), NSMaxY(rect))
+                                                              radius:radius];
+                              [path appendBezierPathWithArcFromPoint:NSMakePoint(NSMinX(rect), NSMaxY(rect))
+                                                             toPoint:NSMakePoint(NSMinX(rect), NSMinY(rect))
+                                                              radius:radius];
+                              [path closePath];
+                              [[NSColor blackColor] setFill];
+                              [path fill];
+                              return YES;
+                            }];
+    mask.capInsets = NSEdgeInsetsMake(radius, radius, radius, radius);
+    mask.resizingMode = NSImageResizingModeStretch;
+    effectView.maskImage = mask;
+    ok = true;
+  });
+
+  return Napi::Boolean::New(env, ok);
+}
+
+// setWindowAppearance(handle, 'dark' | 'light' | 'inherit'): per-window NSAppearance, so a window can differ from
+// the app theme (nativeTheme). Native vibrancy behind the page follows it.
+Napi::Value SetWindowAppearance(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[0].IsBuffer() || !info[1].IsString()) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  auto buf = info[0].As<Napi::Buffer<void*>>();
+  if (buf.ByteLength() < sizeof(void*)) {
+    return Napi::Boolean::New(env, false);
+  }
+
+  void* viewPtr = *reinterpret_cast<void**>(buf.Data());
+  if (!viewPtr) return Napi::Boolean::New(env, false);
+  const std::string mode = info[1].As<Napi::String>().Utf8Value();
+
+  __block bool ok = false;
+  RunOnMainThreadSync(^{
+    NSView* nsView = (__bridge NSView*)viewPtr;
+    NSWindow* nsWindow = [nsView window];
+    if (!nsWindow) return;
+
+    if (mode == "dark") {
+      nsWindow.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+    } else if (mode == "light") {
+      nsWindow.appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+    } else {
+      nsWindow.appearance = nil;
+    }
+    ok = true;
+  });
+
+  return Napi::Boolean::New(env, ok);
+}
+
 Napi::Value PresentPanelWithoutActivation(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsBuffer()) {
@@ -4295,6 +4402,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("postPasteKeystroke", Napi::Function::New(env, PostPasteKeystroke));
   exports.Set("resolvePasteKeyCode", Napi::Function::New(env, ResolvePasteKeyCodeValue));
   exports.Set("isSecureInputEnabled", Napi::Function::New(env, IsSecureInputEnabledValue));
+  exports.Set("setVibrancyTopCornerRadius", Napi::Function::New(env, SetVibrancyTopCornerRadius));
+  exports.Set("setWindowAppearance", Napi::Function::New(env, SetWindowAppearance));
   exports.Set("presentPanelWithoutActivation", Napi::Function::New(env, PresentPanelWithoutActivation));
   exports.Set("startPasteMonitor", Napi::Function::New(env, StartPasteMonitor));
   exports.Set("stopPasteMonitor", Napi::Function::New(env, StopPasteMonitor));

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
 import { useI18n } from '@/app/i18n'
-import { syncDocumentThemeWithSystemPreference } from '@/app/theme'
+import { applyResolvedTheme, syncDocumentThemeWithSystemPreference } from '@/app/theme'
 import {
   defaultClipboardSettings,
   mergeClipboardSettings,
@@ -71,10 +71,15 @@ export function ClipboardPanelApp() {
   const capability = useConveyor('capability')
   const windowApi = useConveyor('window')
 
-  useEffect(() => syncDocumentThemeWithSystemPreference(), [])
-
   // ---- settings ----
   const [settings, setSettings] = useState<ClipboardSettings>(defaultClipboardSettings)
+
+  // The panel has its own theme (Settings → Clipboard → Panel theme); `app` follows the app theme.
+  useEffect(() => {
+    if (settings.appearance === 'app') return syncDocumentThemeWithSystemPreference()
+    applyResolvedTheme(settings.appearance === 'dark')
+    return undefined
+  }, [settings.appearance])
 
   useEffect(() => {
     let mounted = true
@@ -703,7 +708,7 @@ export function ClipboardPanelApp() {
   })
 
   const openSettings = useEvent(() => {
-    void windowApi.windowShowRoute('settings')
+    void windowApi.windowShowSettings('clipboard')
     requestClose()
   })
 

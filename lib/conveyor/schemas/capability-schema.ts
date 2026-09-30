@@ -49,6 +49,7 @@ const selectionDefaultActionSchema = z.enum(['bubble', 'translate', 'explain'])
 
 const clipboardSettingsSchema = z.object({
   enabled: z.boolean(),
+  appearance: z.enum(['dark', 'light', 'app']),
   retention: z.enum(['1d', '1w', '1m', '1y', 'forever']),
   maxStorageMb: z.number().min(0),
   maxItemMb: z.number().min(1),

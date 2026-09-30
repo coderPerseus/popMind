@@ -144,32 +144,26 @@ export function TopBar({
         </button>
 
         {ai.enabled ? (
-          ai.status === 'loading' ? (
-            <span className="cp-ai-pill is-loading">
-              <Spinner />
-              {t('clip.panel.ai.loading')}
-            </span>
-          ) : ai.status === 'ready' ? (
-            <button
-              type="button"
-              className={cn('cp-ai-pill', !ai.dismissed && 'is-on')}
-              title={ai.dismissed ? t('clip.panel.ai.showSmart') : t('clip.panel.ai.showTime')}
-              onClick={ai.onToggleDismissed}
-            >
-              <Sparkles />
-              {ai.dismissed ? t('clip.panel.ai.showSmart') : t('clip.panel.ai.showTime')}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="cp-icon-btn"
-              disabled={!ai.canRun}
-              title={`${t('clip.panel.ai.run')} (⌘↩)`}
-              onClick={ai.onRun}
-            >
-              <Sparkles />
-            </button>
-          )
+          // One icon button for every state: spinner while ranking, highlighted while smart ranking is shown.
+          <button
+            type="button"
+            className={cn('cp-icon-btn', ai.status === 'ready' && !ai.dismissed && 'is-on')}
+            disabled={ai.status !== 'loading' && ai.status !== 'ready' && !ai.canRun}
+            aria-busy={ai.status === 'loading'}
+            aria-pressed={ai.status === 'ready' && !ai.dismissed}
+            title={
+              ai.status === 'loading'
+                ? t('clip.panel.ai.loading')
+                : ai.status === 'ready'
+                  ? ai.dismissed
+                    ? t('clip.panel.ai.showSmart')
+                    : t('clip.panel.ai.showTime')
+                  : `${t('clip.panel.ai.run')} (⌘↩)`
+            }
+            onClick={ai.status === 'ready' ? ai.onToggleDismissed : ai.status === 'loading' ? undefined : ai.onRun}
+          >
+            {ai.status === 'loading' ? <Spinner /> : <Sparkles />}
+          </button>
         ) : null}
 
         <div className="cp-topbar-divider" />

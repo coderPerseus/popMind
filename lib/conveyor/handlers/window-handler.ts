@@ -1,6 +1,6 @@
 import { BrowserWindow, shell } from 'electron'
 import { handle } from '@/lib/main/shared'
-import { showMainWindow } from '@/lib/main/window-manager'
+import { showMainWindow, showSettingsSection, takePendingSettingsSection } from '@/lib/main/window-manager'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
 import { electronAPI } from '@electron-toolkit/preload'
 
@@ -37,6 +37,10 @@ export const registerWindowHandlers = (mainWindow: BrowserWindow) => {
   handle('window-show-route', async (route) => {
     await showMainWindow(route)
   })
+  handle('window-show-settings', async (section) => {
+    await showSettingsSection(section)
+  })
+  handle('window-take-settings-section', () => takePendingSettingsSection())
   handle('window-show-home-with-query', async (query: string) => {
     await showMainWindow('home', { searchQuery: query })
   })

@@ -237,9 +237,14 @@ export type ClipRetention = (typeof clipRetentionOptions)[number]
 
 export type ClipAiTrigger = 'manual' | 'auto'
 
+/** Theme of the clipboard panel only; `app` follows the app theme (Settings → General). */
+export const clipAppearances = ['dark', 'light', 'app'] as const
+export type ClipAppearance = (typeof clipAppearances)[number]
+
 export type ClipboardSettings = {
   /** Master switch for capturing. */
   enabled: boolean
+  appearance: ClipAppearance
   retention: ClipRetention
   /** Storage cap in MB, oldest unpinned items are removed first. 0 = unlimited. */
   maxStorageMb: number
@@ -275,6 +280,7 @@ export type ClipboardSettings = {
 
 export const defaultClipboardSettings: ClipboardSettings = {
   enabled: true,
+  appearance: 'dark',
   retention: '1m',
   maxStorageMb: 2048,
   maxItemMb: 20,
@@ -310,6 +316,7 @@ export const defaultClipboardSettings: ClipboardSettings = {
 
 export type ClipboardSettingsPatch = {
   enabled?: boolean
+  appearance?: ClipAppearance
   retention?: ClipRetention
   maxStorageMb?: number
   maxItemMb?: number

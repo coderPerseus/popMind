@@ -46,6 +46,10 @@ export interface NativeMacOSAddon {
   resolvePasteKeyCode?(): number
   isSecureInputEnabled?(): boolean
   presentPanelWithoutActivation?(nativeHandle: Buffer): boolean
+  /** Per-window NSAppearance; 'inherit' follows the app theme again. */
+  setWindowAppearance?(nativeHandle: Buffer, mode: 'dark' | 'light' | 'inherit'): boolean
+  /** Rounds only the top corners of the window's vibrancy view (0 removes the mask). */
+  setVibrancyTopCornerRadius?(nativeHandle: Buffer, radius: number): boolean
   startPasteMonitor?(callback: (event: NativePasteMonitorEvent) => void): boolean
   stopPasteMonitor?(): boolean
   resolveAppPathByBundleId?(bundleId: string): string | null

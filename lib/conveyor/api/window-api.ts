@@ -1,5 +1,5 @@
 import { ConveyorApi } from '@/lib/preload/shared'
-import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
+import { MainWindowChannel, SettingsWindowChannel } from '@/lib/conveyor/schemas/window-schema'
 
 export class WindowApi extends ConveyorApi {
   // Generate window methods
@@ -13,6 +13,15 @@ export class WindowApi extends ConveyorApi {
   windowMaximizeToggle = () => this.invoke('window-maximize-toggle')
   windowShowRoute = (route: 'home' | 'settings') => this.invoke('window-show-route', route)
   windowShowHomeWithQuery = (query: string) => this.invoke('window-show-home-with-query', query)
+  windowShowSettings = (section?: string) => this.invoke('window-show-settings', section)
+  windowTakeSettingsSection = () => this.invoke('window-take-settings-section')
+  onSettingsNavigate = (handler: (section: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, section: string) => handler(section)
+    this.renderer.on(SettingsWindowChannel.Navigate, listener)
+    return () => {
+      this.renderer.removeListener(SettingsWindowChannel.Navigate, listener)
+    }
+  }
   onMainWindowReset = (handler: () => void) => {
     const listener = () => handler()
     this.renderer.on(MainWindowChannel.ResetState, listener)

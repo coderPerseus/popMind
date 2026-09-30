@@ -5,6 +5,7 @@
 // receives the ⌘V after the panel hides. This module never touches the Dock activation policy.
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
+import { capabilityStore } from '@/lib/capability/store'
 import { clipboardEvents } from '@/lib/clipboard/events'
 import { clipboardNative } from '@/lib/clipboard/native-bridge'
 import type { ClipItemsChangedEvent, ClipPanelShowEvent, ClipPasteStackState } from '@/lib/clipboard/types'
@@ -14,6 +15,9 @@ import { ClipboardChannel } from '@/lib/conveyor/schemas/clipboard-schema'
 import { mainLogger } from '@/lib/main/logger'
 import { clampPanelHeight, computePanelBounds, resizePanelKeepingBottom } from './panel-geometry'
 import { loadPanelHeight, savePanelHeight } from './panel-state'
+
+/** Top corner radius of the panel; keep in sync with `.cp-strip` border-radius in clipboard-panel.css. */
+const PANEL_CORNER_RADIUS = 4
 
 const PANEL_PAGE = 'clipboard-panel.html'
 /** If the renderer does not call `clip-panel-hide` after `PanelRequestHide`, hide anyway. */
@@ -225,6 +229,9 @@ class ClipboardPanelWindow {
       skipTaskbar: true,
       alwaysOnTop: true,
       acceptFirstMouse: true,
+      // The system rounds frameless windows by ~10px, which hides the smaller CSS radius; the shape comes from
+      // PANEL_CORNER_RADIUS (vibrancy mask) + the matching CSS radius on .cp-strip instead.
+      roundedCorners: false,
       ...(process.platform === 'darwin'
         ? {
             type: 'panel' as const,
@@ -250,9 +257,21 @@ class ClipboardPanelWindow {
 
     this.attachWindowEvents(window)
     this.window = window
+    this.applyAppearance(window)
+    const detachSettings = capabilityStore.subscribe(() => {
+      if (!window.isDestroyed()) this.applyAppearance(window)
+    })
+    window.once('closed', detachSettings)
     this.loadContent(window)
     this.attachBusEvents()
     return window
+  }
+
+  /** The panel has its own theme (settings.clipboard.appearance), independent of the app theme. */
+  private applyAppearance(window: BrowserWindow) {
+    clipboardNative.setVibrancyTopCornerRadius(window.getNativeWindowHandle(), PANEL_CORNER_RADIUS)
+    const appearance = getClipboardSettings().appearance ?? 'dark'
+    clipboardNative.setWindowAppearance(window.getNativeWindowHandle(), appearance === 'app' ? 'inherit' : appearance)
   }
 
   private loadContent(window: BrowserWindow) {
@@ -400,6 +419,7 @@ class ClipboardPanelWindow {
     mark('eventMs')
 
     // 4. Show without activating popMind.
+    this.applyAppearance(window)
     this.presentedAt = Date.now()
     const nativePresented = clipboardNative.presentPanelWithoutActivation(window.getNativeWindowHandle())
     if (!nativePresented) {
