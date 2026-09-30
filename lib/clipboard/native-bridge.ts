@@ -22,6 +22,16 @@ export const clipboardNative = {
   read: (options: NativePasteboardReadOptions): NativePasteboardReadResult | null =>
     addon?.readPasteboard?.(options) ?? null,
 
+  /** null when the addon is missing or the data cannot be decoded. */
+  convertImageToPng: async (data: Buffer): Promise<{ png: Buffer; width: number; height: number } | null> => {
+    if (!addon?.convertImageToPngAsync) return null
+    try {
+      return await addon.convertImageToPngAsync(data)
+    } catch {
+      return null
+    }
+  },
+
   write: (items: NativePasteboardItem[], marker: string): boolean =>
     Boolean(addon?.writePasteboard?.(items, { marker })),
 

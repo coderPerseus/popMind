@@ -131,6 +131,7 @@ export const clipPanelMessages = {
     'clip.panel.quickLook.close': '关闭预览',
     'clip.panel.quickLook.rich': '富文本',
     'clip.panel.quickLook.plain': '纯文本',
+    'clip.panel.quickLook.truncated': '内容较长，预览只显示前 {count} 个字符；粘贴和复制不受影响。',
     'clip.panel.quickLook.ocrText': '图片中的文字',
     'clip.panel.quickLook.copyOcr': '复制文字',
     'clip.panel.quickLook.ocrCopied': '已复制识别出的文字',
@@ -305,6 +306,8 @@ export const clipPanelMessages = {
     'clip.panel.quickLook.close': 'Close Quick Look',
     'clip.panel.quickLook.rich': 'Rich',
     'clip.panel.quickLook.plain': 'Plain',
+    'clip.panel.quickLook.truncated':
+      'Long text: the preview shows the first {count} characters. Paste and copy use the full text.',
     'clip.panel.quickLook.ocrText': 'Text in image',
     'clip.panel.quickLook.copyOcr': 'Copy text',
     'clip.panel.quickLook.ocrCopied': 'Copied recognized text',

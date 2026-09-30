@@ -214,7 +214,13 @@ export const isEditableTarget = (target: EventTarget | null): target is HTMLElem
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable
 }
 
-export const canEditText = (item: ClipListItem) => item.kind === 'text' || item.kind === 'link'
+/** Longest text shown in Quick Look; rendering multi-MB text in one block stalls the panel. */
+export const QUICK_LOOK_TEXT_LIMIT = 100_000
+/** Longer items are not editable in place: a multi-MB textarea hangs the renderer. */
+const EDITABLE_TEXT_LIMIT = 200_000
+
+export const canEditText = (item: ClipListItem) =>
+  (item.kind === 'text' || item.kind === 'link') && item.charCount <= EDITABLE_TEXT_LIMIT
 export const canOpen = (item: ClipListItem) => item.kind === 'link' || item.kind === 'file'
 
 export const mergeUniqueById = (base: ClipListItem[], extra: ClipListItem[]) => {

@@ -1490,3 +1490,9 @@ body,
     opacity: 0;
   }
 }
+
+.cp-ql-note {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--mac-tertiary-label);
+}

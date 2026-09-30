@@ -38,6 +38,8 @@ export interface NativeMacOSAddon {
   writeApplicationIconsAsync?(items: Array<{ appPath: string; outputPath: string }>, size: number): Promise<boolean[]>
   // ---- clipboard (docs/clipboard-paste-redesign.md §5) ----
   readPasteboard?(options: NativePasteboardReadOptions): NativePasteboardReadResult
+  /** Decodes any ImageIO format (TIFF, HEIC, JPEG…) and re-encodes it as PNG on a worker thread. */
+  convertImageToPngAsync?(data: Buffer): Promise<{ png: Buffer; width: number; height: number }>
   writePasteboard?(items: NativePasteboardItem[], options: NativePasteboardWriteOptions): boolean
   postPasteKeystroke?(): NativePasteKeystrokeResult
   /** Virtual key code that types "v" in the current keyboard layout (diagnostics; nothing is sent). */

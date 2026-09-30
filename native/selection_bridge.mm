@@ -2877,6 +2877,73 @@ private:
   std::string errorMessage_;
 };
 
+// Decodes any image format ImageIO understands (TIFF, HEIC, BMP, GIF…) and re-encodes it as PNG on a worker
+// thread. Electron's nativeImage only decodes PNG / JPEG, and many Cocoa apps copy images as TIFF only.
+class ConvertImageToPngWorker : public Napi::AsyncWorker {
+public:
+  ConvertImageToPngWorker(Napi::Promise::Deferred deferred, const uint8_t* bytes, size_t length)
+    : Napi::AsyncWorker(deferred.Env()), deferred_(deferred), input_(bytes, bytes + length) {}
+
+  void Execute() override {
+    @autoreleasepool {
+      CFDataRef inputData = CFDataCreateWithBytesNoCopy(nullptr, input_.data(), input_.size(), kCFAllocatorNull);
+      CGImageSourceRef source = inputData ? CGImageSourceCreateWithData(inputData, nullptr) : nullptr;
+      CGImageRef image = source ? CGImageSourceCreateImageAtIndex(source, 0, nullptr) : nullptr;
+      if (image) {
+        width_ = CGImageGetWidth(image);
+        height_ = CGImageGetHeight(image);
+        CFMutableDataRef outputData = CFDataCreateMutable(nullptr, 0);
+        CGImageDestinationRef destination =
+            CGImageDestinationCreateWithData(outputData, CFSTR("public.png"), 1, nullptr);
+        if (destination) {
+          CGImageDestinationAddImage(destination, image, nullptr);
+          if (CGImageDestinationFinalize(destination)) {
+            const uint8_t* bytes = CFDataGetBytePtr(outputData);
+            output_.assign(bytes, bytes + CFDataGetLength(outputData));
+          }
+          CFRelease(destination);
+        }
+        CFRelease(outputData);
+        CGImageRelease(image);
+      }
+      if (source) CFRelease(source);
+      if (inputData) CFRelease(inputData);
+    }
+    if (output_.empty()) SetError("image_convert_failed");
+  }
+
+  void OnOK() override {
+    Napi::Env env = Env();
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("png", Napi::Buffer<uint8_t>::Copy(env, output_.data(), output_.size()));
+    result.Set("width", static_cast<double>(width_));
+    result.Set("height", static_cast<double>(height_));
+    deferred_.Resolve(result);
+  }
+
+  void OnError(const Napi::Error& error) override { deferred_.Reject(error.Value()); }
+
+private:
+  Napi::Promise::Deferred deferred_;
+  std::vector<uint8_t> input_;
+  std::vector<uint8_t> output_;
+  size_t width_ = 0;
+  size_t height_ = 0;
+};
+
+Napi::Value ConvertImageToPngAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  auto deferred = Napi::Promise::Deferred::New(env);
+  if (info.Length() < 1 || !info[0].IsBuffer()) {
+    deferred.Reject(Napi::TypeError::New(env, "image buffer required").Value());
+    return deferred.Promise();
+  }
+  auto buffer = info[0].As<Napi::Buffer<uint8_t>>();
+  auto* worker = new ConvertImageToPngWorker(deferred, buffer.Data(), buffer.Length());
+  worker->Queue();
+  return deferred.Promise();
+}
+
 Napi::Value GetTextByClipboardAsync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   bool useMenu = info.Length() >= 1 && info[0].IsBoolean() && info[0].As<Napi::Boolean>().Value();
@@ -4222,6 +4289,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setActivationPolicy", Napi::Function::New(env, SetActivationPolicy));
   exports.Set("readApplicationsInfoAsync", Napi::Function::New(env, ReadApplicationsInfoAsync));
   exports.Set("writeApplicationIconsAsync", Napi::Function::New(env, WriteApplicationIconsAsync));
+  exports.Set("convertImageToPngAsync", Napi::Function::New(env, ConvertImageToPngAsync));
   exports.Set("readPasteboard", Napi::Function::New(env, ReadPasteboard));
   exports.Set("writePasteboard", Napi::Function::New(env, WritePasteboard));
   exports.Set("postPasteKeystroke", Napi::Function::New(env, PostPasteKeystroke));

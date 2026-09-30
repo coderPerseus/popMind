@@ -11,8 +11,30 @@ import {
   formatDateTime,
   getDomain,
   type PanelTranslate,
+  QUICK_LOOK_TEXT_LIMIT,
 } from '@/app/components/clipboard-panel/panel-utils'
 import { cn } from '@/lib/utils'
+
+const LimitedText = ({
+  text,
+  className,
+  note,
+}: {
+  text: string
+  className: string
+  note: (count: string) => string
+}) => {
+  if (text.length <= QUICK_LOOK_TEXT_LIMIT) {
+    return <pre className={className}>{text}</pre>
+  }
+
+  return (
+    <>
+      <p className="cp-ql-note">{note(QUICK_LOOK_TEXT_LIMIT.toLocaleString())}</p>
+      <pre className={className}>{text.slice(0, QUICK_LOOK_TEXT_LIMIT)}…</pre>
+    </>
+  )
+}
 
 const buildSrcDoc = (html: string) =>
   `<!doctype html><html><head><meta charset="utf-8">` +
@@ -122,7 +144,11 @@ export function QuickLook({
               {item.url}
             </a>
             {detail?.plainText && detail.plainText !== item.url ? (
-              <pre className="cp-ql-text">{detail.plainText}</pre>
+              <LimitedText
+                text={detail.plainText}
+                className="cp-ql-text"
+                note={(count) => t('clip.panel.quickLook.truncated', { count })}
+              />
             ) : null}
           </div>
         )
@@ -133,9 +159,11 @@ export function QuickLook({
         }
 
         return (
-          <pre className={cn('cp-ql-text', (item.subKind === 'code' || item.subKind === 'json') && 'is-mono')}>
-            {detail ? (detail.plainText ?? item.previewText) : item.previewText}
-          </pre>
+          <LimitedText
+            text={detail ? (detail.plainText ?? item.previewText) : item.previewText}
+            className={cn('cp-ql-text', (item.subKind === 'code' || item.subKind === 'json') && 'is-mono')}
+            note={(count) => t('clip.panel.quickLook.truncated', { count })}
+          />
         )
     }
   }
