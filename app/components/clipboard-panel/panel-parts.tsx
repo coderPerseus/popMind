@@ -1,6 +1,16 @@
 import { useState, type ReactNode } from 'react'
-import { File as FileIcon, FileText, Image as ImageIcon, Link2, Loader2, Palette, type LucideIcon } from 'lucide-react'
+import {
+  File as FileGlyph,
+  Files,
+  FileText,
+  Image as ImageIcon,
+  Link2,
+  Loader2,
+  Palette,
+  type LucideIcon,
+} from 'lucide-react'
 import type { ClipKind } from '@/lib/clipboard/types'
+import { getFileIconUrl } from '@/app/components/clipboard-panel/panel-utils'
 import { cn } from '@/lib/utils'
 
 /** Text with `[start, end)` ranges wrapped in <mark>. Ranges are UTF-16 offsets into `text`. */
@@ -44,7 +54,7 @@ export const kindIcons: Record<ClipKind, LucideIcon> = {
   text: FileText,
   link: Link2,
   image: ImageIcon,
-  file: FileIcon,
+  file: FileGlyph,
   color: Palette,
 }
 
@@ -70,4 +80,32 @@ export function AppIcon({ url, name, className }: { url?: string; name?: string;
 
 export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cn('cp-spin', className)} aria-hidden />
+}
+
+/** The real Finder icon of the item's first file; falls back to a generic glyph when it cannot be loaded. */
+export function FileTypeIcon({
+  itemId,
+  multiple,
+  className,
+}: {
+  itemId: string
+  multiple?: boolean
+  className?: string
+}) {
+  const [failed, setFailed] = useState(false)
+
+  if (failed) {
+    const Glyph = multiple ? Files : FileGlyph
+    return <Glyph className={cn('cp-file-glyph', className)} aria-hidden />
+  }
+
+  return (
+    <img
+      className={cn('cp-file-real-icon', className)}
+      src={getFileIconUrl(itemId)}
+      alt=""
+      draggable={false}
+      onError={() => setFailed(true)}
+    />
+  )
 }

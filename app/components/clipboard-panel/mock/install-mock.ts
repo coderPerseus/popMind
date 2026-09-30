@@ -17,7 +17,13 @@ import {
   type ClipDatePreset,
 } from '@/lib/clipboard/types'
 import { presetToRange } from '@/app/components/clipboard-panel/panel-utils'
-import { mockApps, mockItems, mockPinboards, type MockItem } from '@/app/components/clipboard-panel/mock/mock-data'
+import {
+  fileIconSvg,
+  mockApps,
+  mockItems,
+  mockPinboards,
+  type MockItem,
+} from '@/app/components/clipboard-panel/mock/mock-data'
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const kindLabels: Record<string, string> = { text: '文本', link: '链接', image: '图片', file: '文件', color: '颜色' }
@@ -530,6 +536,13 @@ export function installMockConveyor() {
       emitChanged('added', [created.id])
     },
   }
+
+  Object.assign(window, {
+    __cpFileIconUrl: (id: string) => {
+      const icon = state.items.find((entry) => entry.item.id === id)?.extras.fileIcon
+      return icon ? fileIconSvg(icon) : 'data:image/png;base64,AAAA'
+    },
+  })
 
   Object.assign(window, { conveyor: { clipboard, capability, window: windowApi }, __clipMock: api })
 

@@ -9,6 +9,8 @@ export type MockExtras = {
   filePaths?: string[]
   tags?: string[]
   imageUrl?: string
+  /** Fake Finder icon for the preview (other file items exercise the generic fallback). */
+  fileIcon?: 'folder' | 'doc'
 }
 
 export type MockItem = { item: ClipListItem; extras: MockExtras }
@@ -157,6 +159,13 @@ const uiShot = (w: number, h: number) =>
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#f2f2f7"/><rect x="24" y="24" width="${w * 0.42}" height="${h - 48}" rx="14" fill="#fff"/><rect x="${w * 0.42 + 44}" y="24" width="${w * 0.5}" height="${h * 0.4}" rx="14" fill="#0a84ff"/><rect x="${w * 0.42 + 44}" y="${h * 0.4 + 44}" width="${w * 0.5}" height="${h * 0.4}" rx="14" fill="#fff"/><rect x="44" y="52" width="${w * 0.26}" height="12" rx="6" fill="#d1d1d6"/><rect x="44" y="80" width="${w * 0.32}" height="12" rx="6" fill="#e5e5ea"/><rect x="44" y="108" width="${w * 0.2}" height="12" rx="6" fill="#e5e5ea"/></svg>`
   )
 
+export const fileIconSvg = (kind: 'folder' | 'doc') =>
+  svgUrl(
+    kind === 'folder'
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><path d="M10 34a10 10 0 0 1 10-10h27l12 12h49a10 10 0 0 1 10 10v58a10 10 0 0 1-10 10H20a10 10 0 0 1-10-10z" fill="#5ab8f5"/><path d="M10 48a10 10 0 0 1 10-10h88a10 10 0 0 1 10 10v50a10 10 0 0 1-10 10H20a10 10 0 0 1-10-10z" fill="#39a0ee"/></svg>'
+      : '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><path d="M28 8h48l28 28v76a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8z" fill="#f4f4f6" stroke="#c8c8ce" stroke-width="3"/><path d="M76 8l28 28H84a8 8 0 0 1-8-8z" fill="#d6d6dc"/><rect x="34" y="60" width="52" height="6" rx="3" fill="#e0533d"/><rect x="34" y="76" width="52" height="6" rx="3" fill="#cfcfd6"/><rect x="34" y="92" width="36" height="6" rx="3" fill="#cfcfd6"/></svg>'
+  )
+
 // ---- items ----
 
 const NOW = Date.now()
@@ -266,6 +275,7 @@ add({
       '/Users/demo/Documents/报价单.xlsx',
       '/Users/demo/Pictures/现场照片.png',
     ],
+    fileIcon: 'doc',
   },
 })
 add({
@@ -356,6 +366,24 @@ add({
   fileNames: ['screenshot-2026-09-28.png'],
   byteSize: 913_004,
   extras: { filePaths: ['/Users/demo/Desktop/screenshot-2026-09-28.png'] },
+})
+add({
+  kind: 'file',
+  app: 'finder',
+  minutesAgo: 80,
+  previewText: '设计资源',
+  fileNames: ['设计资源'],
+  byteSize: 0,
+  extras: { filePaths: ['/Users/demo/Design/设计资源'], fileIcon: 'folder' },
+})
+add({
+  kind: 'file',
+  app: 'finder',
+  minutesAgo: 85,
+  previewText: 'Q3-2026-quarterly-business-review-final-v12-approved-by-legal.pptx',
+  fileNames: ['Q3-2026-quarterly-business-review-final-v12-approved-by-legal.pptx'],
+  byteSize: 8_402_113,
+  extras: { filePaths: ['/Users/demo/Documents/Q3-2026-quarterly-business-review-final-v12-approved-by-legal.pptx'] },
 })
 add({
   kind: 'text',
