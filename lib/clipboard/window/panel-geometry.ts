@@ -1,12 +1,12 @@
 // Pure geometry helpers of the clipboard panel window.
 
-export const PANEL_MIN_HEIGHT = 160
+export const PANEL_MIN_HEIGHT = 280
 export const PANEL_MAX_HEIGHT = 900
-export const PANEL_DEFAULT_HEIGHT = 320
+export const PANEL_DEFAULT_HEIGHT = 340
 
 type Rect = { x: number; y: number; width: number; height: number }
 
-/** Clamps to 160–900 and never taller than the display work area. */
+/** Clamps to 280–900 and never taller than the display work area. */
 export const clampPanelHeight = (height: unknown, workAreaHeight = Number.POSITIVE_INFINITY) => {
   const value = typeof height === 'number' && Number.isFinite(height) ? Math.round(height) : PANEL_DEFAULT_HEIGHT
   const upper = Math.max(PANEL_MIN_HEIGHT, Math.min(PANEL_MAX_HEIGHT, workAreaHeight))

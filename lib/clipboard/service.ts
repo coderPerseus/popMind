@@ -2,10 +2,14 @@
 // store -> capture -> retention / purge timers -> paste stack, plus the popmind-clip:// protocol, the IPC handlers
 // and the (hidden, prewarmed) panel window.
 import { net, protocol } from 'electron'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { clipboardNative } from '@/lib/clipboard/native-bridge'
 import { parseClipAssetUrl } from '@/lib/clipboard/asset-url'
 import { startClipboardCapture, stopClipboardCapture, resolveClipAsset } from '@/lib/clipboard/capture'
-import { clipStore } from '@/lib/clipboard/store'
+import { clipStore, getClipStoreDirs } from '@/lib/clipboard/store'
 import { CLIP_PROTOCOL } from '@/lib/clipboard/types'
 import { clipboardPanel } from '@/lib/clipboard/window/clipboard-panel-window'
 import { pasteStack } from '@/lib/clipboard/write'
@@ -21,6 +25,26 @@ const PURGE_INTERVAL_MS = 60_000
 /** Soft-deleted items older than this can no longer be undone and are removed for good. */
 const PURGE_OLDER_THAN_MS = 10_000
 const SLOW_ASSET_MS = 150
+const FILE_ICON_SIZE = 128
+
+/** Finder icon of the item's first file / folder, rendered once and cached on disk per path. */
+const resolveFileIcon = async (itemId: string) => {
+  const detail = await clipStore.getDetail(itemId)
+  const filePath = detail?.filePaths[0]
+  if (!filePath || !existsSync(filePath)) {
+    return null
+  }
+
+  const iconDir = join(getClipStoreDirs().root, 'file-icons')
+  const iconPath = join(iconDir, `${createHash('sha1').update(filePath).digest('hex')}@${FILE_ICON_SIZE}.png`)
+  if (existsSync(iconPath)) {
+    return iconPath
+  }
+
+  mkdirSync(iconDir, { recursive: true })
+  const [written] = await clipboardNative.writeAppIcons([{ appPath: filePath, outputPath: iconPath }], FILE_ICON_SIZE)
+  return written ? iconPath : null
+}
 
 let readyPromise: Promise<void> | null = null
 let prewarmTimer: NodeJS.Timeout | null = null
@@ -51,7 +75,8 @@ const registerClipboardProtocol = (ready: Promise<void>) => {
     const startedAt = performance.now()
     try {
       await ready
-      const filePath = await resolveClipAsset(parsed.kind, parsed.id)
+      const filePath =
+        parsed.kind === 'file-icon' ? await resolveFileIcon(parsed.id) : await resolveClipAsset(parsed.kind, parsed.id)
       if (!filePath) {
         return new Response('Not found', { status: 404 })
       }

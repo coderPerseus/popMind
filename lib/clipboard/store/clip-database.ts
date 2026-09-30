@@ -2,6 +2,7 @@
 // instantiated directly in scripts. Synchronous by design: the worker is the only caller.
 import { randomUUID } from 'node:crypto'
 import { existsSync, rmSync, statSync } from 'node:fs'
+import { basename } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 import { buildTextIngestRecord, classifyText } from '@/lib/clipboard/capture/classify'
@@ -192,7 +193,7 @@ export class ClipDatabase {
     ).map((entry) => entry.path)
     const kind = row['kind'] as ClipKind
     const plainText = asString(row['plain_text'])
-    const fileNames = filePaths.map((path) => path.split('/').pop() ?? path)
+    const fileNames = filePaths.map((path) => basename(path))
 
     const title =
       asString(row['custom_title']) ||
@@ -485,7 +486,8 @@ export class ClipDatabase {
       url: asString(row['url']),
       colorValue: asString(row['color_value']),
       fileCount: (row['file_count'] as number) ?? 0,
-      fileNames: kind === 'file' ? filePaths.map((path) => path.split('/').pop() ?? path) : undefined,
+      // basename, not split('/'): folder paths end with a slash.
+      fileNames: kind === 'file' ? filePaths.map((path) => basename(path)) : undefined,
       imageWidth,
       imageHeight,
       byteSize: (row['byte_size'] as number) ?? 0,

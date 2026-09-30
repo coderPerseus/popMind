@@ -110,7 +110,7 @@ export const clipIpcSchema = {
   /** Renderer finished its exit animation (or wants to close); main hides the window. */
   'clip-panel-hide': { args: z.tuple([]), return: okSchema },
   /** Renderer drag-resized the panel's top edge. */
-  'clip-panel-set-height': { args: z.tuple([z.number().int().min(160).max(900)]), return: okSchema },
+  'clip-panel-set-height': { args: z.tuple([z.number().int().min(280).max(900)]), return: okSchema },
   'clip-paste-stack-toggle': { args: z.tuple([]), return: z.custom<ClipPasteStackState>() },
   'clip-paste-stack-state': { args: z.tuple([]), return: z.custom<ClipPasteStackState>() },
   'clip-permission-status': {
