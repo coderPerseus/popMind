@@ -740,6 +740,19 @@ export function ClipboardPanelApp() {
     }
   })
 
+  // A filter token the user has finished typing (followed by a space, e.g. "type:file " or "上周 ") becomes a chip
+  // and leaves the text, like Paste. Tokens still being typed at the end of the text stay as text.
+  useEffect(() => {
+    if (list.composing || !parsed || list.parsedText !== filters.text) {
+      return
+    }
+
+    const completed = parsed.tokens.find((token) => /\s/.test(filters.text.charAt(token.end)))
+    if (completed) {
+      acceptSuggestion(completed)
+    }
+  }, [parsed, list.parsedText, list.composing, filters.text, acceptSuggestion])
+
   const uiChips = useMemo<UiFilterChip[]>(() => {
     const chips: UiFilterChip[] = []
     const parsedTypeValues = new Set(

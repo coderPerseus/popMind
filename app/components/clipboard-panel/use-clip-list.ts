@@ -46,6 +46,8 @@ export function useClipList(clipboard: ClipboardApi) {
   const [items, setItems] = useState<ClipListItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | undefined>()
   const [parsed, setParsed] = useState<ParsedClipQuery | null>(null)
+  /** The search text `parsed` was computed from; token positions are only valid for this exact text. */
+  const [parsedText, setParsedText] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   /** Bumped every time the result set was replaced because the query (not a background refresh) changed. */
@@ -75,6 +77,7 @@ export function useClipList(clipboard: ClipboardApi) {
       }
 
       try {
+        const sentText = filtersRef.current.text
         const result = await clipboard.list(buildQuery(filtersRef.current, { limit }))
 
         if (requestId !== requestRef.current) {
@@ -92,6 +95,7 @@ export function useClipList(clipboard: ClipboardApi) {
         }
 
         setParsed(result.parsed)
+        setParsedText(sentText)
 
         if (mode === 'reset') {
           setResetToken((value) => value + 1)
@@ -188,10 +192,12 @@ export function useClipList(clipboard: ClipboardApi) {
   return {
     filters,
     patchFilters,
+    composing,
     setComposing,
     items,
     nextCursor,
     parsed,
+    parsedText,
     loading,
     loadingMore,
     resetToken,
