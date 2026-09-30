@@ -51,6 +51,8 @@ export default defineConfig({
           translate: resolve(__dirname, 'app/translate.html'),
           inputTranslation: resolve(__dirname, 'app/input-translation.html'),
           selectionChat: resolve(__dirname, 'app/selection-chat.html'),
+          clipboardPanel: resolve(__dirname, 'app/clipboard-panel.html'),
+          focusOverlay: resolve(__dirname, 'app/focus-overlay.html'),
         },
       },
     },

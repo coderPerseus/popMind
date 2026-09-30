@@ -1,7 +1,9 @@
-import { app, clipboard, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
+import { app, clipboard, ipcMain, Menu, shell, Tray } from 'electron'
 import appLogo from '@/app/assets/logo.png?asset'
 import { POPMIND_RELEASES_URL } from '@/lib/app/release'
 import { exportMainProcessLogs } from '@/lib/main/logger'
+import { createTrayIcon, isDevBuild, registerStatusTray } from '@/lib/main/tray-icon'
+import { buildFocusTrayItems } from '@/lib/todo-focus/tray-menu'
 import { clearStaleMacPermissionsIfIdentityChanged } from '@/lib/main/macos-code-signing'
 import { ScreenshotSearchService } from '@/lib/screenshot/screenshot-search-service'
 import { ScreenshotTranslationService } from '@/lib/screenshot/screenshot-translation-service'
@@ -249,6 +251,7 @@ export class TextPickerFeature {
     this.detachCapabilityListener?.()
     this.detachCapabilityListener = null
 
+    registerStatusTray(null)
     this.tray?.destroy()
     this.tray = null
 
@@ -463,11 +466,9 @@ export class TextPickerFeature {
       return
     }
 
-    const icon = nativeImage.createFromPath(appLogo).resize({ width: 18, height: 18 })
-    icon.setTemplateImage(true)
-
-    this.tray = new Tray(icon)
-    this.tray.setToolTip('popMind')
+    this.tray = new Tray(createTrayIcon(appLogo))
+    registerStatusTray(this.tray)
+    this.tray.setToolTip(isDevBuild() ? 'popMind (dev)' : 'popMind')
 
     // Left-click: show the status menu
     this.tray.on('click', () => {
@@ -508,6 +509,10 @@ export class TextPickerFeature {
           void this.triggerScreenshotSearch()
         },
       },
+      {
+        type: 'separator',
+      },
+      ...buildFocusTrayItems(language),
       {
         type: 'separator',
       },

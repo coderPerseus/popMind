@@ -1,5 +1,6 @@
 import type { ShortcutBindings } from '@/lib/shortcuts/shared'
 import type { TranslationEngineId } from '@/lib/translation/types'
+import type { ClipboardSettings, ClipboardSettingsPatch } from '@/lib/clipboard/types'
 
 export type AppLanguage = 'zh-CN' | 'en'
 export type AiProviderId = 'openai' | 'anthropic' | 'google' | 'kimi' | 'deepseek' | 'gemma'
@@ -68,6 +69,7 @@ export interface CapabilitySettings {
       openai: OpenAiSpeechProviderConfig
     }
   }
+  clipboard: ClipboardSettings
 }
 
 export interface CapabilitySettingsPatch {
@@ -98,6 +100,7 @@ export interface CapabilitySettingsPatch {
       openai?: Partial<OpenAiSpeechProviderConfig>
     }
   }
+  clipboard?: ClipboardSettingsPatch
 }
 
 export interface AiServiceTestResult {

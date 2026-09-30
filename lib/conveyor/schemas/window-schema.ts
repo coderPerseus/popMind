@@ -5,6 +5,11 @@ export const MainWindowChannel = {
   SetSearchQuery: 'mainWindow:setSearchQuery',
 } as const
 
+/** Main → settings window: switch to a section (payload: section id). */
+export const SettingsWindowChannel = {
+  Navigate: 'settings:navigate',
+} as const
+
 export const windowIpcSchema = {
   'window-init': {
     args: z.tuple([]),
@@ -47,6 +52,16 @@ export const windowIpcSchema = {
   'window-show-route': {
     args: z.tuple([z.enum(['home', 'settings'])]),
     return: z.void(),
+  },
+  /** Opens the settings window, optionally at a section (e.g. 'clipboard'). */
+  'window-show-settings': {
+    args: z.tuple([z.string().optional()]),
+    return: z.void(),
+  },
+  /** Section requested before the settings page was ready; cleared once read. */
+  'window-take-settings-section': {
+    args: z.tuple([]),
+    return: z.string().nullable(),
   },
   'window-show-home-with-query': {
     args: z.tuple([z.string()]),

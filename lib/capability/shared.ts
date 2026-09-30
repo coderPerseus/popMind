@@ -1,3 +1,4 @@
+import { defaultClipboardSettings, mergeClipboardSettings, type ClipboardSettingsPatch } from '@/lib/clipboard/types'
 import { app } from 'electron'
 import { join } from 'node:path'
 import { defaultShortcutBindings, normalizeShortcutBindings } from '@/lib/shortcuts/shared'
@@ -120,6 +121,7 @@ export const defaultCapabilitySettings: CapabilitySettings = {
       openai: { ...defaultOpenAiSpeechProviderConfig },
     },
   },
+  clipboard: defaultClipboardSettings,
 }
 
 const normalizeEnabledEngines = (options: {
@@ -276,6 +278,7 @@ export const mergeCapabilitySettings = (
         },
       },
     },
+    clipboard: mergeClipboardSettings(previous.clipboard, patch.clipboard as ClipboardSettingsPatch | undefined),
   }
 }
 

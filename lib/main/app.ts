@@ -5,7 +5,6 @@ import { registerResourcesProtocol } from './protocols'
 import { registerWindowHandlers } from '@/lib/conveyor/handlers/window-handler'
 import { registerAppHandlers } from '@/lib/conveyor/handlers/app-handler'
 import { registerCapabilityHandlers } from '@/lib/conveyor/handlers/capability-handler'
-import { registerClipboardHandlers } from '@/lib/conveyor/handlers/clipboard-handler'
 
 export type MainWindowRoute = 'home' | 'settings'
 
@@ -97,7 +96,6 @@ export function createAppWindow(): BrowserWindow {
   registerWindowHandlers(mainWindow)
   registerAppHandlers(app)
   registerCapabilityHandlers()
-  registerClipboardHandlers()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

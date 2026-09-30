@@ -8,8 +8,8 @@ import {
   MAIN_WINDOW_ROUTE_CONFIG,
   type MainWindowRoute,
 } from './app'
-import { MainWindowChannel } from '@/lib/conveyor/schemas/window-schema'
-import { clipboardHistoryService } from '@/lib/clipboard/service'
+import { MainWindowChannel, SettingsWindowChannel } from '@/lib/conveyor/schemas/window-schema'
+import { clipboardPanel } from '@/lib/clipboard/window/clipboard-panel-window'
 import { mainLogger } from '@/lib/main/logger'
 import { selectionBridge } from '@/lib/text-picker/native/selection-bridge'
 import { autoDismissController } from '@/lib/windowing/auto-dismiss-controller'
@@ -361,7 +361,8 @@ export const showMainWindow = async (
   }
 
   const startedAt = performance.now()
-  clipboardHistoryService.capturePasteTarget()
+  // Remember the app the user came from (while it is still frontmost) so the launcher's `/clip` can paste back into it.
+  clipboardPanel.rememberLauncherTarget()
 
   const window = getOrCreateMainWindow()
 
@@ -391,6 +392,23 @@ export const showMainWindow = async (
   }
   logMainWindow('show-completed', { ms: Math.round(performance.now() - startedAt) })
   return window
+}
+
+let pendingSettingsSection: string | null = null
+
+/** Opens settings at a section. The section is also kept until the page reads it, in case it is still loading. */
+export const showSettingsSection = async (section?: string) => {
+  pendingSettingsSection = section ?? null
+  const window = await showSettingsWindow()
+  if (section && window && !window.isDestroyed()) {
+    window.webContents.send(SettingsWindowChannel.Navigate, section)
+  }
+}
+
+export const takePendingSettingsSection = () => {
+  const section = pendingSettingsSection
+  pendingSettingsSection = null
+  return section
 }
 
 export const hideMainWindow = () => {

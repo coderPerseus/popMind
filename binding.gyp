@@ -21,6 +21,8 @@
           "-framework",
           "AppKit",
           "-framework",
+          "Carbon",
+          "-framework",
           "ScreenCaptureKit",
           "-framework",
           "Vision"

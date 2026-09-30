@@ -10,6 +10,7 @@ import type {
 } from './types'
 import type { SpeechProviderId } from '@/lib/capability/types'
 import { defaultShortcutBindings } from '@/lib/shortcuts/shared'
+import { defaultClipboardSettings } from '@/lib/clipboard/types'
 
 export const translationEngineOrder: TranslationEngineId[] = ['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma']
 
@@ -121,6 +122,7 @@ export const defaultTranslationSettings: TranslationSettings = {
       },
     },
   },
+  clipboard: defaultClipboardSettings,
 }
 
 export const getVisibleTranslationEngineIds = (settings: TranslationSettings): TranslationEngineId[] => {

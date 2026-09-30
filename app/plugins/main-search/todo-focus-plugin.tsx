@@ -1,5 +1,5 @@
 import type { MainSearchPlugin } from '@/app/plugins/main-search/types'
-import { TodoFocusPanel } from '@/app/components/home/TodoFocusPanel'
+import { TodoFocusPanel } from '@/app/components/todo-focus/TodoFocusPanel'
 import type { AppLanguage } from '@/lib/capability/types'
 import { translateMessage } from '@/lib/i18n/shared'
 
@@ -30,7 +30,7 @@ export const createTodoFocusPlugin = (language: AppLanguage): MainSearchPlugin =
     order: 0,
     typeLabel: translateMessage(language, 'plugin.type.focus'),
     mode: 'panel',
-    keywords: ['todo', 'task', 'pomodoro', 'focus', '番茄钟', '待办'],
+    keywords: ['todo', 'task', 'pomodoro', 'focus', 'timer', '番茄钟', '番茄', '待办', '专注', '任务'],
     logo: {
       src: todoFocusLogo,
       alt: translateMessage(language, 'plugin.todoFocus.alt'),
@@ -46,6 +46,8 @@ export const createTodoFocusPlugin = (language: AppLanguage): MainSearchPlugin =
   },
   async run() {},
   renderPanel(context) {
-    return <TodoFocusPanel query={context.query} trigger={context.trigger} setQuery={context.setQuery} />
+    return (
+      <TodoFocusPanel query={context.query} trigger={context.trigger} setQuery={context.setQuery} language={language} />
+    )
   },
 })

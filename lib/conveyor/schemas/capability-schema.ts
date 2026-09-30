@@ -38,6 +38,7 @@ const openAiSpeechProviderConfigSchema = z.object({
 const shortcutBindingsSchema = z.object({
   toggleHome: z.string(),
   clipboardHistory: z.string(),
+  clipboardPasteStack: z.string(),
   inputTranslation: z.string(),
   screenshotTranslate: z.string(),
   screenshotSearch: z.string(),
@@ -45,6 +46,42 @@ const shortcutBindingsSchema = z.object({
 })
 
 const selectionDefaultActionSchema = z.enum(['bubble', 'translate', 'explain'])
+
+const clipboardSettingsSchema = z.object({
+  enabled: z.boolean(),
+  appearance: z.enum(['dark', 'light', 'app']),
+  retention: z.enum(['1d', '1w', '1m', '1y', 'forever']),
+  maxStorageMb: z.number().min(0),
+  maxItemMb: z.number().min(1),
+  directPaste: z.boolean(),
+  alwaysPlainText: z.boolean(),
+  fetchLinkPreviews: z.boolean(),
+  pausedUntil: z.number(),
+  privacy: z.object({
+    ignoredBundleIds: z.array(z.string()),
+    ignoreConfidential: z.boolean(),
+    ignoreTransient: z.boolean(),
+    detectSecrets: z.boolean(),
+    ignoreRegexps: z.array(z.string()),
+  }),
+  ocr: z.object({ enabled: z.boolean() }),
+  ai: z.object({
+    enabled: z.boolean(),
+    provider: z.literal('jev'),
+    apiKey: z.string(),
+    model: z.string(),
+    trigger: z.enum(['manual', 'auto']),
+    usage: z.object({ month: z.string(), inputTokens: z.number() }),
+  }),
+})
+
+const clipboardSettingsPatchSchema = clipboardSettingsSchema
+  .extend({
+    privacy: clipboardSettingsSchema.shape.privacy.partial(),
+    ocr: clipboardSettingsSchema.shape.ocr.partial(),
+    ai: clipboardSettingsSchema.shape.ai.partial(),
+  })
+  .partial()
 
 const capabilitySettingsSchema = z.object({
   appLanguage: appLanguageSchema,
@@ -93,6 +130,7 @@ const capabilitySettingsSchema = z.object({
       openai: openAiSpeechProviderConfigSchema,
     }),
   }),
+  clipboard: clipboardSettingsSchema,
 })
 
 const capabilitySettingsPatchSchema = z.object({
@@ -163,6 +201,7 @@ const capabilitySettingsPatchSchema = z.object({
         .optional(),
     })
     .optional(),
+  clipboard: clipboardSettingsPatchSchema.optional(),
 })
 
 const aiServiceTestResultSchema = z.object({

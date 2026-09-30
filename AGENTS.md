@@ -24,12 +24,26 @@ no need test
 
 尽可能使用 shadcn/ui. 组如果没有安装的，直接安装对应的件开发
 
+## UI 规范（macOS 原生风格）
+
+popMind 是 macOS 工具，所有窗口和浮层都要像系统原生界面，而不是网页。参考实现：设置窗口 `app/components/settings/`。
+
+- 字体：系统字体栈 `-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif`；正文 13px，辅助信息 11–12px，不用大号粗体标题
+- 滚动条：一律隐藏（`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`），保留滚轮 / 触控板滚动
+- 分隔与边框：用 0.5–1px 的淡色细线（hairline），不用粗边框和明显的卡片描边
+- 选中态：系统强调色（macOS 蓝）2px 描边或浅色底，不用夸张的发光、渐变
+- 控件尺寸：按钮、输入框高 22–28px，圆角 6–8px；图标 14–16px（lucide）
+- 阴影克制：只在浮层（菜单、弹窗、面板）使用柔和阴影
+- 颜色：跟随系统浅色 / 深色模式，使用 `app/styles/tokens.css` 中的变量；背景用半透明 + 毛玻璃，不用大面积纯色块
+- 动画：默认不用；确需动画时必须流畅、短（≤150ms）、不能出现先显示空容器再出内容的闪烁
+- 信息密度：辅助说明放 placeholder、tooltip 或浅灰小字，不额外占一行 / 一栏（例如不要底部状态栏）
+
 # 仓库操作约束
 
 - 不要直接运行会把编译产物输出到源码目录的 TypeScript 命令，例如 `pnpm exec tsc -b`
 - 如果只是做类型检查，先确认 `tsconfig` 的输出行为，避免在 `app/`、`lib/` 下生成 `*.js`、`*.jsx`、`*.d.ts`、`*.tsbuildinfo`
 - 对开启了 `composite` / `incremental` 的 `tsconfig`，不要直接运行 `pnpm exec tsc -p <config> --noEmit`，这仍然可能在仓库根目录生成 `tsconfig.*.tsbuildinfo`
-- 需要做纯类型检查时，优先使用 `pnpm exec tsc -p <config> --noEmit --incremental false`
+- 需要做纯类型检查时，使用 `pnpm exec tsc -p <config> --noEmit --composite false --incremental false`（本仓库的 tsconfig 开启了 composite，只加 `--incremental false` 会报错并留下 `tsconfig.*.tsbuildinfo`）
 - 一旦误生成上述文件，先清理这些编译副产物，再继续开发，不能把它们当成源码改动提交
 
 ## 重要

@@ -6,6 +6,7 @@ import { explainIpcSchema } from './explain-schema'
 import { translationIpcSchema } from './translation-schema'
 import { searchIpcSchema } from './search-schema'
 import { clipboardIpcSchema } from './clipboard-schema'
+import { todoIpcSchema } from './todo-schema'
 
 // Define all IPC channel schemas in one place
 export const ipcSchemas = {
@@ -16,6 +17,7 @@ export const ipcSchemas = {
   ...translationIpcSchema,
   ...searchIpcSchema,
   ...clipboardIpcSchema,
+  ...todoIpcSchema,
 } as const
 
 // Extract types from Zod schemas

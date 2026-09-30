@@ -13,9 +13,12 @@ import {
   SettingsRow,
   StatusText,
 } from '@/app/components/settings/settings-kit'
+import { ClipboardSettingsSection } from '@/app/components/settings/ClipboardSettingsSection'
 import { ShortcutKeys, ShortcutRecorder } from '@/app/components/settings/shortcut-recorder'
 import { compareReleaseVersions } from '@/lib/app/release'
 import { isLocalGemmaConfigured } from '@/lib/capability/gemma'
+import { clipT } from '@/lib/clipboard/i18n'
+import { mergeClipboardSettings, type ClipboardSettingsPatch } from '@/lib/clipboard/types'
 import {
   DEFAULT_ELEVENLABS_VOICE_ID,
   ELEVENLABS_PRESET_VOICE_IDS,
@@ -53,6 +56,8 @@ import {
   ChevronRight,
   Download,
   Clipboard,
+  ClipboardList,
+  ClipboardPaste,
   Crop,
   EyeOff,
   Hand,
@@ -82,6 +87,21 @@ type PermissionStatus = {
   supported: boolean
 }
 
+const settingsSections = [
+  'general',
+  'shortcuts',
+  'permissions',
+  'selection',
+  'translation',
+  'ai',
+  'speech',
+  'clipboard',
+  'history',
+  'advanced',
+] as const
+const isSettingsSection = (value: string | null): value is SettingsSection =>
+  Boolean(value && (settingsSections as readonly string[]).includes(value))
+
 type SettingsSection =
   | 'general'
   | 'shortcuts'
@@ -90,6 +110,7 @@ type SettingsSection =
   | 'translation'
   | 'ai'
   | 'speech'
+  | 'clipboard'
   | 'history'
   | 'advanced'
 type HistoryTab = 'search' | 'explain'
@@ -120,7 +141,7 @@ type UpdateState = {
 const navGroups: SettingsSection[][] = [
   ['general', 'shortcuts', 'permissions'],
   ['selection', 'translation', 'ai', 'speech'],
-  ['history', 'advanced'],
+  ['clipboard', 'history', 'advanced'],
 ]
 
 const aiProviderOptions: Array<{ id: AiProviderId; label: string }> = [
@@ -158,6 +179,7 @@ const shortcutGroups: Array<{
     items: [
       { id: 'toggleHome', icon: Search, tint: 'blue' },
       { id: 'clipboardHistory', icon: Clipboard, tint: 'slate' },
+      { id: 'clipboardPasteStack', icon: ClipboardPaste, tint: 'green' },
     ],
   },
   {
@@ -235,7 +257,8 @@ export function SettingsPage() {
   const app = useConveyor('app')
   const capability = useConveyor('capability')
   const search = useConveyor('search')
-  const { webOpenUrl, windowShowRoute } = useConveyor('window')
+  const windowApi = useConveyor('window')
+  const { webOpenUrl, windowShowRoute } = windowApi
   const { language, t } = useI18n()
   const [accessibilityStatus, setAccessibilityStatus] = useState<PermissionStatus | null>(null)
   const [screenRecordingStatus, setScreenRecordingStatus] = useState<PermissionStatus | null>(null)
@@ -252,6 +275,17 @@ export function SettingsPage() {
   })
   const [isSaving, setIsSaving] = useState(false)
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
+
+  // Other windows can open settings at a section (e.g. the clipboard panel's "Open Settings").
+  useEffect(() => {
+    void windowApi.windowTakeSettingsSection().then((section) => {
+      if (isSettingsSection(section)) setActiveSection(section)
+    })
+    return windowApi.onSettingsNavigate((section) => {
+      if (isSettingsSection(section)) setActiveSection(section)
+      void windowApi.windowTakeSettingsSection()
+    })
+  }, [windowApi])
   const [activeHistoryTab, setActiveHistoryTab] = useState<HistoryTab>('search')
   const [historyMessage, setHistoryMessage] = useState('')
   const [themeMode, setThemeMode] = useState<ThemeMode>('system')
@@ -276,6 +310,8 @@ export function SettingsPage() {
     Partial<Record<WebSearchProviderId, { tone: StatusTone; message: string }>>
   >({})
   const saveTimerRef = useRef<number | null>(null)
+  const clipboardTimerRef = useRef<number | null>(null)
+  const clipboardPendingRef = useRef<ClipboardSettingsPatch | null>(null)
 
   const [appVersion, setAppVersion] = useState('')
   const [updateState, setUpdateState] = useState<UpdateState>({ status: 'idle' })
@@ -290,10 +326,11 @@ export function SettingsPage() {
       { id: 'translation', label: t('settings.nav.translation'), icon: Languages, tint: 'teal' },
       { id: 'ai', label: t('settings.nav.ai'), icon: Sparkles, tint: 'indigo' },
       { id: 'speech', label: t('settings.nav.speech'), icon: AudioLines, tint: 'orange' },
+      { id: 'clipboard', label: clipT(language, 'clip.settings.nav'), icon: ClipboardList, tint: 'green' },
       { id: 'history', label: t('settings.nav.history'), icon: History, tint: 'slate' },
       { id: 'advanced', label: t('settings.nav.advanced'), icon: SlidersHorizontal, tint: 'graphite' },
     ],
-    [t]
+    [language, t]
   )
 
   const activeAiProvider = settings?.aiService.activeProvider ?? null
@@ -432,6 +469,52 @@ export function SettingsPage() {
     },
     [capability]
   )
+
+  const flushClipboardPatch = useCallback(() => {
+    if (clipboardTimerRef.current) {
+      window.clearTimeout(clipboardTimerRef.current)
+      clipboardTimerRef.current = null
+    }
+
+    const pending = clipboardPendingRef.current
+    clipboardPendingRef.current = null
+    if (pending) {
+      void persistPatch({ clipboard: pending })
+    }
+  }, [persistPatch])
+
+  // Clipboard changes are applied locally at once. Debounced (typed) edits are collected into one patch so a
+  // later edit never cancels an earlier, not yet saved one.
+  const updateClipboard = useCallback(
+    (patch: ClipboardSettingsPatch, debounce = false) => {
+      setSettings((current) =>
+        current ? { ...current, clipboard: mergeClipboardSettings(current.clipboard, patch) } : current
+      )
+
+      const pending = clipboardPendingRef.current
+      clipboardPendingRef.current = {
+        ...pending,
+        ...patch,
+        ...(pending?.privacy || patch.privacy ? { privacy: { ...pending?.privacy, ...patch.privacy } } : {}),
+        ...(pending?.ocr || patch.ocr ? { ocr: { ...pending?.ocr, ...patch.ocr } } : {}),
+        ...(pending?.ai || patch.ai ? { ai: { ...pending?.ai, ...patch.ai } } : {}),
+      }
+
+      if (!debounce) {
+        flushClipboardPatch()
+        return
+      }
+
+      if (clipboardTimerRef.current) {
+        window.clearTimeout(clipboardTimerRef.current)
+      }
+      clipboardTimerRef.current = window.setTimeout(flushClipboardPatch, 320)
+    },
+    [flushClipboardPatch]
+  )
+
+  // Do not lose a pending typed edit when the settings window is torn down.
+  useEffect(() => flushClipboardPatch, [flushClipboardPatch])
 
   const updateField = <K extends keyof CapabilitySettings>(key: K, value: CapabilitySettings[K]) => {
     setSettings((current) => (current ? { ...current, [key]: value } : current))
@@ -1495,6 +1578,17 @@ export function SettingsPage() {
             </SettingsRow>
           ) : null}
         </SettingsGroup>
+      )
+    }
+
+    if (activeSection === 'clipboard' && settings) {
+      return (
+        <ClipboardSettingsSection
+          settings={mergeClipboardSettings(settings.clipboard, undefined)}
+          language={language}
+          onPatch={updateClipboard}
+          openUrl={(url) => void webOpenUrl(url)}
+        />
       )
     }
 
