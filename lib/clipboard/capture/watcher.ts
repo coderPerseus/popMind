@@ -1,5 +1,6 @@
 // Pasteboard polling and the capture pipeline (spec §5.1): 250 ms changeCount poll, one snapshot read,
 // privacy filters, normalize + classify + fingerprint, ingest. Clipboard content is never logged.
+import { readFile, stat } from 'node:fs/promises'
 import { decodeClipboardImage } from '@/lib/clipboard/capture/image'
 import { buildIngestRecord, candidateTexts, extractCandidate } from '@/lib/clipboard/capture/normalize'
 import { PASTEBOARD_ALLOW_TYPES, isOfficeLinkCopy } from '@/lib/clipboard/capture/pasteboard-types'
@@ -20,6 +21,15 @@ const ITEM_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 
 export type ClipboardWatcherDeps = {
   getSettings: () => ClipboardSettings
+}
+
+const readSmallFile = async (path: string, maxBytes: number) => {
+  try {
+    const info = await stat(path)
+    return info.isFile() && info.size > 0 && info.size <= maxBytes ? await readFile(path) : null
+  } catch {
+    return null
+  }
 }
 
 const round = (value: number) => Math.round(value * 10) / 10
@@ -195,6 +205,7 @@ export class ClipboardWatcher {
       isRemote: snapshot.flags.remote,
       maxBytes: Math.max(1, settings.maxItemMb) * 1024 * 1024,
       decodeImage: decodeClipboardImage,
+      readFile: readSmallFile,
     })
     const normalizeMs = performance.now() - normalizeStartedAt
 

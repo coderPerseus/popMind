@@ -47,9 +47,14 @@ export type BuildContext = {
   isRemote: boolean
   maxBytes: number
   decodeImage: (reps: PasteCandidate['imageReps']) => Promise<DecodedImage | null>
+  /** Reads a file up to `maxBytes` (null when missing / larger / unreadable). Enables app-private image files. */
+  readFile?: (path: string, maxBytes: number) => Promise<Buffer | null>
 }
 
 export type BuildResult = { ok: true; record: ClipIngestRecord } | { ok: false; reason: string }
+
+/** Raw image files are re-encoded to PNG, and the PNG is checked against maxBytes, so allow big files in. */
+const MAX_IMAGE_FILE_BYTES = 256 * 1024 * 1024
 
 const toBuffer = (data: Uint8Array) => (Buffer.isBuffer(data) ? data : Buffer.from(data))
 
@@ -153,6 +158,35 @@ export const extractCandidate = (items: NativePasteboardItem[]): PasteCandidate 
   return candidate
 }
 
+const IMAGE_FILE_TYPES: Record<string, string> = {
+  png: UTI_PNG,
+  jpg: 'public.jpeg',
+  jpeg: 'public.jpeg',
+  heic: 'public.heic',
+  heif: 'public.heic',
+  tif: 'public.tiff',
+  tiff: 'public.tiff',
+  gif: 'com.compuserve.gif',
+  webp: 'org.webmproject.webp',
+  bmp: 'com.microsoft.bmp',
+}
+
+/** Sandboxed / cache / temp locations: files there are an app's private copy, not something the user manages. */
+const APP_PRIVATE_PATH =
+  /\/Library\/(?:Containers|Group Containers|Caches|Application Support)\/|^\/(?:private\/)?(?:var\/folders|tmp)\//
+
+/**
+ * Chat apps (WeChat, QQ, ...) copy an image as a single `public.file-url` to a temp file in their container, with
+ * no image data. That is an image copy, not a file the user picked in Finder.
+ */
+export const appPrivateImageFileType = (filePaths: string[]) => {
+  if (filePaths.length !== 1 || !APP_PRIVATE_PATH.test(filePaths[0])) {
+    return undefined
+  }
+  const extension = filePaths[0].split('.').pop()?.toLowerCase() ?? ''
+  return IMAGE_FILE_TYPES[extension]
+}
+
 const sumBytes = (reps: ClipIngestRepresentation[]) => reps.reduce((total, rep) => total + rep.data.length, 0)
 
 /** Text a privacy filter should inspect (plain text of every item plus the URL). */
@@ -160,6 +194,33 @@ export const candidateTexts = (candidate: PasteCandidate) => [
   ...candidate.texts,
   ...(candidate.url ? [candidate.url] : []),
 ]
+
+type RecordBase = Pick<ClipIngestRecord, 'source' | 'isRemote' | 'copiedAt' | 'tags'>
+
+const buildImageRecord = (
+  base: RecordBase,
+  decoded: DecodedImage,
+  otherReps: ClipIngestRepresentation[],
+  html: string | undefined
+): ClipIngestRecord => {
+  const reps = [...otherReps, { itemIndex: decoded.itemIndex, uti: UTI_PNG, data: decoded.png }]
+  return {
+    ...base,
+    kind: 'image',
+    isRich: false,
+    fingerprint: imageFingerprint(decoded.png),
+    title: deriveTitle('image', { imageWidth: decoded.width, imageHeight: decoded.height }),
+    previewText: buildPreviewText('image', { imageWidth: decoded.width, imageHeight: decoded.height }),
+    html,
+    filePaths: [],
+    imagePng: decoded.png,
+    imageWidth: decoded.width,
+    imageHeight: decoded.height,
+    representations: reps,
+    byteSize: sumBytes(reps),
+    charCount: 0,
+  }
+}
 
 export const buildIngestRecord = async (candidate: PasteCandidate, context: BuildContext): Promise<BuildResult> => {
   const base = {
@@ -169,7 +230,20 @@ export const buildIngestRecord = async (candidate: PasteCandidate, context: Buil
     tags: [] as string[],
   }
 
-  // 1. Files come before images: Finder adds a file-icon TIFF to every file copy.
+  // 1a. An app-private image file is captured as the image itself (the file is usually a short-lived temp copy).
+  const imageFileType = appPrivateImageFileType(candidate.filePaths)
+  if (imageFileType && context.readFile) {
+    const data = await context.readFile(candidate.filePaths[0], MAX_IMAGE_FILE_BYTES)
+    const decoded = data ? await context.decodeImage([{ itemIndex: 0, type: imageFileType, data }]) : null
+    if (decoded) {
+      if (decoded.png.length > context.maxBytes) {
+        return { ok: false, reason: 'too-large' }
+      }
+      return { ok: true, record: buildImageRecord(base, decoded, [], undefined) }
+    }
+  }
+
+  // 1b. Files come before images: Finder adds a file-icon TIFF to every file copy.
   if (candidate.filePaths.length > 0) {
     const reps = candidate.reps.filter((rep) => rep.uti === UTI_FILE_URL || rep.uti === UTI_TEXT_UTF8)
     const byteSize = sumBytes(reps)
@@ -206,29 +280,8 @@ export const buildIngestRecord = async (candidate: PasteCandidate, context: Buil
         return { ok: false, reason: 'too-large' }
       }
 
-      const reps = [
-        ...candidate.reps.filter((rep) => !isImageType(rep.uti)),
-        { itemIndex: decoded.itemIndex, uti: UTI_PNG, data: decoded.png },
-      ]
-      return {
-        ok: true,
-        record: {
-          ...base,
-          kind: 'image',
-          isRich: false,
-          fingerprint: imageFingerprint(decoded.png),
-          title: deriveTitle('image', { imageWidth: decoded.width, imageHeight: decoded.height }),
-          previewText: buildPreviewText('image', { imageWidth: decoded.width, imageHeight: decoded.height }),
-          html: candidate.html,
-          filePaths: [],
-          imagePng: decoded.png,
-          imageWidth: decoded.width,
-          imageHeight: decoded.height,
-          representations: reps,
-          byteSize: sumBytes(reps),
-          charCount: 0,
-        },
-      }
+      const reps = candidate.reps.filter((rep) => !isImageType(rep.uti))
+      return { ok: true, record: buildImageRecord(base, decoded, reps, candidate.html) }
     }
 
     if (!plainText && !candidate.url) {
