@@ -276,13 +276,20 @@ export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
 
+  /** Sub-tab requested with the section (`clipboard/sync`); the nonce re-applies repeated requests. */
+  const [clipboardTabRequest, setClipboardTabRequest] = useState<{ tab: string; nonce: number } | null>(null)
+
   // Other windows can open settings at a section (e.g. the clipboard panel's "Open Settings").
   useEffect(() => {
-    void windowApi.windowTakeSettingsSection().then((section) => {
-      if (isSettingsSection(section)) setActiveSection(section)
-    })
+    const navigate = (target: string | null) => {
+      const [section, tab] = (target ?? '').split('/')
+      if (!isSettingsSection(section)) return
+      setActiveSection(section)
+      if (section === 'clipboard' && tab) setClipboardTabRequest({ tab, nonce: Date.now() })
+    }
+    void windowApi.windowTakeSettingsSection().then(navigate)
     return windowApi.onSettingsNavigate((section) => {
-      if (isSettingsSection(section)) setActiveSection(section)
+      navigate(section)
       void windowApi.windowTakeSettingsSection()
     })
   }, [windowApi])
@@ -1588,6 +1595,7 @@ export function SettingsPage() {
           language={language}
           onPatch={updateClipboard}
           openUrl={(url) => void webOpenUrl(url)}
+          tabRequest={clipboardTabRequest}
         />
       )
     }

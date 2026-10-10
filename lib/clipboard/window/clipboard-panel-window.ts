@@ -8,7 +8,12 @@ import { join } from 'node:path'
 import { capabilityStore } from '@/lib/capability/store'
 import { clipboardEvents } from '@/lib/clipboard/events'
 import { clipboardNative } from '@/lib/clipboard/native-bridge'
-import type { ClipItemsChangedEvent, ClipPanelShowEvent, ClipPasteStackState } from '@/lib/clipboard/types'
+import type {
+  ClipItemsChangedEvent,
+  ClipPanelShowEvent,
+  ClipPasteStackState,
+  ClipSyncStatus,
+} from '@/lib/clipboard/types'
 import type { PasteTarget } from '@/lib/clipboard/write/paste-service'
 import { getClipboardSettings } from '@/lib/clipboard/write/settings'
 import { ClipboardChannel } from '@/lib/conveyor/schemas/clipboard-schema'
@@ -350,6 +355,9 @@ class ClipboardPanelWindow {
     })
     clipboardEvents.on('paste-stack', (state: ClipPasteStackState) => {
       this.send(ClipboardChannel.PasteStack, state)
+    })
+    clipboardEvents.on('sync-status', (status: ClipSyncStatus) => {
+      this.send(ClipboardChannel.SyncStatus, status)
     })
   }
 

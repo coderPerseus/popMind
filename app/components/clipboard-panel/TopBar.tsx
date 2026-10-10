@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
-import { Ellipsis, ListFilter, Pause, Play, Settings, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Ellipsis, ListFilter, Pause, Play, RefreshCw, Settings, SlidersHorizontal, Sparkles } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -49,6 +49,11 @@ type TopBarProps = {
   countHighlighted: boolean
   onToggleStack: () => void
   onOpenSettings: () => void
+  sync: {
+    configured: boolean
+    running: boolean
+    onRun: () => void
+  }
   restoreFocus: () => void
 }
 
@@ -71,6 +76,7 @@ export function TopBar({
   countHighlighted,
   onToggleStack,
   onOpenSettings,
+  sync,
   restoreFocus,
 }: TopBarProps) {
   const kindValue = kinds.length === 1 ? kinds[0] : 'all'
@@ -182,6 +188,22 @@ export function TopBar({
         {stackIndicator}
 
         <span className={cn('cp-count', countHighlighted && 'is-highlighted')}>{countLabel}</span>
+
+        <button
+          type="button"
+          className="cp-icon-btn"
+          aria-busy={sync.running}
+          title={
+            sync.running
+              ? t('clip.panel.sync.running')
+              : sync.configured
+                ? t('clip.panel.sync.run')
+                : t('clip.panel.sync.setup')
+          }
+          onClick={sync.running ? undefined : sync.onRun}
+        >
+          {sync.running ? <Spinner /> : <RefreshCw />}
+        </button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

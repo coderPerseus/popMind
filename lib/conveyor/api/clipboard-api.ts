@@ -6,8 +6,10 @@ import type {
   ClipPasteMode,
   ClipPasteStackState,
   ClipQuery,
+  ClipSyncStatus,
   ClipboardSettings,
 } from '@/lib/clipboard/types'
+import type { AppLanguage } from '@/lib/capability/types'
 
 export class ClipboardApi extends ConveyorApi {
   list = (query: ClipQuery) => this.invoke('clip-list', query)
@@ -47,6 +49,13 @@ export class ClipboardApi extends ConveyorApi {
   getPasteStack = () => this.invoke('clip-paste-stack-state')
   permissionStatus = () => this.invoke('clip-permission-status')
   openAccessibilitySettings = () => this.invoke('clip-open-accessibility-settings')
+  syncStatus = () => this.invoke('clip-sync-status')
+  syncRun = () => this.invoke('clip-sync-run')
+  syncConnect = (syncKey: string) => this.invoke('clip-sync-connect', syncKey)
+  syncSetupWithToken = (token: string, accountId?: string) => this.invoke('clip-sync-setup-token', token, accountId)
+  syncDisconnect = () => this.invoke('clip-sync-disconnect')
+  syncCopyKey = () => this.invoke('clip-sync-copy-key')
+  syncAgentPrompt = (language: AppLanguage) => this.invoke('clip-sync-agent-prompt', language)
 
   onItemsChanged = (handler: (event: ClipItemsChangedEvent) => void) =>
     this.subscribe<ClipItemsChangedEvent>(ClipboardChannel.ItemsChanged, handler)
@@ -55,6 +64,8 @@ export class ClipboardApi extends ConveyorApi {
   onPanelRequestHide = (handler: () => void) => this.subscribe<void>(ClipboardChannel.PanelRequestHide, handler)
   onPasteStack = (handler: (state: ClipPasteStackState) => void) =>
     this.subscribe<ClipPasteStackState>(ClipboardChannel.PasteStack, handler)
+  onSyncStatus = (handler: (status: ClipSyncStatus) => void) =>
+    this.subscribe<ClipSyncStatus>(ClipboardChannel.SyncStatus, handler)
 
   private subscribe<T>(channel: string, handler: (payload: T) => void) {
     const listener = (_event: Electron.IpcRendererEvent, payload: T) => handler(payload)

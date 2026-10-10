@@ -14,6 +14,7 @@ import {
   type ClipPasteStackState,
   type ClipQueryToken,
   type ClipSourceApp,
+  type ClipSyncStatus,
   type ClipboardSettings,
   type Pinboard,
 } from '@/lib/clipboard/types'
@@ -712,6 +713,65 @@ export function ClipboardPanelApp() {
     requestClose()
   })
 
+  // ---- sync ----
+  const [syncStatus, setSyncStatus] = useState<ClipSyncStatus | null>(null)
+
+  useEffect(() => {
+    void clipboard
+      .syncStatus()
+      .then(setSyncStatus)
+      .catch(() => undefined)
+    return clipboard.onSyncStatus(setSyncStatus)
+  }, [clipboard])
+
+  const openSyncSettings = useEvent(() => {
+    void windowApi.windowShowSettings('clipboard/sync')
+    requestClose()
+  })
+
+  const runSync = useEvent(async () => {
+    if (!syncStatus?.configured) {
+      openSyncSettings()
+      return
+    }
+    if (syncStatus.running) return
+
+    setSyncStatus((current) => (current ? { ...current, running: true } : current))
+    try {
+      const summary = await clipboard.syncRun()
+      if (summary.ok) {
+        const base =
+          summary.received + summary.uploaded > 0
+            ? t('clip.panel.sync.done', { received: summary.received, uploaded: summary.uploaded })
+            : t('clip.panel.sync.upToDate')
+        showToast({
+          text: summary.skipped > 0 ? base + t('clip.panel.sync.skipped', { count: summary.skipped }) : base,
+        })
+        return
+      }
+
+      const code = summary.errorCode ?? 'unknown'
+      const fixable = code !== 'network' && code !== 'busy' && code !== 'unknown'
+      showToast(
+        {
+          text: t('clip.panel.sync.failed', { reason: t(`clip.panel.sync.error.${code}`) }),
+          tone: 'warning',
+          actionLabel: fixable ? t('clip.panel.sync.openSettings') : undefined,
+          onAction: fixable ? openSyncSettings : undefined,
+        },
+        5000
+      )
+    } catch (error) {
+      console.error('[clipboard-panel] sync failed', error)
+      showToast({ text: t('clip.panel.sync.failed', { reason: t('clip.panel.sync.error.unknown') }), tone: 'warning' })
+    } finally {
+      void clipboard
+        .syncStatus()
+        .then(setSyncStatus)
+        .catch(() => undefined)
+    }
+  })
+
   const resizePanel = useEvent((height: number) => void clipboard.setPanelHeight(height))
 
   // ---- search / filters ----
@@ -1240,6 +1300,11 @@ export function ClipboardPanelApp() {
               stackIndicator={<PasteStackIndicator t={t} state={stack} onStop={() => void toggleStack()} />}
               onToggleStack={() => void toggleStack()}
               onOpenSettings={openSettings}
+              sync={{
+                configured: Boolean(syncStatus?.configured),
+                running: Boolean(syncStatus?.running),
+                onRun: () => void runSync(),
+              }}
               restoreFocus={focusSearch}
             />
 

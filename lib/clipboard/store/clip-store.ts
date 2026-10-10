@@ -12,6 +12,11 @@ import type {
   ClipIngestOutcome,
   ClipIngestRecord,
   ClipStore,
+  ClipSyncImportResult,
+  ClipSyncIncoming,
+  ClipSyncLocalPinboard,
+  ClipSyncOutgoing,
+  ClipSyncRemotePinboard,
   ClipWritePayload,
 } from '@/lib/clipboard/store/contract'
 import { getClipDirs, type ClipDirs } from '@/lib/clipboard/store/paths'
@@ -336,6 +341,67 @@ class ClipStoreProxy implements ClipStore {
 
   resolveAsset(kind: ClipAssetKind, id: string): Promise<string | null> {
     return this.call('resolveAsset', kind, id)
+  }
+
+  // ---- sync ----
+
+  syncPendingUploadIds(since: number): Promise<string[]> {
+    return this.call('syncPendingUploadIds', since)
+  }
+
+  async syncLoadOutgoing(ids: string[]): Promise<ClipSyncOutgoing[]> {
+    const items = await this.call<ClipSyncOutgoing[]>('syncLoadOutgoing', ids)
+    // Structured clone turns Buffers into plain Uint8Arrays.
+    return items.map((item) => ({
+      ...item,
+      representations: item.representations.map((rep) => ({
+        ...rep,
+        data: Buffer.from(rep.data.buffer, rep.data.byteOffset, rep.data.byteLength),
+      })),
+    }))
+  }
+
+  syncMarkUploaded(
+    entries: Array<{ itemId: string; remoteKey: string }>,
+    origin: 'local' | 'skipped' = 'local'
+  ): Promise<void> {
+    return this.call('syncMarkUploaded', entries, origin)
+  }
+
+  syncReset(): Promise<void> {
+    return this.call('syncReset')
+  }
+
+  syncKnownKeys(): Promise<string[]> {
+    return this.call('syncKnownKeys')
+  }
+
+  syncMarkSeen(remoteKeys: string[]): Promise<void> {
+    return this.call('syncMarkSeen', remoteKeys)
+  }
+
+  async syncImportItems(items: ClipSyncIncoming[]): Promise<ClipSyncImportResult> {
+    const result = await this.call<ClipSyncImportResult>('syncImportItems', items)
+    if (result.added.length > 0) {
+      this.emit('added', result.added)
+    }
+    return result
+  }
+
+  syncLocalPinboards(): Promise<ClipSyncLocalPinboard[]> {
+    return this.call('syncLocalPinboards')
+  }
+
+  async syncApplyPinboard(pinboard: ClipSyncRemotePinboard): Promise<{ created: boolean; added: number }> {
+    const result = await this.call<{ created: boolean; added: number }>('syncApplyPinboard', pinboard)
+    if (result.created || result.added > 0) {
+      this.emit('pinboards')
+    }
+    return result
+  }
+
+  syncMarkPinboardMembers(pinboardKey: string, itemKeys: string[]): Promise<void> {
+    return this.call('syncMarkPinboardMembers', pinboardKey, itemKeys)
   }
 
   // ---- maintenance ----

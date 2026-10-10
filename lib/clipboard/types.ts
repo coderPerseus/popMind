@@ -230,6 +230,50 @@ export type ClipAiTestResult = {
   errorMessage?: string
 }
 
+// ---- sync ----
+
+export type ClipSyncErrorCode =
+  | 'not_configured'
+  | 'invalid_key'
+  | 'account_required'
+  | 'auth_failed'
+  | 'bucket_missing'
+  | 'wrong_key'
+  | 'network'
+  | 'busy'
+  | 'unknown'
+
+export type ClipSyncSummary = {
+  ok: boolean
+  /** New items added on this device. */
+  received: number
+  uploaded: number
+  /** Pinboards created or extended on this device. */
+  pinboardsChanged: number
+  /** Items skipped on upload (too large / unreadable). */
+  skipped: number
+  errorCode?: ClipSyncErrorCode
+  errorMessage?: string
+  finishedAt: number
+  tookMs: number
+}
+
+export type ClipSyncSetupResult = {
+  ok: boolean
+  status: ClipSyncStatus
+  errorCode?: ClipSyncErrorCode
+  errorMessage?: string
+}
+
+export type ClipSyncStatus = {
+  configured: boolean
+  running: boolean
+  bucket?: string
+  /** First characters of the sync key, for display. */
+  keyHint?: string
+  lastSync?: ClipSyncSummary
+}
+
 // ---- settings (persisted inside CapabilitySettings.clipboard) ----
 
 export const clipRetentionOptions = ['1d', '1w', '1m', '1y', 'forever'] as const
@@ -240,6 +284,10 @@ export type ClipAiTrigger = 'manual' | 'auto'
 /** Theme of the clipboard panel only; `app` follows the app theme (Settings → General). */
 export const clipAppearances = ['dark', 'light', 'app'] as const
 export type ClipAppearance = (typeof clipAppearances)[number]
+
+/** How much existing history the first sync of a device uploads (pinboard items are always uploaded). */
+export const clipSyncRanges = ['7d', '30d', 'all', 'none'] as const
+export type ClipSyncRange = (typeof clipSyncRanges)[number]
 
 export type ClipboardSettings = {
   /** Master switch for capturing. */
@@ -275,6 +323,12 @@ export type ClipboardSettings = {
     trigger: ClipAiTrigger
     /** Monthly usage counter, reset when month changes. */
     usage: { month: string; inputTokens: number }
+  }
+  /** Cloudflare R2 sync (docs/clipboard-sync.md). Credentials live in the keychain-encrypted sync state, not here. */
+  sync: {
+    range: ClipSyncRange
+    /** Images bigger than this (PNG bytes) are not uploaded. */
+    maxImageMb: number
   }
 }
 
@@ -312,6 +366,10 @@ export const defaultClipboardSettings: ClipboardSettings = {
     trigger: 'manual',
     usage: { month: '', inputTokens: 0 },
   },
+  sync: {
+    range: '7d',
+    maxImageMb: 10,
+  },
 }
 
 export type ClipboardSettingsPatch = {
@@ -327,6 +385,7 @@ export type ClipboardSettingsPatch = {
   privacy?: Partial<ClipboardSettings['privacy']>
   ocr?: Partial<ClipboardSettings['ocr']>
   ai?: Partial<Omit<ClipboardSettings['ai'], 'usage'>> & { usage?: ClipboardSettings['ai']['usage'] }
+  sync?: Partial<ClipboardSettings['sync']>
 }
 
 export const mergeClipboardSettings = (
@@ -346,6 +405,7 @@ export const mergeClipboardSettings = (
       ...patch?.ai,
       usage: patch?.ai?.usage ?? base.ai?.usage ?? defaultClipboardSettings.ai.usage,
     },
+    sync: { ...defaultClipboardSettings.sync, ...base.sync, ...patch?.sync },
   }
 }
 

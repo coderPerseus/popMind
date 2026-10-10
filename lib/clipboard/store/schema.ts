@@ -101,5 +101,34 @@ CREATE TABLE IF NOT EXISTS enrich_jobs (
 );
 `
 
+/**
+ * Cloudflare R2 sync bookkeeping (docs/clipboard-sync.md). Remote keys are keyed hashes, never content.
+ * Additive tables created on every open instead of a user_version bump, so older app versions sharing the same
+ * database keep working (they refuse databases with a newer user_version).
+ * - sync_items: local items that exist remotely (uploaded here, or received from another device)
+ * - sync_remote_keys: remote item objects this device has already seen (downloaded or skipped)
+ * - sync_pinboard_members: remote pinboard memberships already applied here, so local removals stick
+ */
+export const CLIP_SYNC_SCHEMA = `
+CREATE TABLE IF NOT EXISTS sync_items (
+  item_id    TEXT PRIMARY KEY REFERENCES clip_items(id) ON DELETE CASCADE,
+  remote_key TEXT NOT NULL,
+  origin     TEXT NOT NULL,
+  synced_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sync_items_key ON sync_items(remote_key);
+
+CREATE TABLE IF NOT EXISTS sync_remote_keys (
+  remote_key TEXT PRIMARY KEY,
+  seen_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sync_pinboard_members (
+  pinboard_key TEXT NOT NULL,
+  item_key     TEXT NOT NULL,
+  PRIMARY KEY (pinboard_key, item_key)
+);
+`
+
 /** Max characters of body text copied into clip_search / used by LIKE fallback. */
 export const CLIP_SEARCH_BODY_MAX_CHARS = 20_000

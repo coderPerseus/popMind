@@ -73,6 +73,10 @@ const clipboardSettingsSchema = z.object({
     trigger: z.enum(['manual', 'auto']),
     usage: z.object({ month: z.string(), inputTokens: z.number() }),
   }),
+  sync: z.object({
+    range: z.enum(['7d', '30d', 'all', 'none']),
+    maxImageMb: z.number().min(1),
+  }),
 })
 
 const clipboardSettingsPatchSchema = clipboardSettingsSchema
@@ -80,6 +84,7 @@ const clipboardSettingsPatchSchema = clipboardSettingsSchema
     privacy: clipboardSettingsSchema.shape.privacy.partial(),
     ocr: clipboardSettingsSchema.shape.ocr.partial(),
     ai: clipboardSettingsSchema.shape.ai.partial(),
+    sync: clipboardSettingsSchema.shape.sync.partial(),
   })
   .partial()
 

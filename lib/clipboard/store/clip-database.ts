@@ -24,6 +24,11 @@ import type {
   ClipEnrichTask,
   ClipIngestOutcome,
   ClipIngestRecord,
+  ClipSyncImportResult,
+  ClipSyncIncoming,
+  ClipSyncLocalPinboard,
+  ClipSyncOutgoing,
+  ClipSyncRemotePinboard,
   ClipWritePayload,
 } from '@/lib/clipboard/store/contract'
 import { CLIP_SEARCH_BODY_MAX_CHARS } from '@/lib/clipboard/store/schema'
@@ -1185,6 +1190,248 @@ export class ClipDatabase {
       | { id: string }
       | undefined
     return row ? (this.getPinboard(row.id) as Pinboard) : this.createPinboard(name, color)
+  }
+
+  // ---- sync (docs/clipboard-sync.md) ----
+
+  syncPendingUploadIds(since: number): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT i.id FROM clip_items i
+         WHERE i.deleted_at IS NULL AND i.kind != 'file'
+           AND NOT EXISTS (SELECT 1 FROM sync_items s WHERE s.item_id = i.id)
+           AND (i.last_copied_at >= ? OR EXISTS (SELECT 1 FROM pinboard_items pi WHERE pi.item_id = i.id))
+         ORDER BY i.last_copied_at ASC`
+      )
+      .all(since) as Array<{ id: string }>
+    return rows.map((row) => row.id)
+  }
+
+  syncLoadOutgoing(ids: string[]): ClipSyncOutgoing[] {
+    const outgoing: ClipSyncOutgoing[] = []
+    for (const id of ids) {
+      const row = this.db
+        .prepare(
+          `SELECT i.*, a.name AS app_name FROM clip_items i LEFT JOIN apps a ON a.bundle_id = i.source_bundle_id
+           WHERE i.id = ? AND i.deleted_at IS NULL`
+        )
+        .get(id) as Row | undefined
+      if (!row) {
+        continue
+      }
+
+      const reps = this.db
+        .prepare(
+          `SELECT item_index, uti, data, blob_hash FROM clip_representations
+           WHERE item_id = ? AND uti != 'public.file-url' ORDER BY item_index, rowid`
+        )
+        .all(id) as Array<{ item_index: number; uti: string; data: Uint8Array | null; blob_hash: string | null }>
+      const representations = reps.flatMap((rep) => {
+        if (IMAGE_UTIS.has(rep.uti)) {
+          return []
+        }
+        const data = rep.data ? toBuffer(rep.data) : rep.blob_hash ? this.blobs.read(rep.blob_hash) : null
+        return data ? [{ itemIndex: rep.item_index, uti: rep.uti, data }] : []
+      })
+
+      const imageHash = asString(row['image_blob_hash'])
+      const bundleId = asString(row['source_bundle_id'])
+      outgoing.push({
+        id,
+        fingerprint: row['fingerprint'] as string,
+        kind: row['kind'] as ClipKind,
+        subKind: (asString(row['sub_kind']) as ClipSubKind | undefined) ?? undefined,
+        isRich: row['is_rich'] === 1,
+        customTitle: asString(row['custom_title']) || undefined,
+        plainText: asString(row['plain_text']),
+        html: asString(row['html']),
+        url: asString(row['url']),
+        colorValue: asString(row['color_value']),
+        imageWidth: asNumber(row['image_width']),
+        imageHeight: asNumber(row['image_height']),
+        imageHash,
+        imagePath: imageHash ? (this.blobs.find(imageHash) ?? undefined) : undefined,
+        source: bundleId ? { bundleId, name: asString(row['app_name']) ?? bundleId } : undefined,
+        representations,
+      })
+    }
+    return outgoing
+  }
+
+  /** `skipped` items (too large) are recorded too so they are not retried on every sync. */
+  syncMarkUploaded(entries: Array<{ itemId: string; remoteKey: string }>, origin: 'local' | 'skipped' = 'local') {
+    const timestamp = this.now()
+    this.transaction(() => {
+      const insert = this.db.prepare(
+        `INSERT OR IGNORE INTO sync_items (item_id, remote_key, origin, synced_at)
+         SELECT id, ?, ?, ? FROM clip_items WHERE id = ?`
+      )
+      for (const entry of entries) {
+        insert.run(entry.remoteKey, origin, timestamp, entry.itemId)
+      }
+    })
+  }
+
+  /** Forgets all sync bookkeeping (used when this device switches to a different bucket / sync key). */
+  syncReset() {
+    this.transaction(() => {
+      this.db.exec('DELETE FROM sync_items; DELETE FROM sync_remote_keys; DELETE FROM sync_pinboard_members;')
+    })
+  }
+
+  syncKnownKeys(): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT remote_key FROM sync_items WHERE origin != 'skipped' UNION SELECT remote_key FROM sync_remote_keys`
+      )
+      .all() as Array<{ remote_key: string }>
+    return rows.map((row) => row.remote_key)
+  }
+
+  syncMarkSeen(remoteKeys: string[]) {
+    const timestamp = this.now()
+    this.transaction(() => {
+      const insert = this.db.prepare('INSERT OR IGNORE INTO sync_remote_keys (remote_key, seen_at) VALUES (?, ?)')
+      remoteKeys.forEach((key) => insert.run(key, timestamp))
+    })
+  }
+
+  /** Inserts received items as new content; content that already exists here (even deleted) is only linked. */
+  syncImportItems(items: ClipSyncIncoming[]): ClipSyncImportResult {
+    const result: ClipSyncImportResult = { added: [], linked: 0 }
+    const timestamp = this.now()
+
+    for (const incoming of items) {
+      const existing = this.db
+        .prepare('SELECT id FROM clip_items WHERE fingerprint = ?')
+        .get(incoming.record.fingerprint) as { id: string } | undefined
+
+      let itemId: string
+      let origin: 'local' | 'remote'
+      if (existing) {
+        itemId = existing.id
+        origin = 'local'
+        result.linked += 1
+      } else {
+        itemId = this.insertNew(incoming.record).id
+        origin = 'remote'
+        result.added.push(itemId)
+        if (incoming.customTitle?.trim()) {
+          this.db
+            .prepare('UPDATE clip_items SET custom_title = ? WHERE id = ?')
+            .run(incoming.customTitle.trim(), itemId)
+          this.syncSearchById(itemId)
+        }
+      }
+
+      this.transaction(() => {
+        this.db
+          .prepare('INSERT OR IGNORE INTO sync_items (item_id, remote_key, origin, synced_at) VALUES (?, ?, ?, ?)')
+          .run(itemId, incoming.remoteKey, origin, timestamp)
+        this.db
+          .prepare('INSERT OR IGNORE INTO sync_remote_keys (remote_key, seen_at) VALUES (?, ?)')
+          .run(incoming.remoteKey, timestamp)
+      })
+    }
+
+    return result
+  }
+
+  syncLocalPinboards(): ClipSyncLocalPinboard[] {
+    const pinboards = this.db
+      .prepare('SELECT id, name, color FROM pinboards ORDER BY sort_order, created_at')
+      .all() as Array<{
+      id: string
+      name: string
+      color: string
+    }>
+    return pinboards.map((pinboard) => {
+      const keys = this.db
+        .prepare(
+          `SELECT s.remote_key FROM pinboard_items pi
+           JOIN sync_items s ON s.item_id = pi.item_id AND s.origin != 'skipped'
+           JOIN clip_items ci ON ci.id = pi.item_id AND ci.deleted_at IS NULL
+           WHERE pi.pinboard_id = ? ORDER BY pi.sort_order`
+        )
+        .all(pinboard.id) as Array<{ remote_key: string }>
+      return { ...pinboard, itemKeys: keys.map((row) => row.remote_key) }
+    })
+  }
+
+  syncApplyPinboard(remote: ClipSyncRemotePinboard): { created: boolean; added: number } {
+    const applied = new Set(
+      (
+        this.db
+          .prepare('SELECT item_key FROM sync_pinboard_members WHERE pinboard_key = ?')
+          .all(remote.pinboardKey) as Array<{
+          item_key: string
+        }>
+      ).map((row) => row.item_key)
+    )
+
+    // Map new member keys to local items; keys whose item is not here yet are retried on the next sync.
+    const resolved: Array<{ key: string; itemId: string }> = []
+    for (const key of remote.itemKeys) {
+      if (applied.has(key)) {
+        continue
+      }
+      const row = this.db
+        .prepare(
+          `SELECT s.item_id FROM sync_items s JOIN clip_items ci ON ci.id = s.item_id
+           WHERE s.remote_key = ? AND s.origin != 'skipped' AND ci.deleted_at IS NULL LIMIT 1`
+        )
+        .get(key) as { item_id: string } | undefined
+      if (row) {
+        resolved.push({ key, itemId: row.item_id })
+      }
+    }
+
+    if (resolved.length === 0) {
+      return { created: false, added: 0 }
+    }
+
+    let created = false
+    let added = 0
+    this.transaction(() => {
+      const found = this.db.prepare('SELECT id FROM pinboards WHERE name = ? LIMIT 1').get(remote.name) as
+        | { id: string }
+        | undefined
+      const pinboardId = found?.id ?? this.createPinboard(remote.name, remote.color).id
+      created = !found
+
+      const before = this.countPinboardItems(pinboardId)
+      // Remote order is front-first; addToPinboard puts its argument list at the front in order.
+      this.addToPinboard(
+        pinboardId,
+        resolved.map((entry) => entry.itemId)
+      )
+      added = this.countPinboardItems(pinboardId) - before
+      this.syncMarkPinboardMembers(
+        remote.pinboardKey,
+        resolved.map((entry) => entry.key)
+      )
+    })
+
+    return { created, added }
+  }
+
+  private countPinboardItems(pinboardId: string) {
+    return Number(
+      (
+        this.db.prepare('SELECT COUNT(*) AS count FROM pinboard_items WHERE pinboard_id = ?').get(pinboardId) as {
+          count: number
+        }
+      ).count
+    )
+  }
+
+  syncMarkPinboardMembers(pinboardKey: string, itemKeys: string[]) {
+    this.transaction(() => {
+      const insert = this.db.prepare(
+        'INSERT OR IGNORE INTO sync_pinboard_members (pinboard_key, item_key) VALUES (?, ?)'
+      )
+      itemKeys.forEach((key) => insert.run(pinboardKey, key))
+    })
   }
 
   // ---- apps ----

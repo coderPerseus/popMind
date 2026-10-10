@@ -30,16 +30,22 @@ import type { AppLanguage } from '@/lib/capability/types'
 import { clipT } from '@/lib/clipboard/i18n'
 import {
   clipRetentionOptions,
+  clipSyncRanges,
   type ClipAiTrigger,
   type ClipRetention,
   type ClipSourceApp,
   type ClipStats,
+  type ClipSyncRange,
+  type ClipSyncSetupResult,
+  type ClipSyncStatus,
   type ClipboardSettings,
   type ClipboardSettingsPatch,
 } from '@/lib/clipboard/types'
 import { ArrowUpRight, Eye, EyeOff, Monitor, Moon, Plus, RefreshCw, Sun, Trash2, X } from 'lucide-react'
 
-type ClipboardTab = 'general' | 'privacy' | 'search' | 'data'
+type ClipboardTab = 'general' | 'privacy' | 'search' | 'sync' | 'data'
+
+const clipboardTabs: readonly ClipboardTab[] = ['general', 'privacy', 'search', 'sync', 'data']
 
 type Props = {
   settings: ClipboardSettings
@@ -47,9 +53,12 @@ type Props = {
   /** Applies the patch locally at once and persists it; `debounce` delays saving (text inputs). */
   onPatch: (patch: ClipboardSettingsPatch, debounce?: boolean) => void
   openUrl: (url: string) => void
+  /** Deep link from another window (e.g. the panel's sync button). */
+  tabRequest?: { tab: string; nonce: number } | null
 }
 
 const JEV_DOCS_URL = 'https://docs.typesafe.ai/introduction'
+const R2_TOKENS_URL = 'https://dash.cloudflare.com/?to=/:account/r2/api-tokens'
 /** USD per one billion input tokens. */
 const JEV_PRICE_PER_BILLION_TOKENS = 42
 const BUNDLE_ID_PATTERN = /^[A-Za-z0-9-]+(\.[A-Za-z0-9_-]+)+$/
@@ -169,9 +178,15 @@ function AppIcon({ app, size = 16 }: { app?: ClipSourceApp; size?: number }) {
   )
 }
 
-export function ClipboardSettingsSection({ settings, language, onPatch, openUrl }: Props) {
+export function ClipboardSettingsSection({ settings, language, onPatch, openUrl, tabRequest }: Props) {
   const clipboard = useConveyor('clipboard')
   const [tab, setTab] = useState<ClipboardTab>('general')
+
+  useEffect(() => {
+    if (tabRequest && (clipboardTabs as readonly string[]).includes(tabRequest.tab)) {
+      setTab(tabRequest.tab as ClipboardTab)
+    }
+  }, [tabRequest])
   const c = useCallback(
     (key: string, params?: Record<string, string | number>) => clipT(language, `clip.settings.${key}`, params),
     [language]
@@ -188,6 +203,7 @@ export function ClipboardSettingsSection({ settings, language, onPatch, openUrl 
             { value: 'general', label: c('tab.general') },
             { value: 'privacy', label: c('tab.privacy') },
             { value: 'search', label: c('tab.search') },
+            { value: 'sync', label: c('tab.sync') },
             { value: 'data', label: c('tab.data') },
           ]}
         />
@@ -199,6 +215,9 @@ export function ClipboardSettingsSection({ settings, language, onPatch, openUrl 
       ) : null}
       {tab === 'search' ? (
         <SearchTab settings={settings} c={c} onPatch={onPatch} openUrl={openUrl} aiTest={clipboard.aiTest} />
+      ) : null}
+      {tab === 'sync' ? (
+        <SyncTab settings={settings} language={language} c={c} onPatch={onPatch} openUrl={openUrl} />
       ) : null}
       {tab === 'data' ? <DataTab c={c} stats={clipboard.stats} clearHistory={clipboard.clearHistory} /> : null}
     </>
@@ -792,6 +811,324 @@ function SearchTab({
           <span className="st-value">
             {c('ai.usage.value', { tokens: inputTokens.toLocaleString(), cost: formatCost(inputTokens) })}
           </span>
+        </SettingsRow>
+      </SettingsGroup>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------------------------
+
+function SyncTab({
+  settings,
+  language,
+  c,
+  onPatch,
+  openUrl,
+}: {
+  settings: ClipboardSettings
+  language: AppLanguage
+  c: Translate
+  onPatch: Props['onPatch']
+  openUrl: (url: string) => void
+}) {
+  const clipboard = useConveyor('clipboard')
+  const [status, setStatus] = useState<ClipSyncStatus | null>(null)
+
+  const refresh = useCallback(async () => {
+    try {
+      setStatus(await clipboard.syncStatus())
+    } catch {
+      // Keep the last known status.
+    }
+  }, [clipboard])
+
+  useEffect(() => {
+    void refresh()
+    const handleVisibility = () => {
+      if (!document.hidden) void refresh()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [refresh])
+
+  // Keep the status fresh while a sync started elsewhere (panel) is running.
+  useEffect(() => {
+    if (!status?.running) return
+    const timer = window.setInterval(() => void refresh(), 1000)
+    return () => window.clearInterval(timer)
+  }, [refresh, status?.running])
+
+  if (!status) return null
+
+  const errorText = (code?: string) => clipT(language, `clip.panel.sync.error.${code ?? 'unknown'}`)
+
+  return status.configured ? (
+    <SyncConnected
+      settings={settings}
+      language={language}
+      status={status}
+      c={c}
+      onPatch={onPatch}
+      errorText={errorText}
+      onStatus={setStatus}
+    />
+  ) : (
+    <SyncSetup c={c} language={language} openUrl={openUrl} errorText={errorText} onStatus={setStatus} />
+  )
+}
+
+function SyncSetup({
+  c,
+  language,
+  openUrl,
+  errorText,
+  onStatus,
+}: {
+  c: Translate
+  language: AppLanguage
+  openUrl: (url: string) => void
+  errorText: (code?: string) => string
+  onStatus: (status: ClipSyncStatus) => void
+}) {
+  const clipboard = useConveyor('clipboard')
+  const [syncKey, setSyncKey] = useState('')
+  const [token, setToken] = useState('')
+  const [accountId, setAccountId] = useState('')
+  const [busy, setBusy] = useState<'' | 'connect' | 'create'>('')
+  /** Error shown under the group whose action failed. */
+  const [message, setMessage] = useState<{ source: 'connect' | 'create'; text: string } | null>(null)
+  const [promptCopied, setPromptCopied] = useState(false)
+
+  const apply = (source: 'connect' | 'create', result: ClipSyncSetupResult) => {
+    if (result.ok) {
+      onStatus(result.status)
+      return
+    }
+    setMessage({ source, text: errorText(result.errorCode) })
+  }
+
+  const run = async (kind: 'connect' | 'create') => {
+    setBusy(kind)
+    setMessage(null)
+    try {
+      apply(
+        kind,
+        kind === 'connect'
+          ? await clipboard.syncConnect(syncKey.trim())
+          : await clipboard.syncSetupWithToken(token.trim(), accountId.trim() || undefined)
+      )
+    } catch {
+      setMessage({ source: kind, text: errorText('unknown') })
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(await clipboard.syncAgentPrompt(language))
+      setPromptCopied(true)
+      window.setTimeout(() => setPromptCopied(false), 2000)
+    } catch {
+      setMessage({ source: 'create', text: errorText('unknown') })
+    }
+  }
+
+  return (
+    <>
+      <SettingsGroup
+        title={c('group.syncNew')}
+        description={c('sync.intro')}
+        footer={message?.source === 'create' ? <InlineMessage tone="error">{message.text}</InlineMessage> : undefined}
+      >
+        <SettingsRow label={c('sync.agent')} description={c('sync.agentDesc')}>
+          <Button size="sm" variant="outline" onClick={() => void copyPrompt()}>
+            {promptCopied ? c('sync.promptCopied') : c('sync.copyPrompt')}
+          </Button>
+        </SettingsRow>
+        <SettingsRow label={c('sync.manual')} description={c('sync.manualDesc')}>
+          <Button size="sm" variant="link" onClick={() => openUrl(R2_TOKENS_URL)}>
+            {c('sync.openCloudflare')}
+            <ArrowUpRight />
+          </Button>
+        </SettingsRow>
+        <SettingsRow label={c('sync.token')}>
+          <Input
+            className="st-input"
+            type="password"
+            value={token}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={c('sync.tokenPlaceholder')}
+            aria-label={c('sync.token')}
+            onChange={(event) => setToken(event.target.value)}
+          />
+        </SettingsRow>
+        <SettingsRow label={c('sync.accountId')}>
+          <Input
+            className="st-input st-mono"
+            value={accountId}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={c('sync.accountIdPlaceholder')}
+            aria-label={c('sync.accountId')}
+            onChange={(event) => setAccountId(event.target.value)}
+          />
+          <Button size="sm" disabled={!token.trim() || Boolean(busy)} onClick={() => void run('create')}>
+            {busy === 'create' ? c('sync.creating') : c('sync.create')}
+          </Button>
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup
+        title={c('group.syncConnect')}
+        footer={message?.source === 'connect' ? <InlineMessage tone="error">{message.text}</InlineMessage> : undefined}
+      >
+        <SettingsRow label={c('sync.key')} description={c('sync.keyDesc')}>
+          <Input
+            className="st-input st-mono"
+            type="password"
+            value={syncKey}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={c('sync.keyPlaceholder')}
+            aria-label={c('sync.key')}
+            onChange={(event) => setSyncKey(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && syncKey.trim() && !busy) void run('connect')
+            }}
+          />
+          <Button size="sm" disabled={!syncKey.trim() || Boolean(busy)} onClick={() => void run('connect')}>
+            {busy === 'connect' ? c('sync.connecting') : c('sync.connect')}
+          </Button>
+        </SettingsRow>
+      </SettingsGroup>
+    </>
+  )
+}
+
+function SyncConnected({
+  settings,
+  language,
+  status,
+  c,
+  onPatch,
+  errorText,
+  onStatus,
+}: {
+  settings: ClipboardSettings
+  language: AppLanguage
+  status: ClipSyncStatus
+  c: Translate
+  onPatch: Props['onPatch']
+  errorText: (code?: string) => string
+  onStatus: (status: ClipSyncStatus) => void
+}) {
+  const clipboard = useConveyor('clipboard')
+  const [keyCopied, setKeyCopied] = useState(false)
+  const last = status.lastSync
+
+  const lastLabel = useMemo(() => {
+    if (!last) return c('sync.never')
+    const time = new Intl.DateTimeFormat(language, {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(last.finishedAt)
+    return last.ok
+      ? c('sync.lastOk', { time, received: last.received, uploaded: last.uploaded })
+      : c('sync.lastFailed', { time, reason: errorText(last.errorCode) })
+  }, [c, errorText, language, last])
+
+  const runNow = async () => {
+    onStatus({ ...status, running: true })
+    try {
+      await clipboard.syncRun()
+    } finally {
+      onStatus(await clipboard.syncStatus())
+    }
+  }
+
+  const copyKey = async () => {
+    const result = await clipboard.syncCopyKey()
+    if (!result.ok) return
+    setKeyCopied(true)
+    window.setTimeout(() => setKeyCopied(false), 2500)
+  }
+
+  return (
+    <>
+      <SettingsGroup title={c('group.syncStatus')} description={c('sync.intro')}>
+        <SettingsRow label={c('sync.status')}>
+          <StatusText tone="success">{c('sync.statusConnected', { bucket: status.bucket ?? '' })}</StatusText>
+        </SettingsRow>
+        <SettingsRow label={c('sync.lastSync')}>
+          <StatusText tone={last && !last.ok ? 'warning' : 'neutral'}>{lastLabel}</StatusText>
+          <Button size="sm" variant="outline" disabled={status.running} onClick={() => void runNow()}>
+            <RefreshCw className={status.running ? 'st-spin' : undefined} />
+            {status.running ? c('sync.running') : c('sync.runNow')}
+          </Button>
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup title={c('group.syncRange')} description={c('sync.rangeDesc')}>
+        <SettingsRow label={c('sync.range')} description={c('sync.rangeHint')}>
+          <Select
+            className="st-select"
+            value={settings.sync.range}
+            onChange={(event) => onPatch({ sync: { range: event.target.value as ClipSyncRange } })}
+          >
+            {clipSyncRanges.map((range) => (
+              <option key={range} value={range}>
+                {c(`sync.range.${range}`)}
+              </option>
+            ))}
+          </Select>
+        </SettingsRow>
+        <SettingsRow label={c('sync.maxImage')} description={c('sync.maxImageDesc')}>
+          <DraftInput
+            kind="number"
+            className="st-input is-number"
+            aria-label={c('sync.maxImage')}
+            value={settings.sync.maxImageMb}
+            min={1}
+            onCommit={(value) => onPatch({ sync: { maxImageMb: Math.max(1, Number(value)) } })}
+          />
+          <span className="st-value">{c('unit.mb')}</span>
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup title={c('group.syncDevices')}>
+        <SettingsRow label={c('sync.shareKey')} description={c('sync.shareKeyDesc')}>
+          <span className="st-value st-mono">{keyCopied ? c('sync.keyCopied') : status.keyHint}</span>
+          <Button size="sm" variant="outline" onClick={() => void copyKey()}>
+            {c('sync.copyKey')}
+          </Button>
+        </SettingsRow>
+        <SettingsRow label={c('sync.disconnect')} description={c('sync.disconnectDesc')}>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                {c('sync.disconnect')}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent size="sm">
+              <AlertDialogHeader>
+                <AlertDialogTitle>{c('sync.disconnectConfirmTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{c('sync.disconnectConfirmDesc')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{c('sync.cancel')}</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => void clipboard.syncDisconnect().then(onStatus)}>
+                  {c('sync.disconnect')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </SettingsRow>
       </SettingsGroup>
     </>

@@ -1,6 +1,6 @@
 // Schema migrations keyed by PRAGMA user_version. v1 is the contract schema (store/schema.ts).
 import type { DatabaseSync } from 'node:sqlite'
-import { CLIP_SCHEMA_V1, CLIP_SCHEMA_VERSION } from '@/lib/clipboard/store/schema'
+import { CLIP_SCHEMA_V1, CLIP_SCHEMA_VERSION, CLIP_SYNC_SCHEMA } from '@/lib/clipboard/store/schema'
 
 type Migration = { version: number; up: (db: DatabaseSync) => void }
 
@@ -34,5 +34,6 @@ export const migrateClipDatabase = (db: DatabaseSync): number[] => {
     }
   }
 
+  db.exec(CLIP_SYNC_SCHEMA)
   return applied
 }

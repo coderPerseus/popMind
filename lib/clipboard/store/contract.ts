@@ -96,6 +96,55 @@ export type ClipEnrichTask = {
 
 export type ClipAssetKind = 'thumb' | 'image' | 'app-icon'
 
+/** A local item to upload (docs/clipboard-sync.md §4). Image bytes are read from `imagePath` by the engine. */
+export type ClipSyncOutgoing = {
+  id: string
+  fingerprint: string
+  kind: ClipKind
+  subKind?: ClipSubKind
+  isRich: boolean
+  customTitle?: string
+  plainText?: string
+  html?: string
+  url?: string
+  colorValue?: string
+  imageWidth?: number
+  imageHeight?: number
+  imageHash?: string
+  imagePath?: string
+  source?: { bundleId: string; name: string }
+  /** Pasteboard representations except images (sent as `imagePath`) and file URLs. */
+  representations: ClipIngestRepresentation[]
+}
+
+export type ClipSyncIncoming = {
+  remoteKey: string
+  record: ClipIngestRecord
+  customTitle?: string
+}
+
+export type ClipSyncImportResult = {
+  /** Newly inserted local item ids. */
+  added: string[]
+  /** Remote items whose content already existed here (only linked). */
+  linked: number
+}
+
+export type ClipSyncLocalPinboard = {
+  id: string
+  name: string
+  color: string
+  /** Remote keys of the members that exist remotely. */
+  itemKeys: string[]
+}
+
+export type ClipSyncRemotePinboard = {
+  pinboardKey: string
+  name: string
+  color: string
+  itemKeys: string[]
+}
+
 export interface ClipStore {
   init(): Promise<void>
   close(): Promise<void>
@@ -148,6 +197,21 @@ export interface ClipStore {
 
   // assets for the popmind-clip:// protocol (absolute file paths)
   resolveAsset(kind: ClipAssetKind, id: string): Promise<string | null>
+
+  // sync (docs/clipboard-sync.md)
+  /** Unsynced, non-file, non-deleted items copied at/after `since` or in any pinboard; oldest first. */
+  syncPendingUploadIds(since: number): Promise<string[]>
+  syncLoadOutgoing(ids: string[]): Promise<ClipSyncOutgoing[]>
+  syncMarkUploaded(entries: Array<{ itemId: string; remoteKey: string }>, origin?: 'local' | 'skipped'): Promise<void>
+  syncReset(): Promise<void>
+  /** Remote item keys this device already has or has already looked at. */
+  syncKnownKeys(): Promise<string[]>
+  syncMarkSeen(remoteKeys: string[]): Promise<void>
+  syncImportItems(items: ClipSyncIncoming[]): Promise<ClipSyncImportResult>
+  syncLocalPinboards(): Promise<ClipSyncLocalPinboard[]>
+  /** Adds memberships not applied before; returns whether a pinboard was created and how many items were added. */
+  syncApplyPinboard(pinboard: ClipSyncRemotePinboard): Promise<{ created: boolean; added: number }>
+  syncMarkPinboardMembers(pinboardKey: string, itemKeys: string[]): Promise<void>
 
   // maintenance
   runRetention(settings: Pick<ClipboardSettings, 'retention' | 'maxStorageMb'>): Promise<{ deletedCount: number }>

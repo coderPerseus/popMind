@@ -10,6 +10,9 @@ import type {
   ClipPasteStackState,
   ClipSourceApp,
   ClipStats,
+  ClipSyncSetupResult,
+  ClipSyncStatus,
+  ClipSyncSummary,
   ClipWriteResult,
   Pinboard,
 } from '@/lib/clipboard/types'
@@ -24,6 +27,8 @@ export const ClipboardChannel = {
   PanelRequestHide: 'clip:panel-request-hide',
   /** ClipPasteStackState */
   PasteStack: 'clip:paste-stack',
+  /** ClipSyncStatus — sync started / finished / configured. */
+  SyncStatus: 'clip:sync-status',
 } as const
 
 const clipKindSchema = z.enum(['text', 'link', 'image', 'file', 'color'])
@@ -118,6 +123,21 @@ export const clipIpcSchema = {
     return: z.object({ accessibility: z.boolean(), secureInput: z.boolean() }),
   },
   'clip-open-accessibility-settings': { args: z.tuple([]), return: okSchema },
+  // ---- sync (docs/clipboard-sync.md) ----
+  'clip-sync-status': { args: z.tuple([]), return: z.custom<ClipSyncStatus>() },
+  /** Manual sync; resolves when finished. */
+  'clip-sync-run': { args: z.tuple([]), return: z.custom<ClipSyncSummary>() },
+  /** Connect with a pasted `pmsync1.` sync key. */
+  'clip-sync-connect': { args: z.tuple([z.string().min(1)]), return: z.custom<ClipSyncSetupResult>() },
+  /** First-device manual setup: R2 API token value + optional account id. */
+  'clip-sync-setup-token': {
+    args: z.tuple([z.string().min(1), z.string().optional()]),
+    return: z.custom<ClipSyncSetupResult>(),
+  },
+  'clip-sync-disconnect': { args: z.tuple([]), return: z.custom<ClipSyncStatus>() },
+  /** Copies the sync key (kept out of clipboard history). */
+  'clip-sync-copy-key': { args: z.tuple([]), return: okSchema },
+  'clip-sync-agent-prompt': { args: z.tuple([z.enum(['zh-CN', 'en'])]), return: z.string() },
 } as const
 
 export const clipboardIpcSchema = clipIpcSchema

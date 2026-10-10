@@ -5,6 +5,7 @@ import { clipboardNative } from '@/lib/clipboard/native-bridge'
 import { runAiSearch, testJevConnection } from '@/lib/clipboard/search/ai'
 import type { ClipAiSearchPort } from '@/lib/clipboard/search/ai/contract'
 import { clipStore } from '@/lib/clipboard/store'
+import { clipboardSync } from '@/lib/clipboard/sync'
 import { clipboardPanel } from '@/lib/clipboard/window/clipboard-panel-window'
 import { pasteService, pasteStack, writeClipItems } from '@/lib/clipboard/write'
 import { getClipboardSettings, recordClipboardAiUsage } from '@/lib/clipboard/write/settings'
@@ -316,4 +317,13 @@ export const registerClipboardHandlers = ({ whenReady }: ClipboardHandlerDeps) =
       return { ok: false }
     }
   })
+
+  // ---- sync ----
+  on('clip-sync-status', () => clipboardSync.status())
+  on('clip-sync-run', () => clipboardSync.run())
+  on('clip-sync-connect', (syncKey) => clipboardSync.connect(syncKey))
+  on('clip-sync-setup-token', (token, accountId) => clipboardSync.setupWithToken(token, accountId))
+  on('clip-sync-disconnect', () => clipboardSync.disconnect())
+  on('clip-sync-copy-key', () => ({ ok: clipboardSync.copySyncKey() }))
+  on('clip-sync-agent-prompt', (language) => clipboardSync.agentPrompt(language))
 }

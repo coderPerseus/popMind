@@ -51,6 +51,16 @@ export const CLIP_WORKER_METHODS = [
   'completeEnrichTask',
   'resolveAsset',
   'runRetention',
+  'syncPendingUploadIds',
+  'syncLoadOutgoing',
+  'syncMarkUploaded',
+  'syncReset',
+  'syncKnownKeys',
+  'syncMarkSeen',
+  'syncImportItems',
+  'syncLocalPinboards',
+  'syncApplyPinboard',
+  'syncMarkPinboardMembers',
 ] as const
 
 export type ClipWorkerMethod = (typeof CLIP_WORKER_METHODS)[number]
