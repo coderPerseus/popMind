@@ -449,8 +449,8 @@ function PrivacyTab({
         </SettingsRow>
         <SettingsRow label={c('secrets.title')} description={c('secrets.desc')}>
           <Switch
-            checked={privacy.detectSecrets}
-            onCheckedChange={(detectSecrets) => onPatch({ privacy: { detectSecrets } })}
+            checked={privacy.skipSecrets}
+            onCheckedChange={(skipSecrets) => onPatch({ privacy: { skipSecrets } })}
           />
         </SettingsRow>
       </SettingsGroup>

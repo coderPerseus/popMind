@@ -61,7 +61,7 @@ const clipboardSettingsSchema = z.object({
     ignoredBundleIds: z.array(z.string()),
     ignoreConfidential: z.boolean(),
     ignoreTransient: z.boolean(),
-    detectSecrets: z.boolean(),
+    skipSecrets: z.boolean(),
     ignoreRegexps: z.array(z.string()),
   }),
   ocr: z.object({ enabled: z.boolean() }),

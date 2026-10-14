@@ -68,8 +68,9 @@ export const clipSettingsMessages = {
     'clip.settings.confidential.desc': '跳过密码管理器等应用标记为“机密”的内容。',
     'clip.settings.transient.title': '忽略临时内容',
     'clip.settings.transient.desc': '跳过应用标记为“临时”或自动生成的剪贴板内容。',
-    'clip.settings.secrets.title': '检测密钥并跳过',
-    'clip.settings.secrets.desc': '识别到 API Key、私钥、访问令牌等内容时不保存。',
+    'clip.settings.secrets.title': '跳过含密钥的内容',
+    'clip.settings.secrets.desc':
+      '开启后，含 API Key、私钥、登录令牌的内容不保存；关闭时照常保存，并在列表中用橙色标出。',
     'clip.settings.group.regex': '自定义忽略规则',
     'clip.settings.regex.desc': '文字内容匹配任意一条正则表达式时不会被记录。',
     'clip.settings.regex.placeholder': '例如 ^\\d{6}$',
@@ -259,8 +260,9 @@ export const clipSettingsMessages = {
     'clip.settings.confidential.desc': 'Skip content that apps such as password managers mark as concealed.',
     'clip.settings.transient.title': 'Ignore transient content',
     'clip.settings.transient.desc': 'Skip clipboard content that apps mark as transient or auto-generated.',
-    'clip.settings.secrets.title': 'Detect and skip secrets',
-    'clip.settings.secrets.desc': 'API keys, private keys and access tokens are not saved.',
+    'clip.settings.secrets.title': 'Skip copies with secrets',
+    'clip.settings.secrets.desc':
+      'When on, copies containing API keys, private keys or login tokens are not saved. When off, they are saved and marked orange in the list.',
     'clip.settings.group.regex': 'Custom ignore rules',
     'clip.settings.regex.desc': 'Text that matches any of these regular expressions is not recorded.',
     'clip.settings.regex.placeholder': 'e.g. ^\\d{6}$',

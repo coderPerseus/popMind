@@ -225,6 +225,7 @@ const add = (draft: Draft) => {
     useCount: sequence % 3,
     pinboardIds: draft.pinboardIds ?? [],
     hasOcrText: Boolean(draft.hasOcrText),
+    hasSecret: false,
     thumbnailUrl: draft.thumbnailUrl,
   }
 

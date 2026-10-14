@@ -47,6 +47,7 @@ export const clipPanelMessages = {
     'clip.panel.card.files': '{count} 个文件',
     'clip.panel.card.moreFiles': '另外 {count} 个…',
     'clip.panel.card.ocrMatch': '文字匹配',
+    'clip.panel.card.secret': '可能包含密钥或令牌',
 
     // pinboards
     'clip.panel.tab.history': '剪贴板历史',
@@ -239,6 +240,7 @@ export const clipPanelMessages = {
     'clip.panel.card.files': '{count} files',
     'clip.panel.card.moreFiles': '{count} more…',
     'clip.panel.card.ocrMatch': 'Text match',
+    'clip.panel.card.secret': 'May contain a key or token',
 
     // pinboards
     'clip.panel.tab.history': 'Clipboard History',

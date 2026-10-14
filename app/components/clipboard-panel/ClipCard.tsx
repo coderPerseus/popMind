@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Globe, Smartphone } from 'lucide-react'
+import { Globe, KeyRound, Smartphone } from 'lucide-react'
 import type { AppLanguage } from '@/lib/capability/types'
 import type { ClipListItem } from '@/lib/clipboard/types'
 import { cn } from '@/lib/utils'
@@ -182,6 +182,7 @@ export const ClipCard = memo(function ClipCard({
       data-kind={item.kind}
       data-selected={selected || undefined}
       data-active={active || undefined}
+      data-secret={item.hasSecret || undefined}
       data-clip-id={item.id}
     >
       <div className="cp-card-head">
@@ -190,6 +191,11 @@ export const ClipCard = memo(function ClipCard({
             <CardKindLabel item={item} t={t} />
           </span>
           {item.isRemote ? <Smartphone className="cp-card-remote" /> : null}
+          {item.hasSecret ? (
+            <span className="cp-card-secret" title={t('clip.panel.card.secret')}>
+              <KeyRound />
+            </span>
+          ) : null}
           <span className="cp-card-time">
             {' · '}
             {formatRelativeTime(t, language, item.lastCopiedAt, now)}

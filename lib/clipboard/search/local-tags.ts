@@ -1,5 +1,6 @@
 // Regex based local tags (spec §6.2). Called for every copy, so: bounded input, precompiled patterns, conservative rules.
 // Every tag carries zh + en synonyms so that searching "电话" / "phone" finds a bare number.
+import { findSecretPattern } from '@/lib/clipboard/capture/privacy'
 import type { ClipLocalTagFn, ClipLocalTagResult } from '@/lib/clipboard/search/contract'
 import type { ClipSubKind } from '@/lib/clipboard/types'
 
@@ -22,6 +23,8 @@ const TAG_WORDS = {
   json: ['json'],
   markdown: ['markdown', 'md'],
   path: ['path', '路径', '文件路径'],
+  // `secret` is also read by the list (ClipListItem.hasSecret) to mark the card.
+  secret: ['secret', '密钥', '令牌', 'token'],
 } as const
 
 type TagName = keyof typeof TAG_WORDS
@@ -218,6 +221,7 @@ export const computeLocalTags: ClipLocalTagFn = (input: string): ClipLocalTagRes
   if (AMOUNT_SYMBOL.test(text) || AMOUNT_UNIT.test(text)) found.add('amount')
   if (DATE_PATTERNS.some((pattern) => pattern.test(text))) found.add('date')
   if (hasOtp(text)) found.add('otp')
+  if (findSecretPattern(raw)) found.add('secret')
   if (isPath || (!isJson && hasPath(text) && !URL_PATTERN.test(text))) found.add('path')
 
   const isCode = !isJson && looksLikeCode(text)

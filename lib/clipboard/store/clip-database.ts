@@ -84,7 +84,8 @@ const LIST_COLUMNS = `
   i.id, i.kind, i.sub_kind, i.is_rich, i.custom_title, i.preview_text, substr(i.plain_text, 1, 200) AS text_head,
   i.url, i.color_value, i.file_count, i.image_width, i.image_height, i.image_blob_hash, i.byte_size, i.char_count,
   i.source_bundle_id, i.is_remote, i.created_at, i.last_copied_at, i.last_used_at, i.copy_count, i.use_count,
-  (i.ocr_text IS NOT NULL AND length(i.ocr_text) > 0) AS has_ocr, a.name AS app_name, a.color AS app_color`
+  (i.ocr_text IS NOT NULL AND length(i.ocr_text) > 0) AS has_ocr,
+  instr(' ' || coalesce(i.tags, '') || ' ', ' secret ') > 0 AS has_secret, a.name AS app_name, a.color AS app_color`
 
 type Row = Record<string, unknown>
 
@@ -513,6 +514,7 @@ export class ClipDatabase {
       useCount: (row['use_count'] as number) ?? 0,
       pinboardIds,
       hasOcrText: row['has_ocr'] === 1,
+      hasSecret: row['has_secret'] === 1,
       thumbnailUrl: kind === 'image' ? `${CLIP_PROTOCOL}://thumb/${id}` : undefined,
     }
   }

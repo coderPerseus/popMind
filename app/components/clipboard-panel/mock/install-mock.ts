@@ -352,6 +352,7 @@ export function installMockConveyor() {
         useCount: 0,
         pinboardIds: [],
         hasOcrText: false,
+        hasSecret: false,
       }
       state.items.push({ item, extras: {} })
       emitChanged('added', [item.id])

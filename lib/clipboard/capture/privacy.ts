@@ -114,7 +114,7 @@ export const checkPrivacyContent = (settings: ClipboardSettings, texts: string[]
       }
     }
 
-    if (settings.privacy.detectSecrets) {
+    if (settings.privacy.skipSecrets) {
       const secret = findSecretPattern(text)
       if (secret) {
         return `secret:${secret}`

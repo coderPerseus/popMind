@@ -611,6 +611,32 @@ body,
   --cp-card-head-tint: color-mix(in srgb, var(--cp-ring) 26%, var(--cp-card-bg));
 }
 
+/* may contain a secret (API key, token …): orange hairline and header; the selection ring still wins */
+.cp-card[data-secret]:not([data-selected]) {
+  --cp-card-head-tint: color-mix(in srgb, var(--mac-orange) 14%, var(--cp-card-bg));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--mac-orange) 60%, transparent),
+    var(--cp-card-shadow);
+}
+
+.cp-card[data-secret]:not([data-selected]):hover {
+  --cp-card-head-tint: color-mix(in srgb, var(--mac-orange) 20%, var(--cp-card-bg));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--mac-orange) 70%, transparent),
+    0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.dark .cp-card[data-secret]:not([data-selected]) {
+  --cp-card-head-tint: color-mix(in srgb, var(--mac-orange) 22%, var(--cp-card-bg));
+}
+
+.dark .cp-card[data-secret]:not([data-selected]):hover {
+  --cp-card-head-tint: color-mix(in srgb, var(--mac-orange) 28%, var(--cp-card-bg));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--mac-orange) 70%, transparent),
+    0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cp-card,
   .cp-card:hover,
@@ -651,6 +677,18 @@ body,
   height: 10px;
   margin-left: 3px;
   opacity: 0.85;
+}
+
+.cp-card-secret {
+  display: inline-flex;
+  align-self: center;
+  margin-left: 4px;
+  color: var(--mac-orange);
+}
+
+.cp-card-secret svg {
+  width: 11px;
+  height: 11px;
 }
 
 .cp-card-time {

@@ -55,6 +55,8 @@ export type ClipListItem = {
   useCount: number
   pinboardIds: string[]
   hasOcrText: boolean
+  /** Text looks like it contains an API key, token or private key (local tag `secret`). */
+  hasSecret: boolean
   /** `popmind-clip://thumb/<id>` for images (and files with previews). */
   thumbnailUrl?: string
   /** Present only in search results. */
@@ -308,7 +310,8 @@ export type ClipboardSettings = {
     ignoredBundleIds: string[]
     ignoreConfidential: boolean
     ignoreTransient: boolean
-    detectSecrets: boolean
+    /** Drop copies that contain an API key, token or private key. Off: they are kept and marked in the list. */
+    skipSecrets: boolean
     /** User regular expressions; matching text is not captured. */
     ignoreRegexps: string[]
   }
@@ -352,7 +355,7 @@ export const defaultClipboardSettings: ClipboardSettings = {
     ],
     ignoreConfidential: true,
     ignoreTransient: true,
-    detectSecrets: true,
+    skipSecrets: false,
     ignoreRegexps: [],
   },
   ocr: {
@@ -388,6 +391,13 @@ export type ClipboardSettingsPatch = {
   sync?: Partial<ClipboardSettings['sync']>
 }
 
+/** `detectSecrets` (on by default) was replaced by `skipSecrets` (off by default); drop the stale stored key. */
+const withoutLegacyPrivacyKeys = (privacy: ClipboardSettings['privacy']): ClipboardSettings['privacy'] => {
+  const next = { ...privacy } as ClipboardSettings['privacy'] & { detectSecrets?: boolean }
+  delete next.detectSecrets
+  return next
+}
+
 export const mergeClipboardSettings = (
   previous: ClipboardSettings | undefined,
   patch: ClipboardSettingsPatch | undefined
@@ -397,7 +407,7 @@ export const mergeClipboardSettings = (
     ...defaultClipboardSettings,
     ...base,
     ...patch,
-    privacy: { ...defaultClipboardSettings.privacy, ...base.privacy, ...patch?.privacy },
+    privacy: withoutLegacyPrivacyKeys({ ...defaultClipboardSettings.privacy, ...base.privacy, ...patch?.privacy }),
     ocr: { ...defaultClipboardSettings.ocr, ...base.ocr, ...patch?.ocr },
     ai: {
       ...defaultClipboardSettings.ai,
