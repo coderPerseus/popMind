@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { ArrowUpRight, Search, Settings2 } from 'lucide-react'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import { getDownloadPercent, useUpdateDownload } from '@/app/hooks/use-update-download'
 import { useI18n } from '@/app/i18n'
 import { parseMainSearchCommand } from '@/app/components/home/query-command'
 import { ExplainCard } from '@/app/components/home/ExplainCard'
@@ -124,7 +125,9 @@ export function MainSearch() {
   const [isLaunching, setIsLaunching] = useState(false)
   const [installedApps, setInstalledApps] = useState<InstalledAppItem[]>([])
   const [isSearchingApps, setIsSearchingApps] = useState(false)
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<{ version: string } | null>(null)
+  const { downloadState, startDownload } = useUpdateDownload()
+  const downloadPercent = getDownloadPercent(downloadState)
   const [placeholder, setPlaceholder] = useState(() => pickRandomPlaceholder(language))
   const inputRef = useRef<HTMLInputElement>(null)
   const launcherItemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
@@ -872,11 +875,18 @@ export function MainSearch() {
             <button
               className="ms-update-badge"
               type="button"
-              onClick={() => void webOpenUrl(updateInfo.url)}
+              onClick={startDownload}
+              disabled={downloadState.status === 'downloading'}
               aria-label={t('main.updateAria')}
-              title={updateInfo.url}
+              title={downloadState.status === 'failed' ? downloadState.message : t('main.updateAria')}
             >
-              {t('main.updateAvailable', { version: updateInfo.version })}
+              {downloadState.status === 'downloading'
+                ? t('main.updateDownloading', { percent: downloadPercent === null ? '…' : `${downloadPercent}%` })
+                : downloadState.status === 'installing'
+                  ? t('main.updateInstalling')
+                  : downloadState.status === 'failed'
+                    ? t('main.updateFailed')
+                    : t('main.updateAvailable', { version: updateInfo.version })}
             </button>
           ) : null}
         </div>

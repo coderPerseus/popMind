@@ -1496,6 +1496,11 @@
   color: rgba(146, 54, 5, 0.96);
 }
 
+.ms-update-badge:disabled {
+  cursor: default;
+  transform: none;
+}
+
 .ms-footer-shortcut {
   display: flex;
   align-items: center;

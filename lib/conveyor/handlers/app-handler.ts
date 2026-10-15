@@ -2,6 +2,7 @@ import { type App, shell, systemPreferences } from 'electron'
 import { installedAppService } from '@/lib/app/installed-app-service'
 import { fetchLatestRelease } from '@/lib/app/latest-release'
 import { compareReleaseVersions } from '@/lib/app/release'
+import { downloadAndInstallUpdate, getUpdateDownloadState } from '@/lib/app/update-installer'
 import { exportMainProcessLogs, mainLogger } from '@/lib/main/logger'
 import { handle } from '@/lib/main/shared'
 import { themeStore } from '@/lib/main/theme-store'
@@ -41,11 +42,14 @@ export const registerAppHandlers = (app: App) => {
       latestVersion: latestRelease?.version ?? null,
       updateAvailable: latestRelease ? compareReleaseVersions(latestRelease.version, currentVersion) > 0 : false,
       url: latestRelease?.url ?? null,
+      downloadUrl: latestRelease?.downloadUrl ?? null,
       debugOverride: process.env.POPMIND_DEBUG_LATEST_RELEASE_VERSION ?? null,
     })
 
     return latestRelease
   })
+  handle('downloadAndInstallUpdate', () => downloadAndInstallUpdate())
+  handle('getUpdateDownloadState', () => getUpdateDownloadState())
 
   handle('checkAccessibility', () => {
     const status = {

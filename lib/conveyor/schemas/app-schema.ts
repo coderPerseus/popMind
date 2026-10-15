@@ -16,6 +16,18 @@ const shortcutStatusSchema = z.object({
   state: z.enum(['registered', 'disabled', 'failed', 'conflict', 'suspended']),
 })
 
+const updateDownloadStateSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('idle') }),
+  z.object({
+    status: z.literal('downloading'),
+    version: z.string(),
+    receivedBytes: z.number(),
+    totalBytes: z.number().nullable(),
+  }),
+  z.object({ status: z.literal('installing'), version: z.string(), filePath: z.string() }),
+  z.object({ status: z.literal('failed'), version: z.string().nullable(), message: z.string() }),
+])
+
 const permissionStatusSchema = z.object({
   granted: z.boolean(),
   supported: z.boolean(),
@@ -32,8 +44,18 @@ export const appIpcSchema = {
       .object({
         version: z.string(),
         url: z.string(),
+        downloadUrl: z.string(),
+        downloadSize: z.number().nullable(),
       })
       .nullable(),
+  },
+  downloadAndInstallUpdate: {
+    args: z.tuple([]),
+    return: updateDownloadStateSchema,
+  },
+  getUpdateDownloadState: {
+    args: z.tuple([]),
+    return: updateDownloadStateSchema,
   },
   checkAccessibility: {
     args: z.tuple([]),

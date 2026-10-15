@@ -4,6 +4,7 @@ import { Input } from '@/app/components/ui/input'
 import { Select } from '@/app/components/ui/select'
 import { Switch } from '@/app/components/ui/switch'
 import { useConveyor } from '@/app/hooks/use-conveyor'
+import { getDownloadPercent, useUpdateDownload } from '@/app/hooks/use-update-download'
 import { useI18n } from '@/app/i18n'
 import {
   InlineMessage,
@@ -135,7 +136,6 @@ type NavItem = {
 type UpdateState = {
   status: 'idle' | 'checking' | 'latest' | 'available' | 'failed'
   version?: string
-  url?: string
 }
 
 const navGroups: SettingsSection[][] = [
@@ -322,6 +322,7 @@ export function SettingsPage() {
 
   const [appVersion, setAppVersion] = useState('')
   const [updateState, setUpdateState] = useState<UpdateState>({ status: 'idle' })
+  const { downloadState, startDownload } = useUpdateDownload()
   const [logMessage, setLogMessage] = useState('')
 
   const navItems: NavItem[] = useMemo(
@@ -587,7 +588,7 @@ export function SettingsPage() {
 
       setUpdateState(
         compareReleaseVersions(latest.version, currentVersion) > 0
-          ? { status: 'available', version: latest.version, url: latest.url }
+          ? { status: 'available', version: latest.version }
           : { status: 'latest' }
       )
     } catch {
@@ -1859,8 +1860,16 @@ export function SettingsPage() {
           <SettingsGroup title={t('settings.advanced.diagnostics')}>
             <SettingsRow label={t('settings.advanced.version')} description={renderUpdateStatus()}>
               <span className="st-value">{appVersion || '—'}</span>
-              {updateState.status === 'available' && updateState.url ? (
-                <Button size="sm" onClick={() => void webOpenUrl(updateState.url!)}>
+              {downloadState.status === 'downloading' ? (
+                <Button size="sm" disabled>
+                  {t('settings.advanced.downloading', { percent: formatDownloadPercent() })}
+                </Button>
+              ) : downloadState.status === 'failed' ? (
+                <Button size="sm" onClick={startDownload}>
+                  {t('settings.advanced.retry')}
+                </Button>
+              ) : updateState.status === 'available' && downloadState.status === 'idle' ? (
+                <Button size="sm" onClick={startDownload}>
                   {t('settings.advanced.download')}
                 </Button>
               ) : (
@@ -1893,7 +1902,26 @@ export function SettingsPage() {
     return null
   }
 
+  const formatDownloadPercent = () => {
+    const percent = getDownloadPercent(downloadState)
+    return percent === null ? '…' : `${percent}%`
+  }
+
   const renderUpdateStatus = () => {
+    if (downloadState.status === 'downloading')
+      return (
+        <span className="st-text-accent">
+          {t('settings.advanced.downloadingDesc', { version: downloadState.version })}
+        </span>
+      )
+    if (downloadState.status === 'installing')
+      return <span className="st-text-accent">{t('settings.advanced.installing')}</span>
+    if (downloadState.status === 'failed')
+      return (
+        <span className="st-text-error">
+          {t('settings.advanced.downloadFailed', { message: downloadState.message })}
+        </span>
+      )
     if (updateState.status === 'latest')
       return <span className="st-text-success">{t('settings.advanced.upToDate')}</span>
     if (updateState.status === 'available') {
