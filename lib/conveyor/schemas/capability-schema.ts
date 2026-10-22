@@ -88,6 +88,29 @@ const clipboardSettingsPatchSchema = clipboardSettingsSchema
   })
   .partial()
 
+const languageDetectionSettingsSchema = z.object({
+  mode: z.enum(['program', 'jev']),
+  provider: z.enum(['clef', 'typesafe']),
+  clef: z.object({
+    model: z.enum(['clef-flash', 'clef']),
+    apiToken: z.string(),
+    accountId: z.string(),
+  }),
+  typesafe: z.object({
+    apiKey: z.string(),
+    model: z.string(),
+  }),
+})
+
+const languageDetectionTestResultSchema = z.object({
+  ok: z.boolean(),
+  via: z.enum(['cf-cli', 'cf-token', 'typesafe']).nullable(),
+  language: z.string().nullable(),
+  confidence: z.number().nullable(),
+  elapsedMs: z.number(),
+  errorMessage: z.string().optional(),
+})
+
 const capabilitySettingsSchema = z.object({
   appLanguage: appLanguageSchema,
   selection: z.object({
@@ -105,6 +128,7 @@ const capabilitySettingsSchema = z.object({
   firstLanguage: z.string(),
   secondLanguage: z.string(),
   defaultSourceLanguage: z.string(),
+  languageDetection: languageDetectionSettingsSchema,
   aiService: z.object({
     activeProvider: aiProviderSchema.nullable(),
     providers: z.object({
@@ -160,6 +184,13 @@ const capabilitySettingsPatchSchema = z.object({
   firstLanguage: z.string().optional(),
   secondLanguage: z.string().optional(),
   defaultSourceLanguage: z.string().optional(),
+  languageDetection: languageDetectionSettingsSchema
+    .extend({
+      clef: languageDetectionSettingsSchema.shape.clef.partial(),
+      typesafe: languageDetectionSettingsSchema.shape.typesafe.partial(),
+    })
+    .partial()
+    .optional(),
   aiService: z
     .object({
       activeProvider: aiProviderSchema.nullable().optional(),
@@ -254,6 +285,10 @@ export const capabilityIpcSchema = {
   'capability-test-speech-service': {
     args: z.tuple([capabilitySettingsSchema]),
     return: speechServiceTestResultSchema,
+  },
+  'capability-test-language-detection': {
+    args: z.tuple([capabilitySettingsSchema]),
+    return: languageDetectionTestResultSchema,
   },
 }
 

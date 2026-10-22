@@ -7,6 +7,7 @@ export class CapabilityApi extends ConveyorApi {
   updateSettings = (patch: CapabilitySettingsPatch) => this.invoke('capability-update-settings', patch)
   testAiService = (settings: CapabilitySettings) => this.invoke('capability-test-ai-service', settings)
   testSpeechService = (settings: CapabilitySettings) => this.invoke('capability-test-speech-service', settings)
+  testLanguageDetection = (settings: CapabilitySettings) => this.invoke('capability-test-language-detection', settings)
   testWebSearchProvider = (settings: CapabilitySettings, providerId: WebSearchProviderId) =>
     this.invoke('capability-test-web-search-provider', settings, providerId)
   onState = (handler: (settings: CapabilitySettings) => void) => {

@@ -7,7 +7,11 @@ import type {
   AppLanguage,
   CapabilitySettings,
   CapabilitySettingsPatch,
+  ClefModelId,
   ElevenLabsProviderConfig,
+  LanguageDetectionMode,
+  LanguageDetectionProvider,
+  LanguageDetectionSettings,
   LegacyTranslationSettings,
   LocalGemmaConfig,
   OpenAiSpeechProviderConfig,
@@ -86,6 +90,12 @@ export const defaultCapabilitySettings: CapabilitySettings = {
   firstLanguage: 'en',
   secondLanguage: 'zh-CN',
   defaultSourceLanguage: 'auto',
+  languageDetection: {
+    mode: 'program',
+    provider: 'clef',
+    clef: { model: 'clef-flash', apiToken: '', accountId: '' },
+    typesafe: { apiKey: '', model: 'jev-latest' },
+  },
   aiService: {
     activeProvider: null,
     providers: {
@@ -168,6 +178,28 @@ export const getCapabilitySettingsFilePath = () => join(app.getPath('userData'),
 export const getLegacyTranslationSettingsFilePath = () =>
   join(app.getPath('userData'), legacyTranslationSettingsFileName)
 
+const languageDetectionModes: LanguageDetectionMode[] = ['program', 'jev']
+const languageDetectionProviders: LanguageDetectionProvider[] = ['clef', 'typesafe']
+const clefModelIds: ClefModelId[] = ['clef-flash', 'clef']
+
+const mergeLanguageDetectionSettings = (
+  previous: LanguageDetectionSettings | undefined,
+  patch: CapabilitySettingsPatch['languageDetection']
+): LanguageDetectionSettings => {
+  const base = previous ?? defaultCapabilitySettings.languageDetection
+  const mode = patch?.mode ?? base.mode
+  const provider = patch?.provider ?? base.provider
+  const clef = { ...defaultCapabilitySettings.languageDetection.clef, ...base.clef, ...patch?.clef }
+  const typesafe = { ...defaultCapabilitySettings.languageDetection.typesafe, ...base.typesafe, ...patch?.typesafe }
+
+  return {
+    mode: languageDetectionModes.includes(mode) ? mode : 'program',
+    provider: languageDetectionProviders.includes(provider) ? provider : 'clef',
+    clef: { ...clef, model: clefModelIds.includes(clef.model) ? clef.model : 'clef-flash' },
+    typesafe,
+  }
+}
+
 export const mergeCapabilitySettings = (
   previous: CapabilitySettings,
   patch: Partial<CapabilitySettings> | CapabilitySettingsPatch
@@ -186,6 +218,7 @@ export const mergeCapabilitySettings = (
     ...previous,
     ...patch,
     appLanguage: (patch as CapabilitySettingsPatch).appLanguage ?? previous.appLanguage,
+    languageDetection: mergeLanguageDetectionSettings(previous.languageDetection, patch.languageDetection),
     enabledEngines:
       normalizeEnabledEngines({
         previous: previous.enabledEngines,

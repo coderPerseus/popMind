@@ -55,6 +55,12 @@ export const defaultTranslationSettings: TranslationSettings = {
   firstLanguage: 'en',
   secondLanguage: 'zh-CN',
   defaultSourceLanguage: 'auto',
+  languageDetection: {
+    mode: 'program',
+    provider: 'clef',
+    clef: { model: 'clef-flash', apiToken: '', accountId: '' },
+    typesafe: { apiKey: '', model: 'jev-latest' },
+  },
   aiService: {
     activeProvider: null,
     providers: {

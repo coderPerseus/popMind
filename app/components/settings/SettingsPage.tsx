@@ -29,6 +29,7 @@ import type {
   AiProviderId,
   AppLanguage,
   CapabilitySettings,
+  CapabilitySettingsPatch,
   LocalGemmaConfig,
   SelectionDefaultAction,
   SpeechProviderId,
@@ -116,6 +117,7 @@ type SettingsSection =
   | 'advanced'
 type HistoryTab = 'search' | 'explain'
 type StatusTone = 'success' | 'error'
+type LanguageDetectionPatch = NonNullable<CapabilitySettingsPatch['languageDetection']>
 type GemmaCheckState = {
   status: 'idle' | 'checking' | 'checked'
   installed: boolean
@@ -299,6 +301,8 @@ export function SettingsPage() {
   const [busyHistoryAction, setBusyHistoryAction] = useState<'' | 'export' | 'clear'>('')
   const [isTestingAiService, setIsTestingAiService] = useState(false)
   const [aiTestMessage, setAiTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
+  const [isTestingDetection, setIsTestingDetection] = useState(false)
+  const [detectionTestMessage, setDetectionTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
   const [isTestingSpeechService, setIsTestingSpeechService] = useState(false)
   const [speechTestMessage, setSpeechTestMessage] = useState<{ tone: StatusTone; message: string } | null>(null)
   const [gemmaCheckState, setGemmaCheckState] = useState<GemmaCheckState>({
@@ -683,6 +687,56 @@ export function SettingsPage() {
       },
       debounce
     )
+  }
+
+  const updateLanguageDetection = (patch: LanguageDetectionPatch, debounce = false) => {
+    setDetectionTestMessage(null)
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            languageDetection: {
+              ...current.languageDetection,
+              ...patch,
+              clef: { ...current.languageDetection.clef, ...patch.clef },
+              typesafe: { ...current.languageDetection.typesafe, ...patch.typesafe },
+            },
+          }
+        : current
+    )
+    void persistPatch({ languageDetection: patch }, debounce)
+  }
+
+  const runLanguageDetectionTest = async () => {
+    if (!settings) return
+    setDetectionTestMessage(null)
+    setIsTestingDetection(true)
+    try {
+      const result = await capability.testLanguageDetection(settings)
+      setDetectionTestMessage(
+        result.ok
+          ? {
+              tone: 'success',
+              message: t('settings.translation.detect.testSuccess', {
+                via: t(`settings.translation.detect.via.${result.via ?? 'typesafe'}`),
+                ms: result.elapsedMs,
+              }),
+            }
+          : {
+              tone: 'error',
+              message: t('settings.translation.detect.testFailed', { message: result.errorMessage ?? '' }),
+            }
+      )
+    } catch (error) {
+      setDetectionTestMessage({
+        tone: 'error',
+        message: t('settings.translation.detect.testFailed', {
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      })
+    } finally {
+      setIsTestingDetection(false)
+    }
   }
 
   const runGemmaEnvironmentCheck = async () => {
@@ -1350,7 +1404,125 @@ export function SettingsPage() {
             </SettingsRow>
           </SettingsGroup>
 
-          <SettingsGroup title={t('settings.translation.engines')}>
+          <SettingsGroup
+            title={t('settings.translation.detect.title')}
+            accessory={
+              settings.languageDetection.mode === 'jev' ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void runLanguageDetectionTest()}
+                  disabled={isTestingDetection}
+                >
+                  {isTestingDetection
+                    ? t('settings.translation.detect.testing')
+                    : t('settings.translation.detect.test')}
+                </Button>
+              ) : undefined
+            }
+            footer={
+              detectionTestMessage && settings.languageDetection.mode === 'jev' ? (
+                <InlineMessage tone={detectionTestMessage.tone}>{detectionTestMessage.message}</InlineMessage>
+              ) : undefined
+            }
+          >
+            <SettingsRow
+              label={t('settings.translation.detect.mode')}
+              description={
+                settings.languageDetection.mode === 'jev'
+                  ? t('settings.translation.detect.modeJevDesc')
+                  : t('settings.translation.detect.modeProgramDesc')
+              }
+            >
+              <Select
+                className="st-select"
+                value={settings.languageDetection.mode}
+                onChange={(event) =>
+                  updateLanguageDetection({
+                    mode: event.target.value as CapabilitySettings['languageDetection']['mode'],
+                  })
+                }
+              >
+                <option value="program">{t('settings.translation.detect.modeProgram')}</option>
+                <option value="jev">{t('settings.translation.detect.modeJev')}</option>
+              </Select>
+            </SettingsRow>
+            {settings.languageDetection.mode === 'jev' ? (
+              <>
+                <SettingsRow label={t('settings.translation.detect.model')}>
+                  <Select
+                    className="st-select"
+                    value={
+                      settings.languageDetection.provider === 'typesafe'
+                        ? 'typesafe'
+                        : settings.languageDetection.clef.model
+                    }
+                    onChange={(event) => {
+                      const value = event.target.value
+                      updateLanguageDetection(
+                        value === 'typesafe'
+                          ? { provider: 'typesafe' }
+                          : { provider: 'clef', clef: { model: value as 'clef-flash' | 'clef' } }
+                      )
+                    }}
+                  >
+                    <option value="clef-flash">Clef Flash · Cloudflare</option>
+                    <option value="clef">Clef · Cloudflare</option>
+                    <option value="typesafe">{t('settings.translation.detect.typesafe')}</option>
+                  </Select>
+                </SettingsRow>
+                {settings.languageDetection.provider === 'clef' ? (
+                  <>
+                    <SettingsRow label={t('settings.translation.detect.cfToken')}>
+                      <Input
+                        className="st-input"
+                        type="password"
+                        value={settings.languageDetection.clef.apiToken}
+                        onChange={(event) => updateLanguageDetection({ clef: { apiToken: event.target.value } }, true)}
+                        placeholder={t('settings.translation.detect.cfTokenPlaceholder')}
+                      />
+                    </SettingsRow>
+                    <SettingsRow label={t('settings.translation.detect.cfAccount')}>
+                      <Input
+                        className="st-input"
+                        value={settings.languageDetection.clef.accountId}
+                        onChange={(event) => updateLanguageDetection({ clef: { accountId: event.target.value } }, true)}
+                        placeholder={
+                          settings.languageDetection.clef.apiToken.trim()
+                            ? t('settings.translation.detect.cfAccountRequired')
+                            : t('settings.translation.detect.cfAccountPlaceholder')
+                        }
+                      />
+                    </SettingsRow>
+                  </>
+                ) : (
+                  <>
+                    <SettingsRow label="API Key">
+                      <Input
+                        className="st-input"
+                        type="password"
+                        value={settings.languageDetection.typesafe.apiKey}
+                        onChange={(event) =>
+                          updateLanguageDetection({ typesafe: { apiKey: event.target.value } }, true)
+                        }
+                        placeholder={t('settings.translation.detect.jevKeyPlaceholder')}
+                      />
+                    </SettingsRow>
+                    <SettingsRow label={t('settings.translation.detect.model')}>
+                      <Input
+                        className="st-input"
+                        value={settings.languageDetection.typesafe.model}
+                        onChange={(event) => updateLanguageDetection({ typesafe: { model: event.target.value } }, true)}
+                        placeholder="jev-latest"
+                      />
+                    </SettingsRow>
+                  </>
+                )}
+              </>
+            ) : null}
+          </SettingsGroup>
+
+          <SettingsGroup title={t('settings.translation.engines')} description={t('settings.translation.enginesDesc')}>
             {visibleTranslationEngineIds.map((engine) => (
               <SettingsRow
                 key={engine}

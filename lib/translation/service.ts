@@ -1,13 +1,14 @@
 import { translationProviders } from '@/lib/translation/providers'
 import {
   defaultTranslationSettings,
+  getEnabledTranslationEngineIds,
   getLanguageFamily,
-  guessSourceLanguage,
   isSameLanguage,
   resolvePreferredTranslationEngine,
   resolveTranslationQueryMode,
 } from '@/lib/translation/shared'
 import { capabilityService } from '@/lib/capability/service'
+import { detectSourceLanguage, type DetectSource } from '@/lib/translation/language-detection'
 import { normalizeTextForTranslation } from '@/lib/translation/text-normalizer'
 import type {
   TranslateInput,
@@ -70,6 +71,104 @@ const resolveWordTargetLanguage = ({
   return targetLanguage
 }
 
+/** Free web engines that need no setup; used as a last resort even when the user has not enabled them. */
+const BUILT_IN_FALLBACK_ENGINES: TranslationEngineId[] = ['bing', 'google', 'deepl']
+/** Per attempt. Web engines answer in about a second; LLM engines need much longer for long text. */
+const WEB_ENGINE_TIMEOUT_MS = 8000
+const LLM_ENGINE_TIMEOUT_MS = 45_000
+
+type Settings = Awaited<ReturnType<typeof capabilityService.getSettings>>
+
+const getEngineTimeoutMs = (engineId: TranslationEngineId) =>
+  engineId === 'ai' || engineId === 'gemma' ? LLM_ENGINE_TIMEOUT_MS : WEB_ENGINE_TIMEOUT_MS
+
+/** The engine the user picked first, then the other enabled engines, then the built-in free ones. */
+const resolveTextEngineChain = (settings: Settings, primary: TranslationEngineId) => {
+  const chain = [primary, ...getEnabledTranslationEngineIds(settings), ...BUILT_IN_FALLBACK_ENGINES]
+  return [...new Set(chain)].filter((engineId) => translationProviders[engineId]?.isConfigured(settings))
+}
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, engineId: TranslationEngineId) =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Translation engine "${engineId}" timed out after ${timeoutMs} ms`)),
+      timeoutMs
+    )
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+
+const errorMessageOf = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+const translateWithEngine = async (request: TranslationRequest, settings: Settings) => {
+  const engineId = request.engineId as TranslationEngineId
+  // Debug hook: POPMIND_DEBUG_FAIL_ENGINES=google,bing makes those engines fail to exercise the fallback chain.
+  if (process.env.POPMIND_DEBUG_FAIL_ENGINES?.split(',').includes(engineId)) {
+    throw new Error(`Translation engine "${engineId}" disabled by POPMIND_DEBUG_FAIL_ENGINES`)
+  }
+  const result = await withTimeout(
+    translationProviders[engineId].translate(request, settings),
+    getEngineTimeoutMs(engineId),
+    engineId
+  )
+  if (!result.translatedText.trim() && !result.wordEntry) {
+    throw new Error(`Translation engine "${engineId}" returned an empty result`)
+  }
+  return result
+}
+
+/**
+ * Tries each engine in turn until one succeeds. Throws the first engine's error when all of them fail,
+ * since that is the one the user picked.
+ */
+const translateWithFallback = async (
+  request: TranslationRequest,
+  settings: Settings,
+  engineIds: TranslationEngineId[]
+) => {
+  const failures: Array<{ engineId: TranslationEngineId; message: string }> = []
+  let firstError: unknown
+
+  for (const engineId of engineIds) {
+    const attemptRequest: TranslationRequest = {
+      ...request,
+      engineId,
+      queryMode: engineId === 'youdao' ? request.queryMode : 'text',
+    }
+    const startedAt = Date.now()
+    try {
+      const result = await translateWithEngine(attemptRequest, settings)
+      if (failures.length) {
+        console.warn('[TranslationService] fallback engine succeeded', {
+          engineId,
+          failedEngines: failures,
+          elapsedMs: Date.now() - startedAt,
+        })
+      }
+      return result
+    } catch (error) {
+      firstError ??= error
+      failures.push({ engineId, message: errorMessageOf(error) })
+      console.warn('[TranslationService] engine failed, trying next', {
+        engineId,
+        message: errorMessageOf(error),
+        elapsedMs: Date.now() - startedAt,
+        remaining: engineIds.slice(engineIds.indexOf(engineId) + 1),
+      })
+    }
+  }
+
+  throw firstError ?? new Error('No translation engine is available')
+}
+
 const isWordProviderAvailable = (settings: Awaited<ReturnType<typeof capabilityService.getSettings>>) => {
   return translationProviders.youdao.isConfigured(settings)
 }
@@ -115,21 +214,12 @@ export class TranslationService {
     })
 
     let detectedSourceLanguage = requestedSourceLanguage !== 'auto' ? requestedSourceLanguage : undefined
-    let detectSource: 'explicit' | 'remote' | 'local' | 'none' =
-      requestedSourceLanguage !== 'auto' ? 'explicit' : 'none'
+    let detectSource: DetectSource = requestedSourceLanguage !== 'auto' ? 'explicit' : 'none'
 
     if (!explicitTargetLanguage && requestedSourceLanguage === 'auto') {
-      if (provider.detectLanguage) {
-        try {
-          detectedSourceLanguage = await provider.detectLanguage(text, settings)
-          detectSource = 'remote'
-        } catch (error) {
-          console.warn('[TranslationService] detectLanguage failed, fallback to firstLanguage target', error)
-        }
-      } else {
-        detectedSourceLanguage = guessSourceLanguage(text)
-        detectSource = 'local'
-      }
+      const detection = await detectSourceLanguage(text, settings, provider)
+      detectedSourceLanguage = detection.language
+      detectSource = detection.source
     }
 
     const resolvedTargetLanguage =
@@ -155,52 +245,34 @@ export class TranslationService {
       sourceAppId: input.sourceAppId,
     }
 
+    // Word lookups use the dictionary first, then fall back to plain text translation with the preferred engine.
+    const textPrimaryEngineId = shouldUseWordProvider ? preferredEngineId : engineId
+    const engineChain = [
+      ...(shouldUseWordProvider ? (['youdao'] as TranslationEngineId[]) : []),
+      ...(textPrimaryEngineId ? resolveTextEngineChain(settings, textPrimaryEngineId) : []),
+    ]
+
     const startedAt = Date.now()
+    const result = await translateWithFallback(request, settings, [...new Set(engineChain)])
+    // In Jev mode the user chose the decision model as the authority on the source language.
+    const finalDetectedSourceLanguage =
+      detectSource === 'jev' ? detectedSourceLanguage : result.detectedSourceLanguage || detectedSourceLanguage
 
-    try {
-      const result = await provider.translate(request, settings)
-      console.warn('[TranslationService] translate finished', {
-        engineId,
-        detectSource,
-        detectedSourceLanguage: result.detectedSourceLanguage || detectedSourceLanguage,
-        targetLanguage,
-        elapsedMs: Date.now() - startedAt,
-        sourceLength: text.length,
-      })
+    console.warn('[TranslationService] translate finished', {
+      engineId: result.engineId,
+      requestedEngineId: engineId,
+      detectSource,
+      detectedSourceLanguage: finalDetectedSourceLanguage,
+      targetLanguage,
+      elapsedMs: Date.now() - startedAt,
+      sourceLength: text.length,
+    })
 
-      return {
-        ...result,
-        queryMode,
-        sourceLanguage: requestedSourceLanguage,
-        targetLanguage,
-        detectedSourceLanguage: result.detectedSourceLanguage || detectedSourceLanguage,
-      }
-    } catch (error) {
-      const canFallbackToTextTranslation =
-        queryMode === 'word' &&
-        preferredEngineId &&
-        preferredEngineId !== 'youdao' &&
-        translationProviders[preferredEngineId]?.isConfigured(settings)
-
-      if (!canFallbackToTextTranslation) {
-        throw error
-      }
-
-      const fallbackProvider = translationProviders[preferredEngineId]
-      const fallbackRequest: TranslationRequest = {
-        ...request,
-        queryMode: 'text',
-        engineId: preferredEngineId,
-      }
-      const fallbackResult = await fallbackProvider.translate(fallbackRequest, settings)
-
-      return {
-        ...fallbackResult,
-        queryMode: fallbackResult.queryMode,
-        sourceLanguage: requestedSourceLanguage,
-        targetLanguage,
-        detectedSourceLanguage: fallbackResult.detectedSourceLanguage || detectedSourceLanguage,
-      }
+    return {
+      ...result,
+      sourceLanguage: requestedSourceLanguage,
+      targetLanguage,
+      detectedSourceLanguage: finalDetectedSourceLanguage,
     }
   }
 }

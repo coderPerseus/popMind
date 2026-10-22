@@ -1,6 +1,7 @@
 import { testAiService } from '@/lib/ai-service/test-service'
 import { testSpeechService } from '@/lib/speech-service/test-service'
 import { testWebSearchProvider } from '@/lib/web-search/test-service'
+import { testLanguageDetection } from '@/lib/translation/language-detection'
 import type { CapabilitySettings, WebSearchProviderId } from './types'
 import { capabilityStore } from './store'
 
@@ -23,6 +24,10 @@ export class CapabilityService {
 
   testSpeechService(settings: CapabilitySettings) {
     return testSpeechService(settings)
+  }
+
+  testLanguageDetection(settings: CapabilitySettings) {
+    return testLanguageDetection(settings)
   }
 
   subscribe(listener: (settings: Awaited<ReturnType<typeof capabilityStore.getSettings>>) => void) {

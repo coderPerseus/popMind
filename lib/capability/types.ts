@@ -11,6 +11,11 @@ export type SelectionDefaultAction = 'bubble' | 'translate' | 'explain'
 export type AiServiceTestErrorCode = 'missing-config' | 'request-failed'
 export type WebSearchServiceTestErrorCode = 'missing-config' | 'request-failed'
 export type SpeechServiceTestErrorCode = 'missing-config' | 'request-failed'
+/** How the source language is decided when translating with "auto" source: built-in rules or a decision model. */
+export type LanguageDetectionMode = 'program' | 'jev'
+/** Decision model used in `jev` mode: Cloudflare Clef (Jev-compatible, Workers AI) or TypeSafe's official Jev. */
+export type LanguageDetectionProvider = 'clef' | 'typesafe'
+export type ClefModelId = 'clef-flash' | 'clef'
 
 export interface AiProviderConfig {
   apiKey: string
@@ -41,6 +46,33 @@ export interface OpenAiSpeechProviderConfig {
   model: string
 }
 
+export interface LanguageDetectionSettings {
+  mode: LanguageDetectionMode
+  provider: LanguageDetectionProvider
+  clef: {
+    model: ClefModelId
+    /** Optional. Empty means use the logged-in `cf` CLI. */
+    apiToken: string
+    /** Optional with the `cf` CLI (picks the account when there are several), required with a token. */
+    accountId: string
+  }
+  typesafe: {
+    /** Empty means reuse the clipboard smart search Jev key. */
+    apiKey: string
+    model: string
+  }
+}
+
+export interface LanguageDetectionTestResult {
+  ok: boolean
+  /** Which channel answered: the `cf` CLI, a Cloudflare token, or the TypeSafe API. */
+  via: 'cf-cli' | 'cf-token' | 'typesafe' | null
+  language: string | null
+  confidence: number | null
+  elapsedMs: number
+  errorMessage?: string
+}
+
 export interface CapabilitySettings {
   appLanguage: AppLanguage
   selection: {
@@ -51,6 +83,7 @@ export interface CapabilitySettings {
   firstLanguage: string
   secondLanguage: string
   defaultSourceLanguage: 'auto' | string
+  languageDetection: LanguageDetectionSettings
   aiService: {
     activeProvider: AiProviderId | null
     providers: Record<AiProviderId, AiProviderConfig>
@@ -82,6 +115,12 @@ export interface CapabilitySettingsPatch {
   firstLanguage?: string
   secondLanguage?: string
   defaultSourceLanguage?: 'auto' | string
+  languageDetection?: {
+    mode?: LanguageDetectionMode
+    provider?: LanguageDetectionProvider
+    clef?: Partial<LanguageDetectionSettings['clef']>
+    typesafe?: Partial<LanguageDetectionSettings['typesafe']>
+  }
   aiService?: {
     activeProvider?: AiProviderId | null
     providers?: Partial<Record<AiProviderId, Partial<AiProviderConfig>>>

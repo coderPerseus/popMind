@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { capabilityRuntimeSchema } from './capability-schema'
 
-const engineIds = z.enum(['google', 'deepl', 'bing', 'youdao', 'ai'])
+const engineIds = z.enum(['google', 'deepl', 'bing', 'youdao', 'ai', 'gemma'])
 const queryModeSchema = z.enum(['text', 'word'])
 
 const wordEntrySchema = z.object({
