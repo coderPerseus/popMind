@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 import {
   ClipboardCopy,
   ClipboardPaste,
+  CloudUpload,
   ExternalLink,
   Eye,
   FolderSearch,
@@ -42,6 +43,8 @@ export type PanelActionsValue = {
   open: () => void
   reveal: () => void
   remove: () => void
+  /** Upload the targets to the sync bucket now. */
+  syncToRemote: () => void
   togglePinboard: (pinboardId: string) => void
   newPinboard: () => void
   restoreFocus: () => void
@@ -59,6 +62,8 @@ export function ClipContextMenuContent() {
   const { t, targets, pinboards } = actions
   const count = targets.length
   const single = count === 1 ? targets[0] : null
+  // Files are local paths and never sync.
+  const syncable = targets.filter((item) => item.kind !== 'file').length
 
   return (
     <ContextMenuContent
@@ -113,6 +118,15 @@ export function ClipContextMenuContent() {
           </ContextMenuItem>
         </ContextMenuSubContent>
       </ContextMenuSub>
+
+      {syncable > 0 ? (
+        <ContextMenuItem onSelect={actions.syncToRemote}>
+          <CloudUpload />
+          {syncable > 1
+            ? t('clip.panel.menu.syncToRemoteCount', { count: syncable })
+            : t('clip.panel.menu.syncToRemote')}
+        </ContextMenuItem>
+      ) : null}
 
       <ContextMenuSeparator />
 

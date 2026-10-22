@@ -4,12 +4,14 @@ import type {
   ClipAiTestResult,
   ClipDeleteResult,
   ClipDetail,
+  ClipLinkPreview,
   ClipListItem,
   ClipListResult,
   ClipPasteResult,
   ClipPasteStackState,
   ClipSourceApp,
   ClipStats,
+  ClipSyncPushResult,
   ClipSyncSetupResult,
   ClipSyncStatus,
   ClipSyncSummary,
@@ -29,6 +31,8 @@ export const ClipboardChannel = {
   PasteStack: 'clip:paste-stack',
   /** ClipSyncStatus — sync started / finished / configured. */
   SyncStatus: 'clip:sync-status',
+  /** ClipLinkPreview — a link preview finished (or failed). */
+  LinkPreview: 'clip:link-preview',
 } as const
 
 const clipKindSchema = z.enum(['text', 'link', 'image', 'file', 'color'])
@@ -123,10 +127,15 @@ export const clipIpcSchema = {
     return: z.object({ accessibility: z.boolean(), secureInput: z.boolean() }),
   },
   'clip-open-accessibility-settings': { args: z.tuple([]), return: okSchema },
+  /** Stored preview of a link; schedules a fetch (when enabled) and answers `pending` if there is none yet. */
+  'clip-link-preview': { args: z.tuple([z.string().min(1)]), return: z.custom<ClipLinkPreview>().nullable() },
+
   // ---- sync (docs/clipboard-sync.md) ----
   'clip-sync-status': { args: z.tuple([]), return: z.custom<ClipSyncStatus>() },
   /** Manual sync; resolves when finished. */
   'clip-sync-run': { args: z.tuple([]), return: z.custom<ClipSyncSummary>() },
+  /** Uploads the chosen items now (context menu), regardless of the sync range. */
+  'clip-sync-push-items': { args: z.tuple([clipIdsSchema]), return: z.custom<ClipSyncPushResult>() },
   /** Connect with a pasted `pmsync1.` sync key. */
   'clip-sync-connect': { args: z.tuple([z.string().min(1)]), return: z.custom<ClipSyncSetupResult>() },
   /** First-device manual setup: R2 API token value + optional account id. */

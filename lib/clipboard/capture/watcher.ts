@@ -5,6 +5,7 @@ import { decodeClipboardImage } from '@/lib/clipboard/capture/image'
 import { buildIngestRecord, candidateTexts, extractCandidate } from '@/lib/clipboard/capture/normalize'
 import { PASTEBOARD_ALLOW_TYPES, isOfficeLinkCopy } from '@/lib/clipboard/capture/pasteboard-types'
 import { checkPrivacyContent, checkPrivacyPrecondition } from '@/lib/clipboard/capture/privacy'
+import { linkPreviews } from '@/lib/clipboard/enrich/link-preview'
 import { enrichQueue } from '@/lib/clipboard/enrich/queue'
 import { clipboardNative } from '@/lib/clipboard/native-bridge'
 import { clipStore } from '@/lib/clipboard/store'
@@ -218,6 +219,14 @@ export class ClipboardWatcher {
     const outcome = await clipStore.ingest(built.record)
     const storeMs = performance.now() - storeStartedAt
     enrichQueue.notifyIngest(built.record.source)
+    if (
+      built.record.kind === 'link' &&
+      built.record.url &&
+      settings.fetchLinkPreviews &&
+      !built.record.tags.includes('secret')
+    ) {
+      void linkPreviews.request(built.record.url, 'copy')
+    }
 
     mainLogger.info('[clip-capture] ingested', {
       status: outcome.status,

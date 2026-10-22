@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { clipboardNative } from '@/lib/clipboard/native-bridge'
 import { parseClipAssetUrl } from '@/lib/clipboard/asset-url'
+import { linkPreviews } from '@/lib/clipboard/enrich/link-preview'
 import { startClipboardCapture, stopClipboardCapture, resolveClipAsset } from '@/lib/clipboard/capture'
 import { clipStore, getClipStoreDirs } from '@/lib/clipboard/store'
 import { CLIP_PROTOCOL } from '@/lib/clipboard/types'
@@ -76,7 +77,11 @@ const registerClipboardProtocol = (ready: Promise<void>) => {
     try {
       await ready
       const filePath =
-        parsed.kind === 'file-icon' ? await resolveFileIcon(parsed.id) : await resolveClipAsset(parsed.kind, parsed.id)
+        parsed.kind === 'file-icon'
+          ? await resolveFileIcon(parsed.id)
+          : parsed.kind === 'link-preview'
+            ? linkPreviews.imagePath(parsed.id)
+            : await resolveClipAsset(parsed.kind, parsed.id)
       if (!filePath) {
         return new Response('Not found', { status: 404 })
       }

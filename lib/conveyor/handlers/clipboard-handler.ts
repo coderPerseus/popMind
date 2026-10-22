@@ -6,6 +6,7 @@ import { runAiSearch, testJevConnection } from '@/lib/clipboard/search/ai'
 import type { ClipAiSearchPort } from '@/lib/clipboard/search/ai/contract'
 import { clipStore } from '@/lib/clipboard/store'
 import { clipboardSync } from '@/lib/clipboard/sync'
+import { linkPreviews } from '@/lib/clipboard/enrich/link-preview'
 import { clipboardPanel } from '@/lib/clipboard/window/clipboard-panel-window'
 import { pasteService, pasteStack, writeClipItems } from '@/lib/clipboard/write'
 import { getClipboardSettings, recordClipboardAiUsage } from '@/lib/clipboard/write/settings'
@@ -102,6 +103,9 @@ export const registerClipboardHandlers = ({ whenReady }: ClipboardHandlerDeps) =
   on('clip-clear-history', async () => {
     const deletedCount = await clipStore.clearHistory()
     mainLogger.info('[clip-store] history cleared', { deletedCount })
+    void linkPreviews
+      .clearAll()
+      .catch((error: unknown) => mainLogger.warn('[link-preview] clear failed', { error: String(error) }))
     return { ok: true, deletedCount }
   })
 
@@ -318,9 +322,15 @@ export const registerClipboardHandlers = ({ whenReady }: ClipboardHandlerDeps) =
     }
   })
 
+  on('clip-link-preview', async (url) => {
+    if (!getClipboardSettings().fetchLinkPreviews) return linkPreviews.get(url)
+    return linkPreviews.request(url, 'visible')
+  })
+
   // ---- sync ----
   on('clip-sync-status', () => clipboardSync.status())
   on('clip-sync-run', () => clipboardSync.run())
+  on('clip-sync-push-items', (ids) => clipboardSync.pushItems(ids))
   on('clip-sync-connect', (syncKey) => clipboardSync.connect(syncKey))
   on('clip-sync-setup-token', (token, accountId) => clipboardSync.setupWithToken(token, accountId))
   on('clip-sync-disconnect', () => clipboardSync.disconnect())

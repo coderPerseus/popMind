@@ -1260,13 +1260,19 @@ export class ClipDatabase {
     return outgoing
   }
 
-  /** `skipped` items (too large) are recorded too so they are not retried on every sync. */
+  /**
+   * `skipped` items (too large) are recorded too so they are not retried on every sync. A later explicit upload
+   * of a skipped item turns it into `local`.
+   */
   syncMarkUploaded(entries: Array<{ itemId: string; remoteKey: string }>, origin: 'local' | 'skipped' = 'local') {
     const timestamp = this.now()
     this.transaction(() => {
       const insert = this.db.prepare(
-        `INSERT OR IGNORE INTO sync_items (item_id, remote_key, origin, synced_at)
-         SELECT id, ?, ?, ? FROM clip_items WHERE id = ?`
+        `INSERT INTO sync_items (item_id, remote_key, origin, synced_at)
+         SELECT id, ?, ?, ? FROM clip_items WHERE id = ?
+         ON CONFLICT(item_id) DO UPDATE SET remote_key = excluded.remote_key, origin = excluded.origin,
+           synced_at = excluded.synced_at
+         WHERE sync_items.origin = 'skipped' AND excluded.origin = 'local'`
       )
       for (const entry of entries) {
         insert.run(entry.remoteKey, origin, timestamp, entry.itemId)

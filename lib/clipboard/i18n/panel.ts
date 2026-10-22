@@ -44,6 +44,7 @@ export const clipPanelMessages = {
 
     // cards
     'clip.panel.card.chars': '{count} 个字符',
+    'clip.panel.card.charsShort': '{count} 字符',
     'clip.panel.card.files': '{count} 个文件',
     'clip.panel.card.moreFiles': '另外 {count} 个…',
     'clip.panel.card.ocrMatch': '文字匹配',
@@ -80,6 +81,8 @@ export const clipPanelMessages = {
     'clip.panel.menu.openLink': '打开链接',
     'clip.panel.menu.openFile': '打开文件',
     'clip.panel.menu.reveal': '在 Finder 中显示',
+    'clip.panel.menu.syncToRemote': '同步到远程',
+    'clip.panel.menu.syncToRemoteCount': '同步 {count} 项到远程',
     'clip.panel.menu.delete': '删除',
     'clip.panel.menu.deleteCount': '删除 {count} 项',
 
@@ -183,6 +186,10 @@ export const clipPanelMessages = {
     'clip.panel.sync.skipped': '，{count} 张图片过大未上传',
     'clip.panel.sync.failed': '同步失败：{reason}',
     'clip.panel.sync.openSettings': '设置',
+    'clip.panel.sync.pushing': '正在同步到远程…',
+    'clip.panel.sync.pushed': '已同步 {count} 条到远程',
+    'clip.panel.sync.pushedExisting': '远程已有这些内容',
+    'clip.panel.sync.pushSkipped': '没有可同步的内容（图片过大或无法读取）',
     'clip.panel.sync.error.not_configured': '还没有设置同步',
     'clip.panel.sync.error.invalid_key': '同步密钥无效',
     'clip.panel.sync.error.account_required': '缺少账户 ID',
@@ -237,6 +244,7 @@ export const clipPanelMessages = {
 
     // cards
     'clip.panel.card.chars': '{count} characters',
+    'clip.panel.card.charsShort': '{count} chars',
     'clip.panel.card.files': '{count} files',
     'clip.panel.card.moreFiles': '{count} more…',
     'clip.panel.card.ocrMatch': 'Text match',
@@ -274,6 +282,8 @@ export const clipPanelMessages = {
     'clip.panel.menu.openLink': 'Open Link',
     'clip.panel.menu.openFile': 'Open File',
     'clip.panel.menu.reveal': 'Show in Finder',
+    'clip.panel.menu.syncToRemote': 'Sync to Remote',
+    'clip.panel.menu.syncToRemoteCount': 'Sync {count} Items to Remote',
     'clip.panel.menu.delete': 'Delete',
     'clip.panel.menu.deleteCount': 'Delete {count} items',
 
@@ -378,6 +388,10 @@ export const clipPanelMessages = {
     'clip.panel.sync.skipped': ', {count} images too large to upload',
     'clip.panel.sync.failed': 'Sync failed: {reason}',
     'clip.panel.sync.openSettings': 'Settings',
+    'clip.panel.sync.pushing': 'Syncing to remote…',
+    'clip.panel.sync.pushed': 'Synced {count} to remote',
+    'clip.panel.sync.pushedExisting': 'Already in remote',
+    'clip.panel.sync.pushSkipped': 'Nothing to sync (image too large or unreadable)',
     'clip.panel.sync.error.not_configured': 'sync is not set up',
     'clip.panel.sync.error.invalid_key': 'invalid sync key',
     'clip.panel.sync.error.account_required': 'account ID required',

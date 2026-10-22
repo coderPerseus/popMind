@@ -6,7 +6,7 @@ import { clipboardNative } from '@/lib/clipboard/native-bridge'
 import { clipStore } from '@/lib/clipboard/store'
 import { buildAgentPrompt } from '@/lib/clipboard/sync/agent-prompt'
 import { CloudflareApiError, detectAccountId, ensureBucket, verifyToken } from '@/lib/clipboard/sync/cloudflare-api'
-import { runSync, toSyncError, verifyRemote } from '@/lib/clipboard/sync/sync-engine'
+import { pushItems, runSync, toSyncError, verifyRemote } from '@/lib/clipboard/sync/sync-engine'
 import {
   DEFAULT_SYNC_BUCKET,
   encodeSyncKey,
@@ -19,7 +19,7 @@ import {
 import { syncState } from '@/lib/clipboard/sync/sync-state'
 import { getClipboardSettings } from '@/lib/clipboard/write/settings'
 import type { AppLanguage } from '@/lib/capability/types'
-import type { ClipSyncSetupResult, ClipSyncStatus, ClipSyncSummary } from '@/lib/clipboard/types'
+import type { ClipSyncPushResult, ClipSyncSetupResult, ClipSyncStatus, ClipSyncSummary } from '@/lib/clipboard/types'
 import { mainLogger } from '@/lib/main/logger'
 
 /** Pasteboard marker for our own writes: capture skips non-item markers, so the key never enters history. */
@@ -158,6 +158,22 @@ export const clipboardSync = {
   },
 
   agentPrompt: (language: AppLanguage) => buildAgentPrompt(language),
+
+  /** Uploads the chosen items now, regardless of the sync range. */
+  async pushItems(ids: string[]): Promise<ClipSyncPushResult> {
+    const credentials = syncState.getCredentials()
+    if (!credentials) {
+      return { ok: false, uploaded: 0, existing: 0, skipped: 0, errorCode: 'not_configured' }
+    }
+
+    const settings = getClipboardSettings().sync
+    return pushItems({
+      credentials,
+      store: clipStore,
+      ids,
+      maxImageBytes: Math.max(1, settings.maxImageMb) * 1024 * 1024,
+    })
+  },
 
   /** Manual sync; concurrent calls share the running one. */
   run(): Promise<ClipSyncSummary> {

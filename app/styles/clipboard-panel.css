@@ -542,6 +542,7 @@ body,
 }
 
 .cp-card {
+  position: relative;
   --cp-card-tint: var(--cp-card-bg);
   --cp-card-head-tint: var(--cp-head-bg);
   display: flex;
@@ -797,6 +798,31 @@ body,
   object-fit: contain;
 }
 
+/* With a screenshot the body drops its padding so the image is edge to edge; the text keeps the inset. */
+.cp-card-body:has(> .cp-link[data-has-image]) {
+  padding: 0 0 8px;
+}
+
+.cp-link[data-has-image] > :not(.cp-link-shot) {
+  padding: 0 11px;
+}
+
+.cp-link-shot {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  margin-bottom: 2px;
+  object-fit: cover;
+  object-position: top center;
+  background: var(--cp-image-backdrop);
+  box-shadow: 0 0.5px 0 var(--cp-card-hairline);
+}
+
+.cp-link[data-has-image] .cp-link-title {
+  flex: none;
+  -webkit-line-clamp: 2;
+}
+
 .cp-link-title {
   display: -webkit-box;
   overflow: hidden;
@@ -836,6 +862,17 @@ body,
   color: var(--mac-tertiary-label);
   font-size: 11px;
   word-break: break-all;
+}
+
+.cp-link-url.is-main {
+  -webkit-line-clamp: 5;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cp-link[data-has-image] .cp-link-url.is-main {
+  -webkit-line-clamp: 2;
 }
 
 .cp-image {
@@ -998,6 +1035,14 @@ body,
   background: var(--mac-accent);
   color: #fff;
   font: 600 10.5px/1 var(--font-ui);
+}
+
+.cp-card-badge.is-floating {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1;
+  margin: 0;
 }
 
 .cp-group {
@@ -1743,4 +1788,9 @@ body,
   margin: 5px 8px;
   height: 0.5px;
   background: var(--mac-border);
+}
+
+/* Text / link cards without a footer row: keep the body off the bottom edge. */
+.cp-card:not(:has(.cp-card-foot)) .cp-card-body {
+  padding-bottom: 8px;
 }

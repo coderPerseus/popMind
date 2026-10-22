@@ -12,7 +12,7 @@ import {
   encodePinboardPayload,
   type DecodedItem,
 } from '@/lib/clipboard/sync/sync-payload'
-import type { ClipSyncErrorCode, ClipSyncRange, ClipSyncSummary } from '@/lib/clipboard/types'
+import type { ClipSyncErrorCode, ClipSyncPushResult, ClipSyncRange, ClipSyncSummary } from '@/lib/clipboard/types'
 import { mainLogger } from '@/lib/main/logger'
 
 export const ITEMS_PREFIX = 'items/'
@@ -95,11 +95,11 @@ const objectName = (key: string, prefix: string) => key.slice(prefix.length)
  * Checks credentials + bucket and that the bucket's data was encrypted with this key.
  * `initialize` writes the check object into an empty bucket (first device).
  */
-export const verifyRemote = async (
+export const verifyRemote = async <C extends Pick<R2Client, 'get' | 'put'> = R2Client>(
   credentials: SyncCredentials,
-  options: { initialize: boolean; client?: SyncRemote }
+  options: { initialize: boolean; client?: C }
 ) => {
-  const client = options.client ?? new R2Client(credentials)
+  const client: C | R2Client = options.client ?? new R2Client(credentials)
   const keys = deriveSyncKeys(credentials.encryptionKey)
   try {
     const check = await client.get(CHECK_KEY)
@@ -272,6 +272,64 @@ export const runSync = async (options: RunSyncOptions): Promise<ClipSyncSummary>
   return summary
 }
 
+export type PushItemsOptions = {
+  credentials: SyncCredentials
+  store: Pick<ClipStore, 'syncLoadOutgoing' | 'syncMarkUploaded'>
+  client?: Pick<R2Client, 'get' | 'put' | 'head'>
+  ids: string[]
+  maxImageBytes: number
+}
+
+/**
+ * Uploads chosen items right away, whatever the sync range says (context menu "Sync to remote"). Checks each
+ * object with HEAD instead of listing the whole bucket, so it stays fast with a large history.
+ */
+export const pushItems = async (options: PushItemsOptions): Promise<ClipSyncPushResult> => {
+  const result: ClipSyncPushResult = { ok: false, uploaded: 0, existing: 0, skipped: 0 }
+  const startedAt = performance.now()
+
+  try {
+    const remote = options.client ?? new R2Client(options.credentials)
+    const { keys } = await verifyRemote(options.credentials, { initialize: true, client: remote })
+    const outgoing = await options.store.syncLoadOutgoing(options.ids)
+    result.skipped += options.ids.length - outgoing.length
+
+    const remoteItemNames = new Set<string>()
+    const remoteBlobNames = new Set<string>()
+    const results = await mapLimit(outgoing, CONCURRENCY, async (item): Promise<UploadResult> => {
+      if (item.kind === 'file') return { status: 'skipped' }
+      const remoteKey = remoteName(keys, 'item', item.fingerprint)
+      if (await remote.head(`${ITEMS_PREFIX}${remoteKey}`)) return { status: 'existing', remoteKey }
+      if (item.imageHash) {
+        const blobName = remoteName(keys, 'blob', item.imageHash)
+        if (await remote.head(`${BLOBS_PREFIX}${blobName}`)) remoteBlobNames.add(blobName)
+      }
+      return uploadItem(remote, keys, item, { remoteItemNames, remoteBlobNames, maxImageBytes: options.maxImageBytes })
+    })
+
+    const done = results.flatMap((entry, index) =>
+      entry.status === 'skipped' ? [] : [{ itemId: outgoing[index].id, remoteKey: entry.remoteKey }]
+    )
+    result.uploaded = results.filter((entry) => entry.status === 'uploaded').length
+    result.existing = results.filter((entry) => entry.status === 'existing').length
+    result.skipped += results.filter((entry) => entry.status === 'skipped').length
+    if (done.length > 0) await options.store.syncMarkUploaded(done)
+    result.ok = true
+  } catch (error) {
+    const syncError = toSyncError(error)
+    result.errorCode = syncError.code
+    result.errorMessage = syncError.message
+  }
+
+  mainLogger.info('[clip-sync] push items', {
+    ids: options.ids.length,
+    ...result,
+    errorMessage: result.errorMessage?.slice(0, 200),
+    tookMs: Math.round(performance.now() - startedAt),
+  })
+  return result
+}
+
 const downloadItem = async (
   client: SyncRemote,
   keys: SyncKeys,
@@ -306,7 +364,7 @@ const downloadItem = async (
 type UploadResult = { status: 'uploaded' | 'existing'; remoteKey: string } | { status: 'skipped' }
 
 const uploadItem = async (
-  client: SyncRemote,
+  client: Pick<R2Client, 'put'>,
   keys: SyncKeys,
   item: ClipSyncOutgoing,
   context: { remoteItemNames: Set<string>; remoteBlobNames: Set<string>; maxImageBytes: number }

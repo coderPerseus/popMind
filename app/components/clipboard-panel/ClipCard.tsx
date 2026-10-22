@@ -1,9 +1,10 @@
-import { memo } from 'react'
+import { memo, useRef } from 'react'
 import { Globe, KeyRound, Smartphone } from 'lucide-react'
 import type { AppLanguage } from '@/lib/capability/types'
 import type { ClipListItem } from '@/lib/clipboard/types'
 import { cn } from '@/lib/utils'
 import { AppIcon, FileTypeIcon, HighlightedText, KindIcon } from '@/app/components/clipboard-panel/panel-parts'
+import { useInViewport, useLinkPreview } from '@/app/components/clipboard-panel/use-link-preview'
 import {
   NEUTRAL_HEADER_COLOR,
   formatBytes,
@@ -62,25 +63,42 @@ function TextBody({ item }: { item: ClipListItem }) {
   )
 }
 
-function LinkBody({ item, t }: { item: ClipListItem; t: PanelTranslate }) {
+function LinkBody({ item }: { item: ClipListItem }) {
+  const ref = useRef<HTMLDivElement>(null)
+  // Page screenshots only load for cards on screen; cards in the overscan stay plain text.
+  const visible = useInViewport(ref)
+  const preview = useLinkPreview(item.url, visible)
+  const ready = preview?.status === 'ready' ? preview : undefined
   const domain = getDomain(item.url)
-  const urlMatch = item.match?.field === 'url' ? item.match : undefined
   const titleMatch = item.match?.field === 'title' ? item.match : undefined
-  const hasTitle = item.title && item.title !== item.url
+  // Without a custom title the indexed title is the URL itself, so a title hit is a URL hit.
+  const urlMatch = item.match?.field === 'url' ? item.match : !item.customTitle ? titleMatch : undefined
+  // The derived title of a link is its URL; only a custom or page title is worth a separate line.
+  const title = item.customTitle || ready?.title
+  const imageUrl = visible ? ready?.imageUrl : undefined
 
   return (
-    <div className="cp-link">
-      {item.thumbnailUrl ? <img className="cp-link-thumb" src={item.thumbnailUrl} alt="" draggable={false} /> : null}
-      <div className="cp-link-title">
-        {hasTitle ? <HighlightedText text={item.title} ranges={titleMatch?.ranges} /> : t('clip.panel.kind.link')}
-      </div>
+    <div ref={ref} className="cp-link" data-has-image={imageUrl ? true : undefined}>
+      {imageUrl ? (
+        <img className="cp-link-shot" src={imageUrl} alt="" draggable={false} decoding="async" />
+      ) : item.thumbnailUrl ? (
+        <img className="cp-link-thumb" src={item.thumbnailUrl} alt="" draggable={false} />
+      ) : null}
+      {title ? (
+        <div className="cp-link-title">
+          <HighlightedText text={title} ranges={item.customTitle ? titleMatch?.ranges : undefined} />
+        </div>
+      ) : null}
       <div className="cp-link-domain">
         <Globe />
-        <span>{domain}</span>
+        <span>{ready?.siteName || domain}</span>
       </div>
-      <div className="cp-link-url">
-        {urlMatch ? <HighlightedText text={urlMatch.snippet} ranges={urlMatch.ranges} /> : item.url}
-      </div>
+      {/* Without a title the URL is the content; with one, only a URL search hit is shown again. */}
+      {!title || urlMatch ? (
+        <div className={cn('cp-link-url', !title && 'is-main')}>
+          {urlMatch ? <HighlightedText text={urlMatch.snippet} ranges={urlMatch.ranges} /> : item.url}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -160,9 +178,12 @@ function CardFooterText({ item, t }: { item: ClipListItem; t: PanelTranslate }) 
     case 'color':
       return <>{(item.colorValue ?? '').toUpperCase()}</>
     default:
-      return <>{t('clip.panel.card.chars', { count: item.charCount })}</>
+      // Text and links show their length in the header instead.
+      return null
   }
 }
+
+const showsLengthInHeader = (item: ClipListItem) => item.kind === 'text' || item.kind === 'link'
 
 export const ClipCard = memo(function ClipCard({
   item,
@@ -199,6 +220,7 @@ export const ClipCard = memo(function ClipCard({
           <span className="cp-card-time">
             {' · '}
             {formatRelativeTime(t, language, item.lastCopiedAt, now)}
+            {showsLengthInHeader(item) ? ` · ${t('clip.panel.card.charsShort', { count: item.charCount })}` : null}
           </span>
         </div>
         {item.source ? (
@@ -210,23 +232,30 @@ export const ClipCard = memo(function ClipCard({
 
       <div className="cp-card-body">
         {item.kind === 'text' ? <TextBody item={item} /> : null}
-        {item.kind === 'link' ? <LinkBody item={item} t={t} /> : null}
+        {item.kind === 'link' ? <LinkBody item={item} /> : null}
         {item.kind === 'image' ? <ImageBody item={item} t={t} /> : null}
         {item.kind === 'color' ? <ColorBody item={item} /> : null}
         {item.kind === 'file' ? <FileBody item={item} t={t} /> : null}
       </div>
 
-      <div className="cp-card-foot">
-        <span className="cp-card-foot-text">
-          <CardFooterText item={item} t={t} />
-        </span>
-        <span className="cp-card-foot-right">
-          {pinDots.map((id) => (
-            <i key={id} className="cp-pin-dot" style={{ background: pinboardColors[id] ?? NEUTRAL_HEADER_COLOR }} />
-          ))}
-          {badge ? <kbd className="cp-card-badge">{badge}</kbd> : null}
-        </span>
-      </div>
+      {showsLengthInHeader(item) && pinDots.length === 0 ? (
+        // No footer row: the ⌘ number floats over the body corner so holding ⌘ does not resize the card.
+        badge ? (
+          <kbd className="cp-card-badge is-floating">{badge}</kbd>
+        ) : null
+      ) : (
+        <div className="cp-card-foot">
+          <span className="cp-card-foot-text">
+            <CardFooterText item={item} t={t} />
+          </span>
+          <span className="cp-card-foot-right">
+            {pinDots.map((id) => (
+              <i key={id} className="cp-pin-dot" style={{ background: pinboardColors[id] ?? NEUTRAL_HEADER_COLOR }} />
+            ))}
+            {badge ? <kbd className="cp-card-badge">{badge}</kbd> : null}
+          </span>
+        </div>
+      )}
     </div>
   )
 })

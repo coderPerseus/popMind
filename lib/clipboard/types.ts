@@ -232,6 +232,20 @@ export type ClipAiTestResult = {
   errorMessage?: string
 }
 
+/** Page preview of a link card (docs/clipboard-paste-redesign.md, `fetchLinkPreviews`). */
+export type ClipLinkPreview = {
+  url: string
+  /** `pending`: queued, a `link-preview` event follows. `skipped`: never fetched (e.g. login / unsubscribe links). */
+  status: 'ready' | 'failed' | 'pending' | 'skipped'
+  title?: string
+  description?: string
+  siteName?: string
+  /** `popmind-clip://link-preview/<key>` screenshot of the page's first screen. */
+  imageUrl?: string
+  /** 0 on a `failed` event that was not stored (dropped from a full queue): ask again later. */
+  fetchedAt: number
+}
+
 // ---- sync ----
 
 export type ClipSyncErrorCode =
@@ -258,6 +272,18 @@ export type ClipSyncSummary = {
   errorMessage?: string
   finishedAt: number
   tookMs: number
+}
+
+/** Result of pushing chosen items to the bucket (context menu "Sync to remote"). */
+export type ClipSyncPushResult = {
+  ok: boolean
+  uploaded: number
+  /** Already in the bucket (uploaded earlier, here or on another device). */
+  existing: number
+  /** Too large, unreadable, or a kind that does not sync (files). */
+  skipped: number
+  errorCode?: ClipSyncErrorCode
+  errorMessage?: string
 }
 
 export type ClipSyncSetupResult = {

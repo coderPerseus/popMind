@@ -3259,6 +3259,50 @@ Napi::Value GetFrontmostAppInfo(const Napi::CallbackInfo& info) {
   return result;
 }
 
+Napi::Value GetAppWindowsBounds(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::Array list = Napi::Array::New(env);
+  if (info.Length() < 1 || !info[0].IsNumber()) return list;
+  const pid_t pid = (pid_t)info[0].As<Napi::Number>().Int32Value();
+
+  // All on-screen normal-layer windows of the app, front to back. Apps add helper windows in front of the main one
+  // (Chrome's fullscreen toolbar strip), so callers look at all of them. Bounds and owner pid need no screen
+  // recording permission.
+  CFArrayRef infoList =
+      CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+                                 kCGNullWindowID);
+  if (!infoList) return list;
+
+  uint32_t count = 0;
+  NSArray* windows = (__bridge NSArray*)infoList;
+  for (id rawWindow in windows) {
+    if (![rawWindow isKindOfClass:[NSDictionary class]]) continue;
+    NSDictionary* window = (NSDictionary*)rawWindow;
+    NSNumber* ownerPid = window[(id)kCGWindowOwnerPID];
+    NSNumber* layer = window[(id)kCGWindowLayer];
+    NSDictionary* boundsDict = window[(id)kCGWindowBounds];
+    if (![ownerPid isKindOfClass:[NSNumber class]] || ownerPid.intValue != pid) continue;
+    if ([layer isKindOfClass:[NSNumber class]] && layer.intValue != 0) continue;
+
+    CGRect bounds = CGRectNull;
+    if (![boundsDict isKindOfClass:[NSDictionary class]] ||
+        !CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)boundsDict, &bounds) ||
+        CGRectIsEmpty(bounds) || bounds.size.width < 100 || bounds.size.height < 100) {
+      continue;
+    }
+
+    Napi::Object object = Napi::Object::New(env);
+    object.Set("x", bounds.origin.x);
+    object.Set("y", bounds.origin.y);
+    object.Set("width", bounds.size.width);
+    object.Set("height", bounds.size.height);
+    list.Set(count++, object);
+    if (count >= 16) break;
+  }
+  CFRelease(infoList);
+  return list;
+}
+
 Napi::Value GetClipboardChangeCount(const Napi::CallbackInfo& info) {
   NSPasteboard* pb = [NSPasteboard generalPasteboard];
   return Napi::Number::New(info.Env(), pb ? pb.changeCount : -1);
@@ -4386,6 +4430,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setKeyMonitorEnabled", Napi::Function::New(env, SetKeyMonitorEnabled));
   exports.Set("getCursorPosition", Napi::Function::New(env, GetCursorPosition));
   exports.Set("getFrontmostAppInfo", Napi::Function::New(env, GetFrontmostAppInfo));
+  exports.Set("getAppWindowsBounds", Napi::Function::New(env, GetAppWindowsBounds));
   exports.Set("getClipboardChangeCount", Napi::Function::New(env, GetClipboardChangeCount));
   exports.Set("isClipboardFallbackActive", Napi::Function::New(env, IsClipboardFallbackActive));
   exports.Set("getClipboardSnapshot", Napi::Function::New(env, GetClipboardSnapshot));

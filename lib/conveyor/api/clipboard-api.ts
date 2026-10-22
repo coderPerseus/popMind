@@ -2,6 +2,7 @@ import { ConveyorApi } from '@/lib/preload/shared'
 import { ClipboardChannel } from '@/lib/conveyor/schemas/clipboard-schema'
 import type {
   ClipItemsChangedEvent,
+  ClipLinkPreview,
   ClipPanelShowEvent,
   ClipPasteMode,
   ClipPasteStackState,
@@ -51,6 +52,8 @@ export class ClipboardApi extends ConveyorApi {
   openAccessibilitySettings = () => this.invoke('clip-open-accessibility-settings')
   syncStatus = () => this.invoke('clip-sync-status')
   syncRun = () => this.invoke('clip-sync-run')
+  linkPreview = (url: string) => this.invoke('clip-link-preview', url)
+  syncPushItems = (ids: string[]) => this.invoke('clip-sync-push-items', ids)
   syncConnect = (syncKey: string) => this.invoke('clip-sync-connect', syncKey)
   syncSetupWithToken = (token: string, accountId?: string) => this.invoke('clip-sync-setup-token', token, accountId)
   syncDisconnect = () => this.invoke('clip-sync-disconnect')
@@ -66,6 +69,8 @@ export class ClipboardApi extends ConveyorApi {
     this.subscribe<ClipPasteStackState>(ClipboardChannel.PasteStack, handler)
   onSyncStatus = (handler: (status: ClipSyncStatus) => void) =>
     this.subscribe<ClipSyncStatus>(ClipboardChannel.SyncStatus, handler)
+  onLinkPreview = (handler: (preview: ClipLinkPreview) => void) =>
+    this.subscribe<ClipLinkPreview>(ClipboardChannel.LinkPreview, handler)
 
   private subscribe<T>(channel: string, handler: (payload: T) => void) {
     const listener = (_event: Electron.IpcRendererEvent, payload: T) => handler(payload)

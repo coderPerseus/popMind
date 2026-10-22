@@ -172,6 +172,14 @@ export class R2Client {
     return Buffer.from(await response.arrayBuffer())
   }
 
+  /** True when the object exists. */
+  async head(key: string): Promise<boolean> {
+    const response = await this.request('HEAD', key)
+    if (response.status === 404) return false
+    if (!response.ok) await this.fail(response, 'head')
+    return true
+  }
+
   async put(key: string, body: Buffer): Promise<void> {
     const response = await this.request('PUT', key, {}, body)
     if (!response.ok) await this.fail(response, 'put')

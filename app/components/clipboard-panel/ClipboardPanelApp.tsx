@@ -772,6 +772,51 @@ export function ClipboardPanelApp() {
     }
   })
 
+  const syncItemsToRemote = useEvent(async (targets: ClipListItem[]) => {
+    const ids = targets.filter((item) => item.kind !== 'file').map((item) => item.id)
+    if (ids.length === 0) return
+    if (!syncStatus?.configured) {
+      openSyncSettings()
+      return
+    }
+
+    showToast({ text: t('clip.panel.sync.pushing') }, 30_000)
+    try {
+      const result = await clipboard.syncPushItems(ids)
+      if (result.ok) {
+        const text =
+          result.uploaded > 0
+            ? t('clip.panel.sync.pushed', { count: result.uploaded })
+            : result.existing > 0
+              ? t('clip.panel.sync.pushedExisting')
+              : t('clip.panel.sync.pushSkipped')
+        showToast({
+          text:
+            result.uploaded > 0 && result.skipped > 0
+              ? text + t('clip.panel.sync.skipped', { count: result.skipped })
+              : text,
+          tone: result.uploaded + result.existing === 0 ? 'warning' : undefined,
+        })
+        return
+      }
+
+      const code = result.errorCode ?? 'unknown'
+      const fixable = code !== 'network' && code !== 'busy' && code !== 'unknown'
+      showToast(
+        {
+          text: t('clip.panel.sync.failed', { reason: t(`clip.panel.sync.error.${code}`) }),
+          tone: 'warning',
+          actionLabel: fixable ? t('clip.panel.sync.openSettings') : undefined,
+          onAction: fixable ? openSyncSettings : undefined,
+        },
+        5000
+      )
+    } catch (error) {
+      console.error('[clipboard-panel] push to remote failed', error)
+      showToast({ text: t('clip.panel.sync.failed', { reason: t('clip.panel.sync.error.unknown') }), tone: 'warning' })
+    }
+  })
+
   const resizePanel = useEvent((height: number) => void clipboard.setPanelHeight(height))
 
   // ---- search / filters ----
@@ -1183,6 +1228,7 @@ export function ClipboardPanelApp() {
     open: () => void openItem(getTargets()[0] ?? null),
     reveal: () => void revealItem(getTargets()[0] ?? null),
     remove: () => void removeItems(getTargets()),
+    syncToRemote: () => void syncItemsToRemote(getTargets()),
     togglePinboard: (pinboardId) => void toggleItemsInPinboard(pinboardId),
     newPinboard: () => setNewPinboardOpen(true),
     restoreFocus: focusSearch,

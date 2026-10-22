@@ -44,6 +44,8 @@ export const clipboardNative = {
 
   getFrontmostApp: () => addon?.getFrontmostAppInfo() ?? null,
 
+  getAppWindowsBounds: (pid: number) => addon?.getAppWindowsBounds?.(pid) ?? [],
+
   /** Fallback path when the panel could not keep the target app active. */
   activateAppAndPaste: (pid: number): boolean => Boolean(addon?.activateAppAndPaste(pid)),
 

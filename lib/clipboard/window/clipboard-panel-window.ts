@@ -10,6 +10,7 @@ import { clipboardEvents } from '@/lib/clipboard/events'
 import { clipboardNative } from '@/lib/clipboard/native-bridge'
 import type {
   ClipItemsChangedEvent,
+  ClipLinkPreview,
   ClipPanelShowEvent,
   ClipPasteStackState,
   ClipSyncStatus,
@@ -18,7 +19,13 @@ import type { PasteTarget } from '@/lib/clipboard/write/paste-service'
 import { getClipboardSettings } from '@/lib/clipboard/write/settings'
 import { ClipboardChannel } from '@/lib/conveyor/schemas/clipboard-schema'
 import { mainLogger } from '@/lib/main/logger'
-import { clampPanelHeight, computePanelBounds, resizePanelKeepingBottom } from './panel-geometry'
+import {
+  clampPanelHeight,
+  computePanelBounds,
+  isFullscreenWindow,
+  resizePanelKeepingBottom,
+  unionOnDisplay,
+} from './panel-geometry'
 import { loadPanelHeight, savePanelHeight } from './panel-state'
 
 /** Top corner radius of the panel; keep in sync with `.cp-strip` border-radius in clipboard-panel.css. */
@@ -359,6 +366,9 @@ class ClipboardPanelWindow {
     clipboardEvents.on('sync-status', (status: ClipSyncStatus) => {
       this.send(ClipboardChannel.SyncStatus, status)
     })
+    clipboardEvents.on('link-preview', (preview: ClipLinkPreview) => {
+      this.send(ClipboardChannel.LinkPreview, preview)
+    })
   }
 
   private send(channel: string, payload?: unknown) {
@@ -402,10 +412,13 @@ class ClipboardPanelWindow {
       return
     }
 
-    // 2. Position: display under the cursor, full work-area width, glued to the bottom.
+    // 2. Position: display under the cursor, full work-area width, glued to the bottom. Over a fullscreen app
+    // the Dock is hidden, so use the whole display instead of the work area.
     const cursor = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(cursor)
-    const bounds = computePanelBounds(display.workArea, this.height)
+    const targetWindows = target ? clipboardNative.getAppWindowsBounds(target.pid) : []
+    const fullscreen = isFullscreenWindow(unionOnDisplay(targetWindows, display.bounds), display)
+    const bounds = computePanelBounds(fullscreen ? display.bounds : display.workArea, this.height)
     window.setBounds(bounds)
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
     mark('positionMs')
@@ -456,6 +469,9 @@ class ClipboardPanelWindow {
       nativePresented,
       source: options.source,
       display: display.id,
+      fullscreen,
+      targetWindows: targetWindows.slice(0, 4),
+      workArea: display.workArea,
       bounds,
       target: target ? { bundleId: target.bundleId, name: target.name, pid: target.pid } : null,
       canDirectPaste: event.canDirectPaste,

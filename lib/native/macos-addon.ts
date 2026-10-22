@@ -25,6 +25,8 @@ export interface NativeMacOSAddon {
   setKeyMonitorEnabled(enabled: boolean): boolean
   getCursorPosition(): { x: number; y: number }
   getFrontmostAppInfo(): { bundleId: string; name: string; pid: number }
+  /** On-screen windows of the app, front to back, in global top-left coordinates (same space as Electron displays). */
+  getAppWindowsBounds?(pid: number): Array<{ x: number; y: number; width: number; height: number }>
   getClipboardChangeCount(): number
   isClipboardFallbackActive?(): boolean
   getClipboardSnapshot(): ClipboardSnapshotItem[]
