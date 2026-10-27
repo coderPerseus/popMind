@@ -4,6 +4,18 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.6.0
+
+- Input translation (Cmd+Shift+I): a box by the pointer; Enter translates into the chosen language, the translation replaces the text and goes on the clipboard, edits included. The engine and language are remembered.
+- Ask AI in the launcher: `-ai question` (or `/ai`) turns the launcher into a chat with your AI model, with follow-ups, copy and regenerate.
+- AI glow: the window's edge and the input glow in flowing colors while a reply is written (Settings → Explain, on by default).
+- Smoother AI and translation states: a shimmering "Thinking…", loading dots while translating, and Markdown replies with compact headings and hairline code blocks.
+- Web search in explanations checks it is set up, and links to its settings when it is not; the conversation's switch now turns it on even when it is off by default.
+- Floating windows are translucent over the desktop, as system panels are; the launcher opens centered.
+- Selection bubble: icons only, their labels in a tooltip on hover, which now works without clicking the bubble first.
+
+<br>
+
 ## v0.5.1
 
 - Quit works again: from the tray menu, Cmd+Q or the system, popMind now quits instead of ignoring it.
