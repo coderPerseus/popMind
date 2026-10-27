@@ -54,6 +54,9 @@ func newTranslatePopup(app *App) *TranslatePopup {
 		roundPanel(p.win, 12)
 	})
 	p.win.OnClose(func(e *mygo.CloseEvent) {
+		if quitting.Load() {
+			return
+		}
 		e.PreventDefault()
 		p.Hide()
 	})

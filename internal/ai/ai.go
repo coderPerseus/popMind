@@ -196,6 +196,13 @@ func Stream(ctx context.Context, m *Model, req Request, onDelta func(string)) er
 	case Google:
 		return streamGemini(ctx, m, req, onDelta)
 	default:
+		if req.ImageStyle == imageGemini && m.Provider == Custom && hasImages(req) {
+			relay := *m
+			relay.BaseURL = relayGeminiBase(m.BaseURL)
+			// Relays differ in the key they read on their Gemini API: Google's header or an OpenAI-style bearer.
+			return streamGeminiAuth(ctx, &relay, req, onDelta, map[string]string{
+				"x-goog-api-key": m.APIKey, "Authorization": "Bearer " + m.APIKey})
+		}
 		return streamOpenAI(ctx, m, req, onDelta)
 	}
 }
@@ -419,6 +426,10 @@ func streamAnthropic(ctx context.Context, m *Model, req Request, onDelta func(st
 }
 
 func streamGemini(ctx context.Context, m *Model, req Request, onDelta func(string)) error {
+	return streamGeminiAuth(ctx, m, req, onDelta, map[string]string{"x-goog-api-key": m.APIKey})
+}
+
+func streamGeminiAuth(ctx context.Context, m *Model, req Request, onDelta func(string), headers map[string]string) error {
 	base := geminiBase(m.BaseURL)
 	var contents []map[string]any
 	for _, msg := range req.Messages {
@@ -447,7 +458,7 @@ func streamGemini(ctx context.Context, m *Model, req Request, onDelta func(strin
 		body["generationConfig"] = gen
 	}
 	endpoint := fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse", base, url.PathEscape(m.ModelID))
-	resp, err := post(ctx, endpoint, body, map[string]string{"x-goog-api-key": m.APIKey})
+	resp, err := post(ctx, endpoint, body, headers)
 	if err != nil {
 		return err
 	}

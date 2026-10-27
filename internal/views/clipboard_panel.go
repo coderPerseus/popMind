@@ -145,6 +145,9 @@ func newClipboardPanel(app *App, store *clipboard.Store) *ClipboardPanel {
 		native.SetVibrancyTopCornerRadius(p.win.NativeHandle(), 10)
 	})
 	p.win.OnClose(func(e *mygo.CloseEvent) {
+		if quitting.Load() {
+			return
+		}
 		e.PreventDefault()
 		p.Hide()
 	})

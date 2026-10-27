@@ -99,3 +99,55 @@ func (b *BlockedApps) reload() {
 	b.loaded, b.apps = false, nil
 	b.load()
 }
+
+// UsedButtons are the bubble buttons the user has clicked at least once: from then on they show their icon
+// alone, without the label (bubble-used-buttons.json).
+type UsedButtons struct {
+	mu     sync.Mutex
+	loaded bool
+	ids    []string
+}
+
+// BubbleUsed is the app's record of clicked bubble buttons.
+var BubbleUsed = &UsedButtons{}
+
+const bubbleUsedFile = "bubble-used-buttons.json"
+
+func (u *UsedButtons) load() {
+	if !u.loaded {
+		u.loaded = true
+		_ = jsonx.ReadFile(Path(bubbleUsedFile), &u.ids)
+	}
+}
+
+// Has reports whether the button id was clicked before.
+func (u *UsedButtons) Has(id string) bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.load()
+	return slices.Contains(u.ids, id)
+}
+
+// Add records a click on the button id.
+func (u *UsedButtons) Add(id string) {
+	u.mu.Lock()
+	u.load()
+	if slices.Contains(u.ids, id) {
+		u.mu.Unlock()
+		return
+	}
+	u.ids = append(u.ids, id)
+	ids := slices.Clone(u.ids)
+	u.mu.Unlock()
+	_ = jsonx.WriteFile(Path(bubbleUsedFile), ids)
+}
+
+// Forget drops the record of the button ids (the dev self test).
+func (u *UsedButtons) Forget(ids ...string) {
+	u.mu.Lock()
+	u.load()
+	u.ids = slices.DeleteFunc(u.ids, func(id string) bool { return slices.Contains(ids, id) })
+	kept := slices.Clone(u.ids)
+	u.mu.Unlock()
+	_ = jsonx.WriteFile(Path(bubbleUsedFile), kept)
+}

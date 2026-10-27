@@ -2,6 +2,7 @@ package views
 
 import (
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -15,6 +16,9 @@ import (
 	"popmind/internal/textpicker"
 	"popmind/internal/windows"
 )
+
+// quitting is set once the app starts quitting, so windows stop turning a close into a hide.
+var quitting atomic.Bool
 
 // App owns popMind's windows and the actions between them.
 type App struct {
@@ -37,6 +41,8 @@ type App struct {
 // Call on the main thread once the app is ready.
 func Start() *App {
 	a := &App{}
+	// Quitting closes every window first; from then on a close must really close, not hide.
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting.Store(true) })
 	a.Launcher = newLauncher(a)
 	a.Settings = newSettingsWindow(a)
 	a.Bubble = newBubble(a)

@@ -35,6 +35,9 @@ func newSettingsWindow(app *App) *SettingsWindow {
 		Content:              ui.View(s.view),
 	})
 	s.win.OnClose(func(e *mygo.CloseEvent) {
+		if quitting.Load() {
+			return
+		}
 		e.PreventDefault()
 		s.Hide()
 	})

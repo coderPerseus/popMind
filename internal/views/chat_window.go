@@ -46,6 +46,9 @@ func newChatWindow(app *App) *ChatWindow {
 		roundPanel(w.win, 12)
 	})
 	w.win.OnClose(func(e *mygo.CloseEvent) {
+		if quitting.Load() {
+			return
+		}
 		e.PreventDefault()
 		w.Hide()
 	})

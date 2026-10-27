@@ -31,6 +31,17 @@ func Look(c *ui.Context) *ui.Theme {
 	return c.Theme()
 }
 
+// TooltipFill and TooltipText are the colors of a tooltip: dark gray with white text, a lighter gray in dark mode.
+// (The theme's Inverse is left unset; the ui package works it out for its own tooltips.)
+func TooltipFill(t *ui.Theme) ui.Color {
+	if t.Dark {
+		return ui.Hex("#4a4a4e")
+	}
+	return ui.Hex("#2c2c2e")
+}
+
+func TooltipText(*ui.Theme) ui.Color { return ui.RGBA(255, 255, 255, 0.92) }
+
 // Surface is the background of popMind's windows.
 func Surface(t *ui.Theme) ui.Color {
 	if t.Dark {

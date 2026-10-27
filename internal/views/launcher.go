@@ -194,6 +194,9 @@ func newLauncher(app *App) *Launcher {
 	})
 	l.translator.Update = l.panel.Update
 	l.panel.OnClose(func(e *mygo.CloseEvent) {
+		if quitting.Load() {
+			return
+		}
 		e.PreventDefault()
 		l.Hide()
 	})

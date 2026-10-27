@@ -29,9 +29,13 @@ func TestRenderPopups(t *testing.T) {
 		t.Skip("set POPMIND_RENDER_DIR to render")
 	}
 	b := &Bubble{skills: skillsFor("vector database"), picked: textpicker.Picked{Text: "vector database"}}
-	save(t, "bubble", b.view, bubbleWidth(len(b.skills)), bubbleHeight)
+	b.buttons = buttonsFor(b.skills)
+	save(t, "bubble", b.view, b.rowWidth(b.buttons, nil), bubbleHeight)
+	b.used = map[string]bool{"translate": true, "copy": true, "logo": true}
+	save(t, "bubble-used", b.view, b.rowWidth(b.buttons, b.used), bubbleHeight)
 	bl := &Bubble{skills: skillsFor("https://github.com/egoist/mygo")}
-	save(t, "bubble-link", bl.view, bubbleWidth(len(bl.skills)), bubbleHeight)
+	bl.buttons = buttonsFor(bl.skills)
+	save(t, "bubble-link", bl.view, bl.rowWidth(bl.buttons, nil), bubbleHeight)
 
 	p := &TranslatePopup{}
 	p.tr.Reset()

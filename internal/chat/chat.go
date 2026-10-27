@@ -148,7 +148,16 @@ func (s *Session) Busy() bool { return s.Status == StatusSearching || s.Status =
 
 func languageLabel() string { return i18n.T("app.language." + i18n.Language()) }
 
-var imageError = regexp.MustCompile(`(?i)image|vision|multimodal|media type|unsupported`)
+var imageError = regexp.MustCompile(`(?i)image|vision|multimodal|media type`)
+
+// serverFailure is an error of the relay itself (a 5xx, a crash), never the model saying it takes no images.
+var serverFailure = regexp.MustCompile(`(?i)^HTTP 5\d\d|panic`)
+
+// refusesImages reports whether err reads as the model refusing images, rather than a relay failing on them.
+func refusesImages(err error) bool {
+	s := errString(err)
+	return imageError.MatchString(s) && !serverFailure.MatchString(s)
+}
 
 // run streams the assistant's reply to the conversation so far. Call on the main thread.
 func (s *Session) run() {
@@ -271,8 +280,8 @@ func (s *Session) run() {
 		}
 		// An OpenAI-compatible relay that fails on the screenshot may take it sent another way (ai.ImageStyles):
 		// each is tried once, and the one that works is kept for this model at this address.
-		if includeImage && m.UsesOpenAIImages() && !imageError.MatchString(errString(err)) {
-			for next := style + 1; failedEarly() && next < ai.ImageStyles; next++ {
+		if includeImage && m.UsesOpenAIImages() && !refusesImages(err) {
+			for next := style + 1; failedEarly() && next < ai.ImageStylesFor(m); next++ {
 				logx.Warn("[chat] image request failed, trying another way", "style", style, "next", next, "err", err)
 				style = next
 				text, err = ask(true)
@@ -287,7 +296,7 @@ func (s *Session) run() {
 		// screenshot was the cause: this model, at this address, is sent none again.
 		if includeImage && failedEarly() {
 			state := "dropped"
-			if imageError.MatchString(err.Error()) {
+			if refusesImages(err) {
 				state = "unsupported"
 			}
 			logx.Warn("[chat] retry without image", "err", err, "state", state)
