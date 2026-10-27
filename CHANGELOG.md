@@ -4,6 +4,14 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.5.1
+
+- Quit works again: from the tray menu, Cmd+Q or the system, popMind now quits instead of ignoring it.
+- Selection bubble: each button shows its icon and label until it is clicked once, then its icon alone; the label shows in a tooltip on hover.
+- Images to custom relays: a relay that crashes on images sent the OpenAI way (new-api in front of Gemini) gets them through its Gemini API; a relay's own failure no longer reads as the model refusing images; the way that worked is remembered across restarts.
+
+<br>
+
 ## v0.5.0
 
 popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/egoist/mygo), replacing the Electron app. It installs over it: same identifier, signature and data folder, so settings, clipboard history, pinboards and permissions carry over.
