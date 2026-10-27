@@ -3388,6 +3388,34 @@ __attribute__((visibility("default"))) int pm_activate_app(int pid) {
   return activated ? 1 : 0;
 }
 
+// myGo's views track the pointer only while popMind is the active app (NSTrackingActiveInActiveApp), which it
+// never is while the bubble shows over the app the text is in: hovering a button showed nothing until a click
+// activated popMind. A second tracking area, active always, on each of the window's myGo views (marked by its
+// userInfo, added once) sends them the pointer's moves without taking the focus from that app.
+static void TrackPointerAlways(NSView* view) {
+  if (!view) return;
+  if ([NSStringFromClass([view class]) isEqualToString:@"MyGoSurfaceView"]) {
+    BOOL has = NO;
+    for (NSTrackingArea* area in view.trackingAreas) {
+      if ([area.userInfo objectForKey:@"popmind"]) {
+        has = YES;
+        break;
+      }
+    }
+    if (!has) {
+      NSTrackingArea* area = [[NSTrackingArea alloc]
+          initWithRect:NSZeroRect
+               options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways |
+                       NSTrackingInVisibleRect
+                 owner:view
+              userInfo:@{@"popmind" : @YES}];
+      [view addTrackingArea:area];
+      [area release];
+    }
+  }
+  for (NSView* sub in view.subviews) TrackPointerAlways(sub);
+}
+
 // window: NSWindow* (myGo's Window.NativeHandle()). Registers it as a bubble surface: clicks in it are
 // not treated as clicks elsewhere, and it floats at the pop-up menu level on every Space.
 __attribute__((visibility("default"))) int pm_configure_bubble_window(void* window, int level) {
@@ -3401,6 +3429,8 @@ __attribute__((visibility("default"))) int pm_configure_bubble_window(void* wind
                                    NSWindowCollectionBehaviorStationary];
     [nsWindow setLevel:level > 0 ? level : NSPopUpMenuWindowLevel];
     [nsWindow setHidesOnDeactivate:NO];
+    [nsWindow setAcceptsMouseMovedEvents:YES];
+    TrackPointerAlways(nsWindow.contentView);
     NSLog(@"[popmind_native] configureBubbleWindow class=%@ windowNumber=%ld styleMask=0x%lx level=%ld",
           NSStringFromClass([nsWindow class]), (long)nsWindow.windowNumber,
           (unsigned long)[nsWindow styleMask], (long)[nsWindow level]);

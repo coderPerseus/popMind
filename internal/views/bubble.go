@@ -2,9 +2,8 @@ package views
 
 import (
 	"math"
-	"sync"
+	"sync/atomic"
 	"time"
-	"unicode"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -12,7 +11,6 @@ import (
 	"popmind/internal/i18n"
 	"popmind/internal/logx"
 	"popmind/internal/native"
-	"popmind/internal/settings"
 	"popmind/internal/textpicker"
 	"popmind/internal/views/assets"
 	"popmind/internal/views/icons"
@@ -27,12 +25,14 @@ const (
 	bubbleRowGap  = 2
 	bubbleGripW   = 14
 	bubbleDivider = 1 + 2*2
-	// A button with its icon alone, and the logo's; a labelled one has padding, the icon, a gap and the label.
-	bubbleIconW    = 30
-	bubbleLogoW    = 28
-	bubbleLabelPad = 8
-	bubbleLabelGap = 4
-	bubbleLabelPt  = 12
+	// A button (its icon) and the logo.
+	bubbleIconW = 30
+	bubbleLogoW = 28
+
+	// The tooltip shows after the pointer rests this long on a button, and at once while moving from one button
+	// to the next within tipWarm of the last tooltip, as macOS's toolbars do.
+	tipDelay = 380 * time.Millisecond
+	tipWarm  = 500 * time.Millisecond
 )
 
 // skill is a button of the bubble.
@@ -71,22 +71,21 @@ func buttonsFor(skills []skill) []bubbleButton {
 	return append(out, bubbleButton{id: "logo", label: i18n.T("bubble.openHome"), logo: true, dividerBefore: true})
 }
 
-// Bubble is the toolbar shown above a selection. A button shows its icon and its label until the user has
-// clicked it once (settings.BubbleUsed), and its icon alone from then on, with the label in a tooltip.
+// Bubble is the toolbar shown above a selection: icons, whose labels show in a tooltip below the bubble (a
+// flyout, outside the bubble's window) as the pointer rests on them.
 type Bubble struct {
 	app     *App
 	win     *mygo.Window
 	picked  textpicker.Picked
 	skills  []skill
 	buttons []bubbleButton
-	used    map[string]bool // the buttons showing their icon alone, as of the last Show
-	width   int
 
-	textMu sync.Mutex
-	textW  map[string]float32 // label widths, as measured while building
-
+	// The tooltip: one flyout, made once and shown and hidden as the pointer moves. Everything done to it runs
+	// in order on one goroutine (tipOps), never on the main thread, which its window calls wait for.
+	tipOps   chan func()
 	tip      *mygo.Window
 	tipText  string
+	tipSeen  atomic.Int64 // when a tooltip last showed or went (unix ns), for tipWarm
 	hovered  string
 	hoverAt  time.Time
 	tipShown bool
@@ -94,55 +93,34 @@ type Bubble struct {
 	centers  map[string]int // the middle of each button, for the tooltip
 }
 
-// labelWidth is the measured width of a label, or an estimate before it has been measured.
-func (b *Bubble) labelWidth(label string) float32 {
-	b.textMu.Lock()
-	w, ok := b.textW[label]
-	b.textMu.Unlock()
-	if ok {
-		return w
-	}
-	for _, r := range label {
-		if r > 0x2e80 || unicode.Is(unicode.Han, r) {
-			w += bubbleLabelPt
-		} else {
-			w += bubbleLabelPt * 0.56
-		}
-	}
-	return w
-}
-
-func (b *Bubble) buttonWidth(btn bubbleButton, used map[string]bool) float32 {
-	switch {
-	case used[btn.id] && btn.logo:
-		return bubbleLogoW
-	case used[btn.id]:
-		return bubbleIconW
-	}
-	icon := float32(16)
+func buttonWidth(btn bubbleButton) float32 {
 	if btn.logo {
-		icon = 18
+		return bubbleLogoW
 	}
-	return bubbleLabelPad + icon + bubbleLabelGap + b.labelWidth(btn.label) + bubbleLabelPad
+	return bubbleIconW
 }
 
 // rowWidth is the bubble's width: padding, the grip, then each button after a gap, and the dividers.
-func (b *Bubble) rowWidth(buttons []bubbleButton, used map[string]bool) int {
+func rowWidth(buttons []bubbleButton) int {
 	w := float32(2*bubblePad + bubbleGripW)
 	for _, btn := range buttons {
 		if btn.dividerBefore {
 			w += bubbleRowGap + bubbleDivider
 		}
-		w += bubbleRowGap + b.buttonWidth(btn, used)
+		w += bubbleRowGap + buttonWidth(btn)
 	}
 	return int(math.Ceil(float64(w)))
 }
 
 func newBubble(app *App) *Bubble {
-	b := &Bubble{app: app, textW: map[string]float32{}, centers: map[string]int{}}
+	b := &Bubble{app: app, centers: map[string]int{}, tipOps: make(chan func(), 32)}
+	go func() {
+		for op := range b.tipOps {
+			op()
+		}
+	}()
 	b.skills = skillsFor("")
 	b.buttons = buttonsFor(b.skills)
-	b.width = b.rowWidth(b.buttons, nil)
 	b.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:         "popMind Bubble",
 		Panel:         true,
@@ -150,7 +128,7 @@ func newBubble(app *App) *Bubble {
 		Frameless:     true,
 		Transparent:   true,
 		Vibrancy:      mygo.VibrancyPopover,
-		Width:         b.width,
+		Width:         rowWidth(b.buttons),
 		Height:        bubbleHeight,
 		DisableResize: true,
 		Content:       ui.View(b.view),
@@ -173,13 +151,10 @@ func newBubble(app *App) *Bubble {
 func (b *Bubble) Show(p textpicker.Picked) {
 	skills := skillsFor(p.Text)
 	buttons := buttonsFor(skills)
-	used := map[string]bool{}
-	for _, btn := range buttons {
-		used[btn.id] = settings.BubbleUsed.Has(btn.id)
-	}
-	w := b.rowWidth(buttons, used)
+	w := rowWidth(buttons)
+	b.tipDo(b.hideTipNow)
 	b.win.Update(func() {
-		b.picked, b.skills, b.buttons, b.used, b.hovered, b.width = p, skills, buttons, used, "", w
+		b.picked, b.skills, b.buttons, b.hovered = p, skills, buttons, ""
 	})
 	anchor := textpicker.Anchor{X: p.Cursor.X, TopY: p.Cursor.Y, BottomY: p.Cursor.Y}
 	r := placeAbove(anchor, w, bubbleHeight, bubbleGap)
@@ -194,7 +169,7 @@ func (b *Bubble) Show(p textpicker.Picked) {
 
 // Hide hides the bubble and its tooltip.
 func (b *Bubble) Hide() {
-	b.hideTip()
+	b.tipDo(b.hideTipNow)
 	if b.win.IsVisible() {
 		b.win.Hide()
 	}
@@ -218,30 +193,11 @@ func (b *Bubble) view(c *ui.Context) {
 	if c.Shortcut(0, ui.KeyEscape) {
 		go b.Hide()
 	}
-	// Labels are measured as they are drawn; a bubble shown before its labels were measured takes their
-	// width now.
-	if b.textW == nil {
-		b.textW, b.centers = map[string]float32{}, map[string]int{}
+	if b.centers == nil {
+		b.centers = map[string]int{}
 	}
 	if b.buttons == nil {
 		b.buttons = buttonsFor(b.skills)
-	}
-	measured := false
-	for _, btn := range b.buttons {
-		b.textMu.Lock()
-		_, ok := b.textW[btn.label]
-		b.textMu.Unlock()
-		if !ok && !b.used[btn.id] {
-			w, _ := c.MeasureText(0, ui.Span{Text: btn.label, Size: bubbleLabelPt})
-			b.textMu.Lock()
-			b.textW[btn.label] = float32(math.Ceil(float64(w)))
-			b.textMu.Unlock()
-			measured = true
-		}
-	}
-	if w := b.rowWidth(b.buttons, b.used); measured && w != b.width && b.win != nil {
-		b.width = w
-		go b.win.SetSize(w, bubbleHeight)
 	}
 
 	fg := t.Text.Alpha(0.62)
@@ -261,10 +217,10 @@ func (b *Bubble) view(c *ui.Context) {
 				divider()
 				x += bubbleRowGap + bubbleDivider
 			}
-			w := b.buttonWidth(btn, b.used)
+			w := buttonWidth(btn)
 			b.centers[btn.id] = int(x + bubbleRowGap + w/2)
 			x += bubbleRowGap + w
-			el := ui.ButtonBase(c.Key(btn.id)).Size(w, 28).Radius(7).Center().Gap(bubbleLabelGap).Label(btn.label).Transition(hoverColors)
+			el := ui.ButtonBase(c.Key(btn.id)).Size(w, 28).Radius(7).Center().Label(btn.label).Transition(hoverColors)
 			color := fg
 			switch {
 			case el.Pressed():
@@ -287,9 +243,6 @@ func (b *Bubble) view(c *ui.Context) {
 				} else {
 					ui.Icon(c, icons.Get(btn.icon)).FontSize(16).TextColor(color)
 				}
-				if !b.used[btn.id] {
-					ui.Text(c, btn.label).FontSize(bubbleLabelPt).TextColor(color).SingleLine()
-				}
 			})
 		}
 	})
@@ -297,7 +250,6 @@ func (b *Bubble) view(c *ui.Context) {
 	// text is in taking the focus back.
 	if pressedNow != "" && pressedNow != b.pressed {
 		cmd, text := pressedNow, b.picked.Text
-		go settings.BubbleUsed.Add(cmd)
 		if cmd == "logo" {
 			go func() {
 				b.Hide()
@@ -311,56 +263,76 @@ func (b *Bubble) view(c *ui.Context) {
 	b.trackHover(c, hovered)
 }
 
-// trackHover shows the label of a hovered button that shows its icon alone in a tooltip flyout below the
-// bubble after a short rest.
+// trackHover shows the hovered button's label in the tooltip below the bubble once the pointer rests on it,
+// and moves it along as the pointer goes from one button to the next.
 func (b *Bubble) trackHover(c *ui.Context, hovered string) {
 	if hovered != b.hovered {
+		logx.Info("[bubble] hover", "on", hovered)
 		b.hovered, b.hoverAt, b.tipShown = hovered, time.Now(), false
-		go b.hideTip()
+		if hovered == "" {
+			b.tipDo(b.hideTipNow)
+		}
 	}
 	if hovered == "" || b.tipShown {
 		return
 	}
 	label := i18n.T("bubble.drag")
-	if hovered != "grip" {
-		label = ""
-		for _, btn := range b.buttons {
-			if btn.id == hovered && b.used[btn.id] {
-				label = btn.label
-			}
+	for _, btn := range b.buttons {
+		if btn.id == hovered {
+			label = btn.label
 		}
 	}
-	if label == "" {
-		return // its label shows on it
-	}
-	if wait := 380*time.Millisecond - time.Since(b.hoverAt); wait > 0 {
+	seen := b.tipSeen.Load()
+	warm := seen != 0 && time.Since(time.Unix(0, seen)) < tipWarm
+	if wait := tipDelay - time.Since(b.hoverAt); wait > 0 && !warm {
 		c.After(wait)
 		return
 	}
+	w, _ := c.MeasureText(0, ui.Span{Text: label, Size: 12})
 	b.tipShown = true
-	go b.showTip(label, b.centers[hovered])
+	x, width := b.centers[hovered], int(math.Ceil(float64(w)))+20
+	b.tipDo(func() { b.showTipNow(label, x, width) })
 }
 
-func (b *Bubble) showTip(label string, x int) {
-	width := int(float64(len([]rune(label)))*12.5) + 20
+// tipDo queues op for the tooltip's goroutine.
+func (b *Bubble) tipDo(op func()) {
+	select {
+	case b.tipOps <- op:
+	default: // nil (tests) or full: the next move of the pointer queues it again
+	}
+}
+
+// showTipNow shows label in the tooltip under x (the middle of a button, in the bubble), width DIPs wide. On the
+// tooltip's goroutine.
+func (b *Bubble) showTipNow(label string, x, width int) {
 	anchor := mygo.Rectangle{X: x, Y: 0, Width: 0, Height: bubbleHeight}
+	if !b.win.IsVisible() {
+		return
+	}
+	b.tipSeen.Store(time.Now().UnixNano())
 	if b.tip == nil {
 		b.tipText = label
 		b.tip = mygo.NewFlyout(mygo.FlyoutOptions{
 			Parent: b.win, Anchor: anchor, Placement: mygo.PlacementBottom, Gap: 6,
 			Width: width, Height: 24, Content: ui.View(b.tipView),
 		})
-		b.tip.OnClosed(func() { b.tip = nil })
 		// A flyout keeps the normal window level, under the windows of the app in front (popMind is never
 		// active while the bubble shows): lift it to the bubble's level.
 		native.ConfigureBubbleWindow(b.tip.NativeHandle(), 0)
 		native.OrderWindowFront(b.tip.NativeHandle())
 		roundPanel(b.tip, 6)
+		logx.Info("[bubble] tip", "label", label)
 		return
 	}
-	b.tip.Update(func() { b.tipText = label })
-	b.tip.SetSize(width, 24)
-	b.tip.SetAnchor(anchor)
+	tip := b.tip
+	tip.Update(func() { b.tipText = label })
+	tip.SetSize(width, 24)
+	tip.SetAnchor(anchor)
+	if !tip.IsVisible() {
+		tip.ShowInactive()
+		native.OrderWindowFront(tip.NativeHandle())
+	}
+	logx.Info("[bubble] tip", "label", label)
 }
 
 // ShowTipForTest shows the tooltip of the button id as hovering it would; for the dev self test.
@@ -371,14 +343,15 @@ func (b *Bubble) ShowTipForTest(id string) {
 			label = btn.label
 		}
 	}
-	b.showTip(label, b.centers[id])
+	x, width := b.centers[id], len([]rune(label))*13+20
+	b.tipDo(func() { b.showTipNow(label, x, width) })
 }
 
-func (b *Bubble) hideTip() {
-	b.tipShown = false
-	if b.tip != nil {
-		b.tip.Close()
-		b.tip = nil
+// hideTipNow hides the tooltip, kept for the next one. On the tooltip's goroutine.
+func (b *Bubble) hideTipNow() {
+	if b.tip != nil && b.tip.IsVisible() {
+		b.tip.Hide()
+		b.tipSeen.Store(time.Now().UnixNano())
 	}
 }
 

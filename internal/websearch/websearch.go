@@ -31,6 +31,12 @@ func Resolve(c settings.Capability) (string, string) {
 	if !c.WebSearch.Enabled {
 		return "", ""
 	}
+	return Configured(c)
+}
+
+// Configured returns the first provider with a key and its key, whether web search is on by default or not
+// (a conversation's switch turns it on for itself), or "" when none has a key.
+func Configured(c settings.Capability) (string, string) {
 	for _, id := range Order {
 		if key := strings.TrimSpace(c.WebSearch.Providers[id].APIKey); key != "" {
 			return id, key

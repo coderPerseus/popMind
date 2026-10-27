@@ -11,7 +11,6 @@ import (
 	"github.com/egoist/mygo"
 
 	"popmind/internal/logx"
-	"popmind/internal/settings"
 	"popmind/internal/textpicker"
 	"popmind/internal/views"
 )
@@ -30,6 +29,14 @@ func runSelfTest(app *views.App) {
 		kind, rest, _ := strings.Cut(spec, ":")
 		if kind == "clipboard" {
 			selfTestClipboard(app, dir, rest)
+			return
+		}
+		if kind == "aichat" {
+			selfTestAIChat(app, dir, rest)
+			return
+		}
+		if kind == "inputtr" {
+			selfTestInputTranslation(app, dir, rest)
 			return
 		}
 		if kind == "bubbletip" {
@@ -114,46 +121,51 @@ func selfTestClipboard(app *views.App, dir, spec string) {
 	logx.Info("[selftest] clipboard done")
 }
 
-// selfTestBubbleTip shows the bubble with every label, then with some buttons clicked before (their icon alone)
-// and the tooltip of one, saving what the screen shows; the record of clicked buttons is put back after.
+// selfTestBubbleTip shows the bubble and the tooltip of its translate button, and saves what the screen shows.
 func selfTestBubbleTip(app *views.App, dir string) {
-	ids := []string{"translate", "explain", "copy", "ask", "block", "logo"}
-	var before []string
-	for _, id := range ids {
-		if settings.BubbleUsed.Has(id) {
-			before = append(before, id)
-		}
-	}
 	d := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
 	anchor := textpicker.Anchor{X: float64(d.WorkArea.X + d.WorkArea.Width/2), TopY: float64(d.WorkArea.Y + d.WorkArea.Height/2),
 		BottomY: float64(d.WorkArea.Y + d.WorkArea.Height/2 + 20)}
 	p := textpicker.Picked{Text: "hello world", AppName: "Self Test", Anchor: anchor, Cursor: textpicker.Point{X: anchor.X, Y: anchor.TopY}}
-	capture := func(name string) {
-		r := app.Bubble.Bounds()
-		r.Height += 40
-		screen(dir, name, r)
-		logx.Info("[selftest] bubble", "capture", name, "bounds", app.Bubble.Bounds())
-	}
-
-	settings.BubbleUsed.Forget(ids...)
-	app.ShowBubble(p)
-	time.Sleep(900 * time.Millisecond)
-	capture("bubble-labels.png")
-	app.HideBubble()
-	time.Sleep(300 * time.Millisecond)
-
-	settings.BubbleUsed.Add("translate")
-	settings.BubbleUsed.Add("copy")
-	settings.BubbleUsed.Add("logo")
 	app.ShowBubble(p)
 	time.Sleep(900 * time.Millisecond)
 	app.Bubble.ShowTipForTest("translate")
 	time.Sleep(600 * time.Millisecond)
-	capture("bubble-used.png")
+	r := app.Bubble.Bounds()
+	r.Height += 40
+	screen(dir, "bubble-tip.png", r)
 	app.HideBubble()
+}
 
-	settings.BubbleUsed.Forget(ids...)
-	for _, id := range before {
-		settings.BubbleUsed.Add(id)
-	}
+// selfTestInputTranslation opens the input translation box, translates text and saves what the screen shows
+// before and after; the log tells what went on the clipboard.
+func selfTestInputTranslation(app *views.App, dir, text string) {
+	app.InputTr.Show()
+	time.Sleep(700 * time.Millisecond)
+	r := app.InputTr.Bounds()
+	screen(dir, "inputtr-open.png", r)
+	app.InputTr.TranslateForTest(text)
+	time.Sleep(6 * time.Second)
+	screen(dir, "inputtr-done.png", r)
+	logx.Info("[selftest] input translation", "clipboard", mygo.Clipboard.ReadText())
+	app.InputTr.Hide()
+}
+
+// selfTestAIChat types "-ai question" in the launcher, captures the card, presses Enter, asks a follow-up and
+// captures the chat.
+func selfTestAIChat(app *views.App, dir, question string) {
+	app.ShowLauncher("-ai " + question)
+	time.Sleep(1200 * time.Millisecond)
+	screen(dir, "aichat-card.png", app.Launcher.Bounds())
+	app.Launcher.SubmitForTest("")
+	time.Sleep(400 * time.Millisecond)
+	screen(dir, "aichat-loading-1.png", app.Launcher.Bounds())
+	time.Sleep(300 * time.Millisecond)
+	screen(dir, "aichat-loading-2.png", app.Launcher.Bounds())
+	time.Sleep(12 * time.Second)
+	screen(dir, "aichat-answer.png", app.Launcher.Bounds())
+	app.Launcher.SubmitForTest("再举一个代码例子，越短越好")
+	time.Sleep(15 * time.Second)
+	screen(dir, "aichat-followup.png", app.Launcher.Bounds())
+	logx.Info("[selftest] ai chat done")
 }

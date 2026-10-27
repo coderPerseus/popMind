@@ -16,6 +16,8 @@ type SettingsWindow struct {
 	ui      settingsUI
 	// revealSync scrolls the clipboard settings to their sync part once.
 	revealSync bool
+	// revealSearch scrolls the AI settings to their web search part once.
+	revealSearch bool
 }
 
 func newSettingsWindow(app *App) *SettingsWindow {
@@ -52,6 +54,10 @@ func (s *SettingsWindow) Show(section string) {
 			s.section, s.revealSync = section, section == "clipboard-sync"
 			if s.revealSync {
 				s.section = "clipboard"
+			}
+			// "ai-search" is AI, scrolled to its web search settings.
+			if s.revealSearch = section == "ai-search"; s.revealSearch {
+				s.section = "ai"
 			}
 		})
 	}

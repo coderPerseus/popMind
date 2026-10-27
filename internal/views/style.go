@@ -93,9 +93,20 @@ func CardFill(t *ui.Theme) ui.Color {
 // PanelFill is what a panel draws: the surface.
 func PanelFill(t *ui.Theme) ui.Color { return Surface(t) }
 
-// Panel styles the root of a floating panel: the plain surface, white in light mode.
+// Panel gives a floating window its background: over the window's material (vibrancy), a light tint of the
+// surface that lets the blurred desktop show through, as Spotlight's and the system popovers' do; without the
+// material, the plain surface.
 func Panel(c *ui.Context) {
-	c.Root().Background(Surface(c.Theme()))
+	t := c.Theme()
+	if c.Vibrancy() {
+		tint := float32(0.5)
+		if t.Dark {
+			tint = 0.55
+		}
+		c.Root().Background(Surface(t).Alpha(tint))
+		return
+	}
+	c.Root().Background(Surface(t))
 }
 
 // IconButton is a 26×26 button showing a lucide icon, with a tooltip.

@@ -14,6 +14,7 @@ import (
 
 	"popmind/internal/apps"
 	"popmind/internal/calc"
+	"popmind/internal/chat"
 	"popmind/internal/i18n"
 	"popmind/internal/logx"
 	"popmind/internal/native"
@@ -92,6 +93,9 @@ var launcherCommands = []*command{
 	{id: "command.translate", kind: "translate", titleKey: "launcher.command.translate.title",
 		subKey: "launcher.command.translate.subtitle", aliases: []string{"/tr", "/translate", "/翻译"},
 		keywords: []string{"translate", "tr", "translation", "command", "翻译"}},
+	{id: "command.ai", kind: "ai", titleKey: "launcher.command.ai.title",
+		subKey: "launcher.command.ai.subtitle", aliases: []string{"-ai", "/ai", "/问"},
+		keywords: []string{"ai", "ask", "chat", "gpt", "command", "问", "提问", "聊天"}},
 	{id: "command.explain", kind: "explain", titleKey: "launcher.command.explain.title",
 		subKey: "launcher.command.explain.subtitle", aliases: []string{"/ex", "/explain", "/解释"},
 		keywords: []string{"explain", "explanation", "command", "解释", "ex"}},
@@ -107,9 +111,10 @@ type parsed struct {
 
 func parseQuery(raw string) parsed {
 	q := strings.TrimSpace(raw)
-	if !strings.HasPrefix(q, "/") {
+	if !strings.HasPrefix(q, "/") && !strings.HasPrefix(q, "-") {
 		return parsed{}
 	}
+	lower := strings.ToLower(q)
 	type alias struct {
 		p       *plugin
 		c       *command
@@ -128,7 +133,7 @@ func parseQuery(raw string) parsed {
 	}
 	slices.SortStableFunc(all, func(a, b alias) int { return len(b.trigger) - len(a.trigger) })
 	for _, a := range all {
-		if q == a.trigger || strings.HasPrefix(q, a.trigger+" ") {
+		if lower == a.trigger || strings.HasPrefix(lower, a.trigger+" ") {
 			return parsed{plugin: a.p, command: a.c, trigger: a.trigger, text: strings.TrimSpace(q[len(a.trigger):])}
 		}
 	}
@@ -174,6 +179,10 @@ type Launcher struct {
 
 	translator Translator
 	lastTrText string
+
+	// conv is the /ai conversation: while there is one, the launcher is a chat (startChat, endChat).
+	conv      *Conversation
+	focusConv bool
 }
 
 func newLauncher(app *App) *Launcher {
@@ -238,7 +247,7 @@ func (l *Launcher) Show(query string) {
 	windows.Dispatch(windows.DismissContext{Reason: windows.DismissSurfaceOpened, Target: "main"})
 	if !l.panel.IsVisible() {
 		d := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
-		l.panel.SetPosition(d.WorkArea.X+(d.WorkArea.Width-launcherWidth)/2, d.WorkArea.Y+(d.WorkArea.Height-launcherHeight)/4)
+		l.panel.SetPosition(d.WorkArea.X+(d.WorkArea.Width-launcherWidth)/2, d.WorkArea.Y+(d.WorkArea.Height-launcherHeight)/2)
 	}
 	l.panel.Update(func() {
 		if query != "" {
@@ -253,6 +262,7 @@ func (l *Launcher) Show(query string) {
 // Hide hides it and clears the query, as closing does.
 func (l *Launcher) Hide() {
 	l.panel.Update(func() {
+		l.endChat()
 		l.setQuery("")
 		l.placeholder = pickPlaceholder(l.placeholder)
 	})
@@ -414,6 +424,10 @@ func (l *Launcher) submit(p parsed, list []entry) {
 			l.lastTrText = p.text
 			l.translator.Run(p.text, 0)
 		}
+	case p.command != nil && p.command.kind == "ai":
+		if p.text != "" && chat.Configured() {
+			l.startChat(p.text)
+		}
 	case p.command != nil && p.command.kind == "explain":
 		if p.text != "" {
 			l.Hide()
@@ -445,6 +459,10 @@ func (l *Launcher) submit(p parsed, list []entry) {
 func (l *Launcher) view(c *ui.Context) {
 	t := Look(c)
 	Panel(c)
+	if l.conv != nil {
+		l.chatView(c)
+		return
+	}
 	p := parseQuery(l.query)
 	list := l.entries(p)
 	l.chosen = max(0, min(l.chosen, len(list)-1))
@@ -507,6 +525,8 @@ func (l *Launcher) view(c *ui.Context) {
 			switch {
 			case p.command != nil && p.command.kind == "translate":
 				mode("cmd:translate", func() { l.translateCard(c, p) })
+			case p.command != nil && p.command.kind == "ai":
+				mode("cmd:ai", func() { l.aiCard(c, p) })
 			case p.command != nil && p.command.kind == "explain":
 				mode("cmd:explain", func() { l.explainCard(c, p) })
 			case p.plugin != nil && p.plugin.mode == "panel":

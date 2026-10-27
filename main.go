@@ -78,6 +78,7 @@ func ready() {
 	app.SetShortcutRecording = shortcuts.SetRecording
 	shortcuts.SetHandler("toggleHome", app.Launcher.Toggle)
 	shortcuts.SetHandler("clipboardHistory", app.ToggleClipboard)
+	shortcuts.SetHandler("inputTranslation", app.InputTr.Toggle)
 	shortcuts.SetHandler("hideBubble", func() { windows.DismissTopmost(windows.DismissEscape) })
 
 	createTray()

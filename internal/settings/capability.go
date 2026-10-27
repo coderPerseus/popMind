@@ -49,6 +49,10 @@ type Capability struct {
 		} `json:"providers"`
 	} `json:"webSearch"`
 	Clipboard map[string]any `json:"clipboard"`
+	// Appearance: AIGlow lights the window's edge while an AI reply is written; nil is on.
+	Appearance struct {
+		AIGlow *bool `json:"aiGlow"`
+	} `json:"appearance"`
 }
 
 // AIService is the configured AI providers.
@@ -243,6 +247,9 @@ func normalize(v map[string]any, patch map[string]any) map[string]any {
 	}
 	return v
 }
+
+// AIGlowOn reports whether AI replies being written make the window glow.
+func (c Capability) AIGlowOn() bool { return c.Appearance.AIGlow == nil || *c.Appearance.AIGlow }
 
 // ExplainScreenshotOn reports whether explanations take a capture of the source window as context.
 func (c Capability) ExplainScreenshotOn() bool {

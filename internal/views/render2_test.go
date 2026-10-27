@@ -30,12 +30,10 @@ func TestRenderPopups(t *testing.T) {
 	}
 	b := &Bubble{skills: skillsFor("vector database"), picked: textpicker.Picked{Text: "vector database"}}
 	b.buttons = buttonsFor(b.skills)
-	save(t, "bubble", b.view, b.rowWidth(b.buttons, nil), bubbleHeight)
-	b.used = map[string]bool{"translate": true, "copy": true, "logo": true}
-	save(t, "bubble-used", b.view, b.rowWidth(b.buttons, b.used), bubbleHeight)
+	save(t, "bubble", b.view, rowWidth(b.buttons), bubbleHeight)
 	bl := &Bubble{skills: skillsFor("https://github.com/egoist/mygo")}
 	bl.buttons = buttonsFor(bl.skills)
-	save(t, "bubble-link", bl.view, bl.rowWidth(bl.buttons, nil), bubbleHeight)
+	save(t, "bubble-link", bl.view, rowWidth(bl.buttons), bubbleHeight)
 
 	p := &TranslatePopup{}
 	p.tr.Reset()

@@ -28,6 +28,7 @@ type ChatWindow struct {
 
 func newChatWindow(app *App) *ChatWindow {
 	w := &ChatWindow{app: app, conv: newConversation()}
+	w.conv.OnConfigureSearch = func() { app.ShowSettings("ai-search") }
 	w.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:       "popMind Explain",
 		Panel:       true,
@@ -119,6 +120,7 @@ func (w *ChatWindow) view(c *ui.Context) {
 	t := Look(c)
 	Panel(c)
 	s := w.conv.Session
+	w.conv.StepGlow(c)
 	if c.Shortcut(0, ui.KeyEscape) {
 		if s != nil && s.Busy() {
 			s.Stop()
@@ -155,5 +157,6 @@ func (w *ChatWindow) view(c *ui.Context) {
 			w.conv.Thread(c).Grow(1)
 		}
 		w.conv.Composer(c)
+		w.conv.Glow(c, 12)
 	})
 }

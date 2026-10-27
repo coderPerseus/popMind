@@ -9,7 +9,9 @@ import (
 
 	"popmind/internal/chat"
 	"popmind/internal/i18n"
+	"popmind/internal/settings"
 	"popmind/internal/views/icons"
+	"popmind/internal/websearch"
 )
 
 // Conversation draws a chat session: its messages, the selection they are about, and the composer. The explain
@@ -24,7 +26,19 @@ type Conversation struct {
 	copied  string
 	shot    *ui.Bitmap
 	shotFor *chat.Session
+	// glow lights the window while a reply is written (glow.go).
+	glow Glow
+	// OnConfigureSearch opens the web search settings, for the "联网" switch without a provider set up.
+	OnConfigureSearch func()
 }
+
+// StepGlow moves the glow on for this frame; call at the start of the window's view.
+func (v *Conversation) StepGlow(c *ui.Context) {
+	v.glow.Step(c, v.Session != nil && v.Session.Busy())
+}
+
+// Glow draws the window's glowing edge; call last in the window's root, radius its corner radius.
+func (v *Conversation) Glow(c *ui.Context, radius float32) { v.glow.Edge(c, radius) }
 
 func newConversation() *Conversation {
 	c := &Conversation{sources: map[string]bool{}}
@@ -66,9 +80,28 @@ func (v *Conversation) Meta() string {
 	return meta
 }
 
-// WebToggle is the "联网" switch.
+// WebToggle is the "联网" switch. Without a web search provider set up it is a link to its settings instead,
+// as a switch that turns nothing on would be.
 func (v *Conversation) WebToggle(c *ui.Context) {
 	if v.Session == nil {
+		return
+	}
+	t := c.Theme()
+	if p, _ := websearch.Configured(settings.Capabilities.Get()); p == "" {
+		v.Session.WebSearch = false
+		b := ui.ButtonBase(c.Key("web-setup")).Height(22).Gap(4).Padding(0, 6).Radius(6).AlignItems(ui.Center).
+			Label(i18n.T("chat.web.setup.tip")).Tooltip(i18n.T("chat.web.setup.tip")).Transition(hoverColors)
+		if b.Hovered() {
+			b.Background(HoverFill(t))
+		}
+		b.Children(func() {
+			ui.Icon(c, icons.Get("globe")).FontSize(12).TextColor(t.TextMuted)
+			Muted(c, i18n.T("chat.web")).FontSize(11)
+			ui.Text(c, i18n.T("chat.web.setup")).FontSize(11).TextColor(t.Accent)
+		})
+		if b.Clicked() && v.OnConfigureSearch != nil {
+			go v.OnConfigureSearch()
+		}
 		return
 	}
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -154,17 +187,18 @@ func (v *Conversation) message(c *ui.Context, m *chat.Message, latest bool) {
 		})
 		return
 	}
+	v.md.Theme, v.md.Reveal = MarkdownTheme(t), mdReveal
 	ui.Column(c.Key("msg-" + m.ID)).Transition(fadeIn).Gap(6).Children(func() {
 		switch {
 		case m.Text == "" && m.Err == "" && !m.Done:
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Spinner(c).Size(13, 13)
-				msg := i18n.T("selectionChat.loading")
-				if s.Status == chat.StatusSearching {
-					msg = i18n.T("selectionChat.searching")
-				}
-				Muted(c, msg)
-			})
+			msg := i18n.T("selectionChat.loading")
+			if s.Mode == chat.ModeChat {
+				msg = i18n.T("chat.thinking")
+			}
+			if s.Status == chat.StatusSearching {
+				msg = i18n.T("selectionChat.searching")
+			}
+			Shimmer(c, msg, 13)
 		case m.Done:
 			markdown.View(c, m.Text, &v.md)
 		default:
@@ -233,10 +267,11 @@ func (v *Conversation) Composer(c *ui.Context) {
 	}
 	frame := ui.Row(c).Transition(hoverColors).Margin(0, 12, 12, 12).Padding(6, 6, 6, 10).Gap(6).AlignItems(ui.End).Radius(10).
 		Background(CardFill(t)).Border(0.5, Hairline(t))
-	if v.input.FocusWithin(c) {
+	if !v.glow.Glowing() && v.input.FocusWithin(c) {
 		frame.Border(1, t.Accent.Alpha(0.6))
 	}
 	frame.Children(func() {
+		v.glow.Outline(c, 10)
 		in := ui.TextAreaBase(c.Key("draft"), &v.draft).Bind(&v.input).Lines(1, 5).Grow(1).Placeholder(placeholder).Padding(4, 0)
 		in.OnTextKey(func(k ui.TextKey) bool {
 			if k.Key == ui.KeyEnter && k.Mods == 0 {

@@ -298,10 +298,7 @@ func (t *Translator) Body(c *ui.Context, showSource bool) {
 	case "idle":
 		Muted(c, i18n.T("translate.placeholder"))
 	case "loading":
-		ui.Row(c.Key("tr-loading")).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c).Size(12, 12)
-			Muted(c, i18n.T("tr.loading")+"...")
-		})
+		ui.Row(c.Key("tr-loading")).Children(func() { Working(c, i18n.T("tr.loading")+"…", 12) })
 	case "error":
 		ui.Column(c).Gap(4).Children(func() {
 			ui.Text(c, i18n.T("translation.error.generic")).TextColor(th.Danger).FontWeight(600)
@@ -315,7 +312,9 @@ func (t *Translator) Body(c *ui.Context, showSource bool) {
 		// Each new result fades in where the "translating…" line was.
 		ui.Column(c.Key(fmt.Sprint("tr-result-", t.seq))).Transition(fadeIn).Gap(8).Selectable().Children(func() {
 			if t.Result.Markdown {
-				markdown.View(c, t.Result.TranslatedText, t.markdownOptions())
+				opts := t.markdownOptions()
+				opts.Theme = MarkdownTheme(th)
+				markdown.View(c, t.Result.TranslatedText, opts)
 			} else {
 				ui.Text(c, t.Result.TranslatedText).FontSize(15).FontWeight(500).LineHeight(1.55)
 			}

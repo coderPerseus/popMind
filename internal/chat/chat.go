@@ -39,6 +39,28 @@ type Message struct {
 	Stopped bool
 }
 
+// ModeChat is a plain conversation with the model (the launcher's /ai): no selection, the turns sent as they are.
+const ModeChat = "chat"
+
+// chatRequest is a plain conversation: every turn with text, the web search context added to the last question.
+func chatRequest(history []Message, sources []websearch.Result) ai.Request {
+	var msgs []ai.Message
+	for _, h := range history {
+		if strings.TrimSpace(h.Text) == "" || (h.Role != "user" && h.Role != "assistant") {
+			continue
+		}
+		msgs = append(msgs, ai.Message{Role: h.Role, Content: h.Text})
+	}
+	if n := len(msgs); n > 0 && len(sources) > 0 && msgs[n-1].Role == "user" {
+		var ctx []string
+		for i, r := range sources {
+			ctx = append(ctx, fmt.Sprintf("%d. %s\n%s\n%s", i+1, r.Title, r.URL, r.Snippet))
+		}
+		msgs[n-1].Content += "\n\n" + i18n.T("prompt.explain.user.search", "context", strings.Join(ctx, "\n\n"))
+	}
+	return ai.Request{System: i18n.T("prompt.chat.system"), Messages: msgs}
+}
+
 // Status of a session.
 const (
 	StatusReady     = "ready"
@@ -84,7 +106,11 @@ func newID() string {
 func Start(update func(func()), mode, text, sourceApp string, image []byte) *Session {
 	c := settings.Capabilities.Get()
 	s := &Session{Update: update, Mode: mode, SelectionText: strings.TrimSpace(text), SourceApp: sourceApp,
-		Status: StatusReady, WebSearch: c.WebSearch.Enabled, image: image}
+		Status: StatusReady, image: image}
+	// Web search is on when the settings turn it on by default and a provider has a key.
+	if p, _ := websearch.Configured(c); p != "" {
+		s.WebSearch = c.WebSearch.Enabled
+	}
 	m := ai.Resolve(c, "")
 	if m != nil {
 		s.Provider, s.ModelID = m.Name, m.ModelID
@@ -187,10 +213,13 @@ func (s *Session) run() {
 	s.Provider, s.ModelID = m.Name, m.ModelID
 	s.Status = StatusStreaming
 	search := s.WebSearch
+	if p, _ := websearch.Configured(c); p == "" {
+		search = false // nothing to search with: no "searching" that never searches
+	}
 	if search {
 		s.Status = StatusSearching
 	}
-	selection, sourceApp, image := s.SelectionText, s.SourceApp, s.image
+	selection, sourceApp, image, mode := s.SelectionText, s.SourceApp, s.image, s.Mode
 
 	active := func() bool {
 		s.mu.Lock()
@@ -217,7 +246,8 @@ func (s *Session) run() {
 		}
 		var sources []websearch.Result
 		if search {
-			if provider, key := websearch.Resolve(settings.Capabilities.Get()); provider != "" {
+			// The conversation's switch decides, the settings' default aside: any provider with a key.
+			if provider, key := websearch.Configured(settings.Capabilities.Get()); provider != "" {
 				latest := selection
 				for _, h := range history {
 					if h.Role == "user" {
@@ -225,7 +255,7 @@ func (s *Session) run() {
 					}
 				}
 				sctx, scancel := context.WithTimeout(ctx, searchTimeout)
-				res, err := websearch.Search(sctx, provider, key, selection+"\n"+latest)
+				res, err := websearch.Search(sctx, provider, key, strings.TrimSpace(selection+"\n"+latest))
 				scancel()
 				if ctx.Err() != nil {
 					return
@@ -249,19 +279,20 @@ func (s *Session) run() {
 		}
 		style := ai.ImageStyleFor(m)
 		ask := func(withImage bool) (string, error) {
-			prompt := buildPrompt(selection, history, sources, sourceApp, withImage)
-			msg := ai.Message{Role: "user", Content: prompt}
-			if withImage {
-				msg.Images = [][]byte{image}
+			req := ai.Request{System: i18n.T("prompt.explain.system", "languageLabel", languageLabel()), ImageStyle: style}
+			if mode == ModeChat {
+				req = chatRequest(history, sources)
+			} else {
+				msg := ai.Message{Role: "user", Content: buildPrompt(selection, history, sources, sourceApp, withImage)}
+				if withImage {
+					msg.Images = [][]byte{image}
+				}
+				req.Messages = []ai.Message{msg}
 			}
 			rctx, rcancel := context.WithTimeout(ctx, requestTimeout)
 			defer rcancel()
 			var text strings.Builder
-			err := ai.Stream(rctx, m, ai.Request{
-				System:     i18n.T("prompt.explain.system", "languageLabel", languageLabel()),
-				Messages:   []ai.Message{msg},
-				ImageStyle: style,
-			}, func(delta string) {
+			err := ai.Stream(rctx, m, req, func(delta string) {
 				text.WriteString(delta)
 				full := text.String()
 				update(func() { reply.Text = full })

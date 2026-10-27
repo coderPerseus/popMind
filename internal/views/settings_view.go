@@ -239,6 +239,12 @@ func (s *SettingsWindow) selectionSection(c *ui.Context) {
 		}
 	})
 	group(c, i18n.T("settings.explain.group"), func() {
+		row(c, i18n.T("settings.aiGlow.title"), i18n.T("settings.aiGlow.desc"), func() {
+			on := cap.AIGlowOn()
+			if ui.Switch(c.Key("ai-glow"), &on).Changed() {
+				s.save(map[string]any{"appearance": map[string]any{"aiGlow": on}})
+			}
+		})
 		row(c, i18n.T("settings.explain.screenshot.title"), i18n.T("settings.explain.screenshot.desc"), func() {
 			on := cap.ExplainScreenshotOn()
 			if ui.Switch(c.Key("explain-shot"), &on).Changed() {
@@ -410,6 +416,12 @@ func (s *SettingsWindow) aiSection(c *ui.Context) {
 			}
 		})
 	})
+	// Opened from a conversation's "联网 · 去配置": scroll to web search.
+	searchAnchor := ui.Box(c.Key("search-anchor")).Height(1)
+	if s.revealSearch {
+		s.revealSearch = false
+		searchAnchor.ScrollIntoView()
+	}
 	group(c, i18n.T("settings.capability.search.title"), func() {
 		row(c, i18n.T("settings.capability.search.enabled"), i18n.T("settings.capability.search.priority"), func() {
 			on := cap.WebSearch.Enabled
@@ -470,7 +482,7 @@ func (s *SettingsWindow) testSearch(id, key string) {
 	}()
 }
 
-var shortcutOrder = []string{"toggleHome", "clipboardHistory", "hideBubble"}
+var shortcutOrder = []string{"toggleHome", "clipboardHistory", "inputTranslation", "hideBubble"}
 
 func (s *SettingsWindow) shortcutsSection(c *ui.Context) {
 	t := c.Theme()

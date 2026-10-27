@@ -28,6 +28,7 @@ type App struct {
 	Translate *TranslatePopup
 	Chat      *ChatWindow
 	Clipboard *ClipboardPanel
+	InputTr   *InputTranslation
 	Clips     *clipboard.Store
 	Sync      *clipsync.Service
 	Picker    *textpicker.Manager
@@ -48,6 +49,7 @@ func Start() *App {
 	a.Bubble = newBubble(a)
 	a.Translate = newTranslatePopup(a)
 	a.Chat = newChatWindow(a)
+	a.InputTr = newInputTranslation(a)
 	a.startClipboard()
 	windows.Register(&windows.Surface{
 		ID: "bubble", Priority: 200, Visible: a.Bubble.Visible, Hide: a.Bubble.Hide,
