@@ -1,0 +1,9 @@
+{
+  "toggleHome": "Alt+Space",
+  "clipboardHistory": "Alt+V",
+  "clipboardPasteStack": "",
+  "inputTranslation": "CommandOrControl+Shift+I",
+  "screenshotTranslate": "CommandOrControl+Alt+T",
+  "screenshotSearch": "CommandOrControl+Alt+S",
+  "hideBubble": "CommandOrControl+Shift+X"
+}

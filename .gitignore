@@ -1,9 +1,25 @@
-node_modules
-dist
-out
-build
+# The Electron app this project replaced (kept locally, never committed)
+archive/
+
+# myGo: development app and build output
+.mygo/
+build/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# macOS
 .DS_Store
+
+# Logs and scratch
 *.log*
 temp
+
+# Signing material
 popmind-signing
 *.p12
+
+# Native library, built by native/build.sh
+resources/darwin-*/

@@ -1,0 +1,241 @@
+{
+  "translationEngineOrder": [
+    "google",
+    "deepl",
+    "bing",
+    "youdao",
+    "ai",
+    "gemma"
+  ],
+  "translationEngineLabels": {
+    "google": "Google",
+    "deepl": "DeepL",
+    "bing": "Bing",
+    "youdao": "有道",
+    "ai": "AI",
+    "gemma": "Gemma"
+  },
+  "translationLanguages": [
+    {
+      "code": "auto",
+      "label": "自动检测"
+    },
+    {
+      "code": "en",
+      "label": "英语"
+    },
+    {
+      "code": "zh-CN",
+      "label": "简体中文"
+    },
+    {
+      "code": "zh-TW",
+      "label": "繁体中文"
+    },
+    {
+      "code": "ja",
+      "label": "日语"
+    },
+    {
+      "code": "ko",
+      "label": "韩语"
+    },
+    {
+      "code": "fr",
+      "label": "法语"
+    },
+    {
+      "code": "de",
+      "label": "德语"
+    },
+    {
+      "code": "es",
+      "label": "西班牙语"
+    },
+    {
+      "code": "ru",
+      "label": "俄语"
+    },
+    {
+      "code": "it",
+      "label": "意大利语"
+    },
+    {
+      "code": "pt",
+      "label": "葡萄牙语"
+    }
+  ],
+  "defaultTranslationSettings": {
+    "appLanguage": "zh-CN",
+    "selection": {
+      "defaultAction": "bubble"
+    },
+    "shortcuts": {
+      "toggleHome": "Alt+Space",
+      "clipboardHistory": "Alt+V",
+      "clipboardPasteStack": "",
+      "inputTranslation": "CommandOrControl+Shift+I",
+      "screenshotTranslate": "CommandOrControl+Alt+T",
+      "screenshotSearch": "CommandOrControl+Alt+S",
+      "hideBubble": "CommandOrControl+Shift+X"
+    },
+    "enabledEngines": {
+      "google": true,
+      "deepl": false,
+      "bing": false,
+      "youdao": false,
+      "ai": false,
+      "gemma": false
+    },
+    "firstLanguage": "en",
+    "secondLanguage": "zh-CN",
+    "defaultSourceLanguage": "auto",
+    "languageDetection": {
+      "mode": "program",
+      "provider": "clef",
+      "clef": {
+        "model": "clef-flash",
+        "apiToken": "",
+        "accountId": ""
+      },
+      "typesafe": {
+        "apiKey": "",
+        "model": "jev-latest"
+      }
+    },
+    "aiService": {
+      "activeProvider": null,
+      "providers": {
+        "openai": {
+          "apiKey": "",
+          "baseURL": "",
+          "model": ""
+        },
+        "anthropic": {
+          "apiKey": "",
+          "baseURL": "",
+          "model": ""
+        },
+        "google": {
+          "apiKey": "",
+          "baseURL": "",
+          "model": ""
+        },
+        "kimi": {
+          "apiKey": "",
+          "baseURL": "https://api.moonshot.cn/v1",
+          "model": ""
+        },
+        "deepseek": {
+          "apiKey": "",
+          "baseURL": "https://api.deepseek.com",
+          "model": "deepseek-chat"
+        },
+        "gemma": {
+          "apiKey": "local",
+          "baseURL": "http://127.0.0.1:1234/v1",
+          "model": "gemma-4-e4b-it"
+        }
+      }
+    },
+    "localModels": {
+      "gemma": {
+        "enabled": false,
+        "apiKey": "local",
+        "baseURL": "http://127.0.0.1:1234/v1",
+        "model": ""
+      }
+    },
+    "webSearch": {
+      "enabled": false,
+      "providers": {
+        "tavily": {
+          "apiKey": ""
+        },
+        "serper": {
+          "apiKey": ""
+        },
+        "brave": {
+          "apiKey": ""
+        },
+        "jina": {
+          "apiKey": ""
+        }
+      }
+    },
+    "speechService": {
+      "activeProvider": "system",
+      "providers": {
+        "elevenlabs": {
+          "apiKey": "",
+          "voiceId": "JBFqnCBsd6RMkjVDRZzb",
+          "modelId": "eleven_multilingual_v2"
+        },
+        "openai": {
+          "apiKey": "",
+          "voice": "alloy",
+          "model": "gpt-4o-mini-tts"
+        }
+      }
+    },
+    "clipboard": {
+      "enabled": true,
+      "appearance": "dark",
+      "retention": "1m",
+      "maxStorageMb": 2048,
+      "maxItemMb": 20,
+      "directPaste": true,
+      "alwaysPlainText": false,
+      "fetchLinkPreviews": true,
+      "pausedUntil": 0,
+      "privacy": {
+        "ignoredBundleIds": [
+          "com.apple.keychainaccess",
+          "com.apple.Passwords",
+          "com.1password.1password",
+          "com.agilebits.onepassword7",
+          "com.bitwarden.desktop"
+        ],
+        "ignoreConfidential": true,
+        "ignoreTransient": true,
+        "skipSecrets": false,
+        "ignoreRegexps": []
+      },
+      "ocr": {
+        "enabled": true
+      },
+      "ai": {
+        "enabled": false,
+        "provider": "jev",
+        "apiKey": "",
+        "model": "jev-latest",
+        "trigger": "manual",
+        "usage": {
+          "month": "",
+          "inputTokens": 0
+        }
+      },
+      "sync": {
+        "range": "7d",
+        "maxImageMb": 10
+      }
+    }
+  },
+  "TranslationWindowChannel": {
+    "State": "translationWindow:state",
+    "SpeechState": "translationWindow:speechState",
+    "GetState": "translationWindow:getState",
+    "GetSpeechState": "translationWindow:getSpeechState",
+    "Retranslate": "translationWindow:retranslate",
+    "SetPinned": "translationWindow:setPinned",
+    "SetDragging": "translationWindow:setDragging",
+    "NotifyInteraction": "translationWindow:notifyInteraction",
+    "Move": "translationWindow:move",
+    "Resize": "translationWindow:resize",
+    "Copy": "translationWindow:copy",
+    "Speak": "translationWindow:speak",
+    "StopSpeaking": "translationWindow:stopSpeaking",
+    "Close": "translationWindow:close",
+    "DismissTopmost": "translationWindow:dismissTopmost"
+  }
+}

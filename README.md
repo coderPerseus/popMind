@@ -4,10 +4,10 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-popMind is an Electron desktop app built around two core flows:
+popMind is a native macOS app (Go + [myGo](https://github.com/egoist/mygo)) built around two core flows:
 
 1. **Selection bubble**: select text anywhere, then translate, explain it, copy it, or open an in-app Ask AI window grounded on that selection.
-2. **Main window**: use slash commands and plugin shortcuts to translate text, explain text, calculate, manage todos, search installed apps, or jump into tools like ChatGPT, Perplexity, Grok, and Google Search.
+2. **Main window**: use slash commands and plugin shortcuts to translate text, explain text, calculate, search installed apps, browse clipboard history, or jump into tools like ChatGPT, Perplexity, Grok, and Google Search.
 
 The current product is optimized for **macOS**, because the global text-selection capability depends on a native macOS bridge.
 
@@ -99,7 +99,6 @@ Current built-in slash command:
 Current built-in panel tools:
 
 - `/cal` for calculator
-- `/todo` for todo + focus management
 
 Current built-in web plugins:
 
@@ -114,7 +113,6 @@ Main window behavior:
 - Inline translation card for `/tr`
 - Inline explanation card for `/ex`
 - Calculator panel for arithmetic expressions
-- Todo/focus panel with task management in the main window
 - Installed app search
 - Installed app search and launch when typing normal text
 - Plugin launcher list with keyboard navigation
@@ -167,93 +165,68 @@ Important behavior:
 ## Product Structure
 
 ```text
-app/
-  components/
-    home/              Main window UI
-    settings/          Settings UI
-    selection-chat/    Explain window UI
-    translation/       Translation window UI
-lib/
-  main/                Electron main process
-  text-picker/         Selection bubble + global selection feature
-  translation/         Translation providers and floating window logic
-  selection-chat/      Explain chat service and window logic
-  ai-service/          Active AI provider resolution
-  web-search/          Search provider resolution
-  conveyor/            Typed IPC schema / API / handlers
+main.go                 App start: tray, shortcuts, windows
+internal/
+  views/                Every window in myGo native UI (launcher, bubble, translation,
+                        explain, clipboard panel, settings)
+  textpicker/           Global selection detection and the bubble logic
+  translation/          Translation engines (Google, Bing, DeepL, Youdao, AI) and Markdown
+  ai/ chat/ websearch/  AI providers, the explain conversation, web search
+  clipboard/ clipsync/  Clipboard history (SQLite) and end-to-end encrypted R2 sync
+  settings/ i18n/       Settings files and strings
 native/
-  selection_bridge.mm  macOS native selection bridge
+  popmind_native.mm     macOS bridge (selection, pasteboard, windows, capture)
+packaging/              Entitlements and installer scripts
 ```
 
 ## Tech Stack
 
-- Electron
-- React
-- TypeScript
-- Vite / electron-vite
-- Tailwind CSS
-- shadcn/ui
-- Zod
-- Vercel AI SDK
-- electron-builder
+- Go
+- [myGo](https://github.com/egoist/mygo): native UI, windows, tray, shortcuts, SQLite, packaging
+- A native Objective-C++ library loaded through purego
 
 ## Development
 
 ### Requirements
 
-- Node.js 20+
-- pnpm 9+
-- macOS for full selection-bubble capability
+- macOS (Apple silicon)
+- Go 1.27.3 (`GOTOOLCHAIN=go1.27.3` fetches it)
+- Xcode command line tools (for the native library)
 
-### Install
+### Build the native library
 
 ```bash
-pnpm install
+./native/build.sh
 ```
 
-### Start in Development
+### Start in development
 
 ```bash
-pnpm dev
+GOTOOLCHAIN=go1.27.3 go tool mygo dev
 ```
 
-### Build Native Selection Bridge
+The development app is "popMind Dev", with a data folder of its own.
 
-This is handled automatically during install on macOS, but the script is also available:
+### Check
 
 ```bash
-pnpm run build-native
+GOTOOLCHAIN=go1.27.3 go vet ./... && go test ./...
 ```
 
 ## Packaging
 
-Local packaging commands:
-
 ```bash
-pnpm run build:mac
-pnpm run build:win
-pnpm run build:linux
+./scripts/package-mac.sh
 ```
 
-CI packaging is also set up through GitHub Actions:
+It builds `build/popMind-<version>.pkg` (installs over `/Applications/popMind.app`), a `.dmg` and a `.zip`. Set `POPMIND_MAC_SIGN_IDENTITY` to sign with the popMind certificate; without it the app is signed ad hoc, for testing.
 
-- Manual trigger: `Build Release Packages`
-- Tag trigger: push a tag like `v0.1.0`
-
-The workflow builds release installers for:
-
-- macOS
-- Windows
-
-On `v*` tags, CI also publishes the generated assets to GitHub Releases.
+GitHub Actions (`Build Release Packages`) builds and signs the packages; pushing a tag such as `v0.5.0` (matching `mygo.json`) publishes them as a release.
 
 ## Notes and Current Scope
 
-- The global selection feature is currently **macOS-first**.
-- The main window is broader than the selection bubble and acts as a launcher + translation surface.
-- Not every command in the internal command enum is implemented as a user-facing action yet.
-- Some external web plugins are intentionally disabled for now when URL parameter handoff is unreliable.
-- Code signing / notarization is not part of the README scope; packaging support is focused on generating installable artifacts first.
+- macOS only.
+- Version 0.5 replaces the Electron app: same identifier, signature and data folder, so settings, clipboard history and permissions carry over.
 
 ## License
 

@@ -1,0 +1,15 @@
+{
+  "name": "popMind",
+  "identifier": "com.popmind.app",
+  "version": "0.5.0",
+  "copyright": "© 2026 popMind",
+  "out": "build",
+  "macos": {
+    "minimumSystemVersion": "12.0",
+    "infoPlist": {
+      "LSUIElement": true,
+      "NSAppleEventsUsageDescription": "popMind reads the text you select and pastes clipboard items into other apps."
+    },
+    "entitlements": "packaging/entitlements.plist"
+  }
+}

@@ -1,10 +1,20 @@
 name: Build Release Packages
 
+# Builds the macOS app (Go + myGo) and, for a v* tag, publishes it as a GitHub release:
+#   popMind-<version>.pkg            installs over /Applications/popMind.app (quits it, relaunches)
+#   popMind <version> arm64.dmg      drag to Applications
+#   popMind-<version>-mac-arm64.zip
+#
+# Signing: the self-signed "popMind Self Signed" certificate (secrets MAC_SELF_SIGN_P12_BASE64 and
+# MAC_SELF_SIGN_P12_PASSWORD, made once by archive/electron/scripts/create-mac-signing-cert.sh) is the one the
+# Electron releases were signed with, so the app's designated requirement stays the same and users keep their
+# Accessibility / Screen Recording grants across the update.
+
 on:
   workflow_dispatch:
     inputs:
       allow_unsigned_mac:
-        description: Build an unsigned macOS package when signing secrets are unavailable
+        description: Build an ad-hoc signed package when the signing secrets are unavailable (testing only)
         required: false
         default: true
         type: boolean
@@ -15,30 +25,11 @@ on:
 permissions:
   contents: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
-    name: Build ${{ matrix.label }}
-    runs-on: ${{ matrix.os }}
-    outputs:
-      mac_signed: ${{ steps.signing_mode.outputs.signed || 'false' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            label: macOS
-            build_script: build:ci:mac
-            artifact_name: popmind-macos
-
+    name: Build macOS
+    runs-on: macos-latest
     env:
-      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
-      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
-      CSC_LINK: ${{ secrets.CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       MAC_SELF_SIGN_P12_BASE64: ${{ secrets.MAC_SELF_SIGN_P12_BASE64 }}
       MAC_SELF_SIGN_P12_PASSWORD: ${{ secrets.MAC_SELF_SIGN_P12_PASSWORD }}
 
@@ -46,54 +37,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
-          version: 9
+          go-version-file: go.mod
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Resolve macOS signing mode
-        id: signing_mode
-        if: matrix.os == 'macos-latest'
-        env:
-          ALLOW_UNSIGNED_MAC: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_unsigned_mac || 'true' }}
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ]; then
-            echo "mode=signed" >> "$GITHUB_OUTPUT"
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "Using Developer ID signing secrets."
-            exit 0
+          version="$(python3 -c 'import json; print(json.load(open("mygo.json"))["version"])')"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match mygo.json version $version" >&2
+            exit 1
           fi
 
-          # A self-signed certificate is enough to keep Accessibility / Screen
-          # Recording grants across updates (see scripts/create-mac-signing-cert.sh).
+      - name: Resolve signing mode
+        id: signing_mode
+        env:
+          ALLOW_UNSIGNED_MAC: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_unsigned_mac || 'false' }}
+        run: |
           if [ -n "${MAC_SELF_SIGN_P12_BASE64:-}" ] && [ -n "${MAC_SELF_SIGN_P12_PASSWORD:-}" ]; then
             echo "mode=self-signed" >> "$GITHUB_OUTPUT"
-            echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "Using the self-signed popMind certificate."
             exit 0
           fi
-
           if [ "${ALLOW_UNSIGNED_MAC}" = "true" ]; then
             echo "mode=unsigned" >> "$GITHUB_OUTPUT"
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "Signing secrets are missing. Building an unsigned macOS package for testing only."
+            echo "Signing secrets are missing. Building an ad-hoc signed package for testing only."
             exit 0
           fi
-
-          echo "Missing macOS signing secrets. Configure CSC_LINK and CSC_KEY_PASSWORD, or run workflow_dispatch with allow_unsigned_mac=true." >&2
+          echo "Missing MAC_SELF_SIGN_P12_BASE64 / MAC_SELF_SIGN_P12_PASSWORD." >&2
           exit 1
 
       - name: Import self-signed certificate
-        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.mode == 'self-signed'
+        if: steps.signing_mode.outputs.mode == 'self-signed'
         run: |
           KEYCHAIN="$RUNNER_TEMP/popmind-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
@@ -103,8 +80,7 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security import "$RUNNER_TEMP/popmind-signing.p12" -k "$KEYCHAIN" -P "$MAC_SELF_SIGN_P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
-          # codesign only finds untrusted (self-signed) identities by hash and
-          # only in keychains on the search list.
+          # codesign finds untrusted (self-signed) identities only by hash, and only in keychains on the search list.
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           rm -f "$RUNNER_TEMP/popmind-signing.p12"
           IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | awk '/popMind Self Signed/ { print $2; exit }')"
@@ -113,70 +89,35 @@ jobs:
             exit 1
           fi
           echo "POPMIND_MAC_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-          echo "POPMIND_MAC_SIGN_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
 
-      - name: Build installer package
+      - name: Build packages
+        run: ./scripts/package-mac.sh
+
+      - name: Verify the signature keeps users' permissions
+        if: steps.signing_mode.outputs.mode == 'self-signed'
         run: |
-          run_build() {
-            if [ "${{ steps.signing_mode.outputs.signed }}" = "true" ]; then
-              pnpm run ${{ matrix.build_script }}
-            else
-              env -u CSC_LINK -u CSC_KEY_PASSWORD -u APPLE_TEAM_ID CSC_IDENTITY_AUTO_DISCOVERY=false pnpm run ${{ matrix.build_script }}
-            fi
-          }
-
-          attempt=1
-          until run_build; do
-            if [ "$attempt" -ge 3 ]; then
-              echo "Build failed after ${attempt} attempts." >&2
-              exit 1
-            fi
-
-            attempt=$((attempt + 1))
-            echo "Build failed, retrying in 5 seconds (attempt ${attempt}/3)..."
-            sleep 5
-          done
-
-      - name: Verify self-signed macOS app signature
-        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.mode == 'self-signed'
-        run: |
-          codesign --verify --deep --strict --verbose=4 dist/mac-arm64/popMind.app
-          codesign -d -r- dist/mac-arm64/popMind.app 2>&1 | tee /tmp/popmind-app-requirement.txt
+          APP=build/darwin-arm64/popMind.app
+          codesign --verify --deep --strict --verbose=4 "$APP"
+          codesign -d -r- "$APP" 2>&1 | tee /tmp/popmind-app-requirement.txt
           # A stable designated requirement is what keeps permissions across updates.
           grep -q 'identifier "com.popmind.app" and certificate leaf = H"' /tmp/popmind-app-requirement.txt
-          codesign -d --entitlements :- "dist/mac-arm64/popMind.app/Contents/MacOS/popMind" 2>&1 | grep 'com.apple.security.cs.disable-library-validation'
+          codesign -d --entitlements :- "$APP/Contents/MacOS/popMind" 2>&1 | grep 'com.apple.security.cs.disable-library-validation'
 
-      - name: Warn about unsigned macOS package
-        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.mode == 'unsigned'
+      - name: Warn about an ad-hoc package
+        if: steps.signing_mode.outputs.mode == 'unsigned'
         run: |
-          echo "Unsigned macOS package built."
-          echo "This artifact is for local testing only and may lose Accessibility / Screen Recording permission trust after reinstall."
-
-      - name: Verify macOS app signature
-        if: matrix.os == 'macos-latest' && steps.signing_mode.outputs.signed == 'true'
-        run: |
-          codesign --verify --deep --strict --verbose=4 dist/mac-arm64/popMind.app
-          codesign -dvvv dist/mac-arm64/popMind.app 2>&1 | tee /tmp/popmind-app-signature.txt
-          codesign -dvvv "dist/mac-arm64/popMind.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework" 2>&1 | tee /tmp/popmind-framework-signature.txt
-          grep -E 'Identifier=|Signature=|TeamIdentifier=' /tmp/popmind-app-signature.txt
-          grep -E 'Identifier=|Signature=|TeamIdentifier=' /tmp/popmind-framework-signature.txt
-          ! grep -qi 'Signature=adhoc' /tmp/popmind-app-signature.txt
-          ! grep -qi 'Signature=adhoc' /tmp/popmind-framework-signature.txt
-          grep -Eq 'TeamIdentifier=[A-Z0-9]+' /tmp/popmind-app-signature.txt
-          grep -Eq 'TeamIdentifier=[A-Z0-9]+' /tmp/popmind-framework-signature.txt
-          codesign -d --entitlements :- "dist/mac-arm64/popMind.app/Contents/MacOS/popMind" 2>&1 | grep 'com.apple.security.cs.disable-library-validation'
+          echo "Ad-hoc signed package built: for local testing only."
+          echo "Installing it makes macOS ask for Accessibility / Screen Recording permission again."
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.signing_mode.outputs.mode == 'unsigned' && format('{0}-unsigned', matrix.artifact_name) || matrix.artifact_name }}
+          name: ${{ steps.signing_mode.outputs.mode == 'unsigned' && 'popmind-macos-unsigned' || 'popmind-macos' }}
           if-no-files-found: error
           path: |
-            dist/*.pkg
-            dist/*.zip
-            dist/*.yml
-            dist/*.yaml
-            dist/*.blockmap
+            build/*.pkg
+            build/*.dmg
+            build/*.zip
 
   release:
     name: Publish GitHub Release

@@ -4,10 +4,10 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-popMind 当前围绕两条主线工作：
+popMind 是一个 macOS 原生应用（Go + [myGo](https://github.com/egoist/mygo)），围绕两条主线工作：
 
 1. **划词气泡**：在任意应用里选中文本后，直接翻译、解释、复制，或者基于这段内容打开内置的 `问 AI` 窗口。
-2. **主窗口**：通过 slash command 和插件入口，快速做翻译、解释、计算、管理待办、搜索本机应用，或者把问题交给 ChatGPT、Perplexity、Grok、Google Search 等工具。
+2. **主窗口**：通过 slash command 和插件入口，快速做翻译、解释、计算、搜索本机应用、翻剪贴板历史，或者把问题交给 ChatGPT、Perplexity、Grok、Google Search 等工具。
 
 当前产品重点面向 **macOS**，因为全局划词能力依赖原生的 macOS 选择桥接。
 
@@ -99,7 +99,6 @@ popMind 当前围绕两条主线工作：
 当前内置面板工具：
 
 - `/cal` 计算器
-- `/todo` 待办专注
 
 当前内置外部插件：
 
@@ -114,7 +113,6 @@ popMind 当前围绕两条主线工作：
 - `/tr` 的内联翻译卡片
 - `/ex` 的内联解释卡片
 - 主窗口内直接计算四则运算
-- 主窗口内管理待办并绑定专注流程
 - 主窗口内搜索应用
 - 输入普通文本时搜索并启动本机已安装应用
 - 插件列表与键盘上下选择
@@ -167,93 +165,67 @@ popMind 当前围绕两条主线工作：
 ## 项目结构
 
 ```text
-app/
-  components/
-    home/              主窗口 UI
-    settings/          设置页 UI
-    selection-chat/    划词解释窗口 UI
-    translation/       翻译窗口 UI
-lib/
-  main/                Electron 主进程
-  text-picker/         划词气泡与全局划词能力
-  translation/         翻译引擎与翻译浮窗逻辑
-  selection-chat/      解释对话服务与浮窗逻辑
-  ai-service/          当前 AI Provider 解析
-  web-search/          联网搜索 Provider 解析
-  conveyor/            类型安全 IPC schema / API / handlers
+main.go                 启动：托盘、快捷键、窗口
+internal/
+  views/                所有窗口，myGo 原生 UI（搜索框、划词气泡、翻译、解释、剪贴板面板、设置）
+  textpicker/           全局划词识别与气泡逻辑
+  translation/          翻译引擎（Google、Bing、DeepL、有道、AI）与 Markdown 翻译
+  ai/ chat/ websearch/  AI 服务、解释对话、联网搜索
+  clipboard/ clipsync/  剪贴板历史（SQLite）与端到端加密的 R2 同步
+  settings/ i18n/       设置文件与文案
 native/
-  selection_bridge.mm  macOS 原生划词桥接
+  popmind_native.mm     macOS 原生桥（划词、剪贴板、窗口、截图）
+packaging/              签名权限与安装脚本
 ```
 
 ## 技术栈
 
-- Electron
-- React
-- TypeScript
-- Vite / electron-vite
-- Tailwind CSS
-- shadcn/ui
-- Zod
-- Vercel AI SDK
-- electron-builder
+- Go
+- [myGo](https://github.com/egoist/mygo)：原生 UI、窗口、托盘、快捷键、SQLite、打包
+- 通过 purego 加载的 Objective-C++ 原生库
 
 ## 开发
 
 ### 环境要求
 
-- Node.js 20+
-- pnpm 9+
-- macOS（如果你需要完整体验划词能力）
+- macOS（Apple 芯片）
+- Go 1.27.3（设置 `GOTOOLCHAIN=go1.27.3` 会自动下载）
+- Xcode 命令行工具（编译原生库）
 
-### 安装依赖
+### 编译原生库
 
 ```bash
-pnpm install
+./native/build.sh
 ```
 
 ### 开发启动
 
 ```bash
-pnpm dev
+GOTOOLCHAIN=go1.27.3 go tool mygo dev
 ```
 
-### 构建原生划词桥
+开发版名为 “popMind Dev”，使用独立的数据目录。
 
-在 macOS 上它会在安装阶段自动处理，你也可以手动执行：
+### 检查
 
 ```bash
-pnpm run build-native
+GOTOOLCHAIN=go1.27.3 go vet ./... && go test ./...
 ```
 
 ## 打包
 
-本地打包命令：
-
 ```bash
-pnpm run build:mac
-pnpm run build:win
-pnpm run build:linux
+./scripts/package-mac.sh
 ```
 
-GitHub Actions 也已经支持 CI 打包：
+产出 `build/popMind-<版本>.pkg`（覆盖安装到 `/Applications/popMind.app`）、`.dmg` 和 `.zip`。设置 `POPMIND_MAC_SIGN_IDENTITY` 用 popMind 证书签名；不设置则为临时签名，仅供测试。
 
-- 手动触发：`Build Release Packages`
-- 打 tag 触发：例如 `v0.1.0`
-
-当前 CI 会生成：
-
-- macOS 安装包
-- Windows 安装包
-
-在推送 `v*` tag 时，CI 还会把构建产物自动挂到 GitHub Release。
+GitHub Actions（`Build Release Packages`）负责打包签名；推送与 `mygo.json` 版本一致的标签（如 `v0.5.0`）会发布到 Releases。
 
 ## 当前范围与说明
 
-- 全局划词能力当前是 **macOS 优先**
-- 主窗口不只是搜索框，它本质上也是 launcher + 翻译入口
-- 内部命令枚举里不是每个命令都已经作为正式用户功能开放
-- 有些外部插件因为 URL 参数流转不稳定，目前是刻意下线状态
-- 当前 README 的打包部分只覆盖“生成安装包”，不包含代码签名和 notarization 细节
+- 仅支持 macOS。
+- 0.5 版取代 Electron 版：同样的标识、签名和数据目录，设置、剪贴板历史和系统权限都会保留。
 
 ## License
 

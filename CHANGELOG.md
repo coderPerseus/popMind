@@ -4,6 +4,18 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.5.0
+
+popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/egoist/mygo), replacing the Electron app. It installs over it: same identifier, signature and data folder, so settings, clipboard history, pinboards and permissions carry over.
+
+- Native UI for every window: launcher, selection bubble, translation popup, explain chat, clipboard panel and settings, with white surfaces and short, quiet motion.
+- Translation keeps Markdown: structure, code, links and tables stay as they are, and the result renders as Markdown.
+- Explain can read a silent screenshot of the window the text is in (Settings → Selection; needs Screen Recording); relays that fail on images fall back to text.
+- AI: models are listed from the provider once a key and base URL are in; a custom provider for relays (OpenAI, Anthropic or Gemini API); a model's abilities follow the model, not the provider.
+- Clipboard panel rebuilt: filters, pinboards, multi-select, Quick Look, editing, link previews, and Cloudflare R2 sync compatible with the previous version's bucket.
+
+<br>
+
 ## v0.2.0
 
 - Current released version published on GitHub Releases.

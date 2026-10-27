@@ -2,15 +2,26 @@
 
 ## Project Structure & Module Organization
 
-`app/` contains the renderer UI built with React, including `components/`, `hooks/`, `styles/`, and static assets in `app/assets/`. Electron runtime code lives under `lib/`: use `lib/main/` for the main process, `lib/preload/` for context-bridge entry points, and `lib/conveyor/` for typed IPC schemas, APIs, and handlers. Text selection and bubble behavior are grouped in `lib/text-picker/`, with the native macOS bridge in `native/selection_bridge.mm`. Documentation lives in `docs/`. Generated output such as `out/`, `build/`, and packaged artifacts should not be edited manually.
+popMind is a Go app built with [myGo](https://github.com/egoist/mygo): native UI (myGo's `ui` package), no web frontend. `main.go` starts the app (tray, shortcuts, windows); `shortcuts.go` registers global shortcuts; `selftest.go` holds env-driven self tests. Packages live in `internal/`:
+
+- `views/` every window and panel in myGo native UI (launcher, selection bubble, translation popup, explain chat, clipboard panel, settings); shared look in `style.go`, motion in `motion.go`
+- `textpicker/` selection detection and the bubble logic; `windows/` dismiss rules of floating surfaces
+- `translation/`, `ai/`, `chat/`, `websearch/`, `calc/`, `apps/` the features
+- `clipboard/` history store (SQLite, the Electron app's schema), capture, search, paste; `clipsync/` Cloudflare R2 sync
+- `settings/` settings files (same names and shapes as the Electron app's), `i18n/` strings (`extra.go` for new ones, `scripts/add-i18n.py` adds them), `native/` purego wrapper of the native library, `logx/`, `jsonx/`
+
+The native macOS bridge is `native/popmind_native.mm` (C ABI, built by `native/build.sh` into `resources/darwin-arm64/`). `packaging/` holds the entitlements and installer scripts. `docs/` is documentation. The Electron app this replaced is in `archive/electron/` locally (not committed; `scripts/gen-defaults.mjs` and `scripts/gen-icons.mjs` read from it). Generated output (`build/`, `.mygo/`, `resources/darwin-*/`) is never edited by hand.
 
 ## Build, Test, and Development Commands
 
-no need test
+- `./native/build.sh` builds the native library (once, and after changing `native/popmind_native.mm`)
+- `GOTOOLCHAIN=go1.27.3 go tool mygo dev` runs the development app ("popMind Dev", its own data folder); it rebuilds on Go changes, and must be restarted after rebuilding the native library
+- `GOTOOLCHAIN=go1.27.3 go vet ./... && go test ./...` checks; `POPMIND_RENDER_DIR=<dir> go test ./internal/views/` renders the windows to PNGs for review
+- `./scripts/package-mac.sh` builds the release (`build/`: .pkg, .dmg, .zip); `POPMIND_MAC_SIGN_IDENTITY` signs it. Releases are built by `.github/workflows/release-packages.yml` on a `v*` tag matching `mygo.json`'s version
 
 ## Coding Style & Naming Conventions
 
-This repository uses TypeScript throughout. Prettier enforces 2-space indentation, single quotes, no semicolons, `printWidth: 120`, and trailing commas where valid in ES5. Follow existing naming patterns: PascalCase for React components (`WelcomeKit.tsx`), camelCase for utilities and APIs, and kebab-case for shared module filenames such as `use-conveyor.ts`. Prefer path aliases like `@/app/...` and `@/lib/...` over long relative imports. Keep IPC contracts centralized in `lib/conveyor/schemas/` and update the matching API and handler together.
+Go, formatted by `gofmt`. Comments say what the code is for, in plain sentences. New user-facing strings go through `i18n.T` (zh-CN and en). UI follows the rules below and uses the helpers of `internal/views/style.go` (`Look`, `Hairline`, `HoverFill`, `IconButton`, `Picker`, …) rather than new colors or sizes.
 
 ## Testing Guidelines
 
@@ -22,11 +33,11 @@ no need test
 
 # 页面开发
 
-尽可能使用 shadcn/ui. 组如果没有安装的，直接安装对应的件开发
+界面一律用 myGo 原生 UI（`github.com/egoist/mygo/ui`）开发，不引入 WebView 页面。
 
 ## UI 规范（macOS 原生风格）
 
-popMind 是 macOS 工具，所有窗口和浮层都要像系统原生界面，而不是网页。参考实现：设置窗口 `app/components/settings/`。
+popMind 是 macOS 工具，所有窗口和浮层都要像系统原生界面，而不是网页。参考实现：设置窗口 `internal/views/settings_view.go`。
 
 - 字体：系统字体栈 `-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif`；正文 13px，辅助信息 11–12px，不用大号粗体标题
 - 滚动条：一律隐藏（`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`），保留滚轮 / 触控板滚动
@@ -34,23 +45,21 @@ popMind 是 macOS 工具，所有窗口和浮层都要像系统原生界面，�
 - 选中态：系统强调色（macOS 蓝）2px 描边或浅色底，不用夸张的发光、渐变
 - 控件尺寸：按钮、输入框高 22–28px，圆角 6–8px；图标 14–16px（lucide）
 - 阴影克制：只在浮层（菜单、弹窗、面板）使用柔和阴影
-- 颜色：跟随系统浅色 / 深色模式，使用 `app/styles/tokens.css` 中的变量；背景用半透明 + 毛玻璃，不用大面积纯色块
+- 颜色：跟随系统浅色 / 深色模式，使用 `internal/views/style.go` 中的颜色（窗口为白色 / 深灰底）
 - 动画：默认不用；确需动画时必须流畅、短（≤150ms）、不能出现先显示空容器再出内容的闪烁
 - 信息密度：辅助说明放 placeholder、tooltip 或浅灰小字，不额外占一行 / 一栏（例如不要底部状态栏）
 
 # 仓库操作约束
 
-- 不要直接运行会把编译产物输出到源码目录的 TypeScript 命令，例如 `pnpm exec tsc -b`
-- 如果只是做类型检查，先确认 `tsconfig` 的输出行为，避免在 `app/`、`lib/` 下生成 `*.js`、`*.jsx`、`*.d.ts`、`*.tsbuildinfo`
-- 对开启了 `composite` / `incremental` 的 `tsconfig`，不要直接运行 `pnpm exec tsc -p <config> --noEmit`，这仍然可能在仓库根目录生成 `tsconfig.*.tsbuildinfo`
-- 需要做纯类型检查时，使用 `pnpm exec tsc -p <config> --noEmit --composite false --incremental false`（本仓库的 tsconfig 开启了 composite，只加 `--incremental false` 会报错并留下 `tsconfig.*.tsbuildinfo`）
-- 一旦误生成上述文件，先清理这些编译副产物，再继续开发，不能把它们当成源码改动提交
+- Go 工具链用 `GOTOOLCHAIN=go1.27.3`
+- `archive/` 是旧的 Electron 项目，只在本地保留，不提交、不修改
+- 构建产物（`build/`、`.mygo/`、`resources/darwin-*/`）不提交
 
 ## 重要
 
 工作模式，遇到任何 GUI 相关的测试逻辑都停下来告诉我开发者要做什么，然后你自己启动服务，打好需要的日志，然后等待开发者完成 GUI 操作，你进行log 分析，然后继续下一步
 
-- 在启动 `pnpm dev` 之前，必须先检测当前是否已经有运行中的开发实例；如果已经有，就复用现有实例，不要重复启动多个 `pnpm dev`
+- 在启动 `go tool mygo dev` 之前，必须先检测当前是否已经有运行中的开发实例；如果已经有，就复用现有实例，不要重复启动多个
 
 When communicating your results back to me, explain what you did and what happened in plain, clear English. Avoid jargon, technical implementation details, and code-speak in your final responses. Write as if you're explaining to a smart person who isn't looking at the code. Your actual work (how you think, plan, write code, debug, and solve problems) should stay fully technical and rigorous. This only applies to how you talk to me about it.
 
