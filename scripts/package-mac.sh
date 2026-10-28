@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds the macOS release: the native library, the signed app, and the installers in build/:
 #   popMind-<version>.pkg   installs to /Applications/popMind.app over the old copy (quits it, relaunches)
-#   popMind <version>.dmg   drag to Applications
+#   popMind <version> arm64.dmg   drag to Applications, over a background with an arrow (dmgbuild)
 #   popMind-<version>-mac-arm64.zip
 #
 # Signing: POPMIND_MAC_SIGN_IDENTITY names the certificate ("popMind Self Signed", the one the Electron app was
@@ -18,7 +18,7 @@ echo "popMind $version, signing identity: $identity"
 ./native/build.sh arm64
 go vet ./...
 go test ./...
-go tool mygo build -platform darwin/arm64 -sign "$identity"
+go tool mygo build -platform darwin/arm64 -sign "$identity" -skip-dmg
 
 app="build/popMind.app"
 [ -d "$app" ] || app="$(find build -maxdepth 3 -name 'popMind.app' -type d | head -1)"
@@ -35,5 +35,21 @@ COPYFILE_DISABLE=1 pkgbuild --root "$root" --identifier com.popmind.app --versio
 rm -rf "$root"
 
 ditto -c -k --norsrc --noextattr --keepParent "$app" "build/popMind-$version-mac-arm64.zip"
-find build -maxdepth 2 -name '*.dmg' -exec mv {} build/ \;
+
+# The disk image: the app beside a link to /Applications over packaging/dmg-background*.png (drawn by
+# TestRenderDMGBackground), laid out by dmgbuild (pip), which writes Finder's layout without AppleScript.
+dmgbuild_bin="$(command -v dmgbuild || true)"
+if [ -z "$dmgbuild_bin" ]; then
+  venv="build/.dmgbuild-venv"
+  [ -x "$venv/bin/dmgbuild" ] || { python3 -m venv "$venv" && "$venv/bin/pip" install --quiet "dmgbuild==1.6.7"; }
+  dmgbuild_bin="$venv/bin/dmgbuild"
+fi
+background="build/dmg-background.tiff"
+tiffutil -cathidpicheck packaging/dmg-background.png packaging/dmg-background@2x.png -out "$background"
+dmg="build/popMind $version arm64.dmg"
+rm -f "$dmg"
+"$dmgbuild_bin" -s packaging/dmg-settings.py -D app="$app" -D background="$background" "popMind" "$dmg"
+if [ "$identity" != "-" ]; then
+  codesign --force --sign "$identity" "$dmg"
+fi
 ls -lh build/*.pkg build/*.dmg build/*.zip

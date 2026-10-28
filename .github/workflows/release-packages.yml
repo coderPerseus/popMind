@@ -2,7 +2,7 @@ name: Build Release Packages
 
 # Builds the macOS app (Go + myGo) and, for a v* tag, publishes it as a GitHub release:
 #   popMind-<version>.pkg            installs over /Applications/popMind.app (quits it, relaunches)
-#   popMind <version> arm64.dmg      drag to Applications
+#   popMind <version> arm64.dmg      drag to Applications (background with an arrow, made by dmgbuild)
 #   popMind-<version>-mac-arm64.zip
 #
 # Signing: the self-signed "popMind Self Signed" certificate (secrets MAC_SELF_SIGN_P12_BASE64 and

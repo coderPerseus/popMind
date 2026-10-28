@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -180,6 +181,14 @@ type Launcher struct {
 	translator Translator
 	lastTrText string
 
+	// axGranted is whether popMind has the Accessibility permission; without it the launcher shows how to
+	// grant it, and checks again every second while it shows (axPolling).
+	axGranted bool
+	axPolling atomic.Bool
+
+	// introLogo hides the footer's logo while the first-run intro's logo flies onto it.
+	introLogo bool
+
 	// conv is the /ai conversation: while there is one, the launcher is a chat (startChat, endChat).
 	conv      *Conversation
 	focusConv bool
@@ -243,20 +252,92 @@ func pickPlaceholder(previous string) string {
 }
 
 // Show shows the launcher on the display with the pointer, a third of the way down, with query typed in.
-func (l *Launcher) Show(query string) {
+func (l *Launcher) Show(query string) { l.show(query, 90) }
+
+// ShowTransparent shows the launcher fully transparent, for FadeIn to bring in (the first-run intro opens
+// it ahead of time, so that the frames it takes to show fall while nothing moves).
+func (l *Launcher) ShowTransparent() { l.show("", -1) }
+
+// FadeIn fades the launcher in over ms, from where ShowTransparent left it.
+func (l *Launcher) FadeIn(ms int) { native.AnimateWindowIn(l.panel.NativeHandle(), ms, 0) }
+
+// show shows it, fading in over fadeMs, or staying transparent when fadeMs < 0.
+func (l *Launcher) show(query string, fadeMs int) {
 	windows.Dispatch(windows.DismissContext{Reason: windows.DismissSurfaceOpened, Target: "main"})
 	if !l.panel.IsVisible() {
 		d := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
 		l.panel.SetPosition(d.WorkArea.X+(d.WorkArea.Width-launcherWidth)/2, d.WorkArea.Y+(d.WorkArea.Height-launcherHeight)/2)
 	}
+	granted := !native.Loaded() || native.CheckPermission(false)
 	l.panel.Update(func() {
+		l.axGranted = granted
 		if query != "" {
 			l.setQuery(query)
 		}
 		l.input.Focus()
 	})
-	showIn(l.panel, 90, 0, l.panel.Show)
-	logx.Info("[launcher] shown", "query", query != "")
+	if fadeMs >= 0 {
+		showIn(l.panel, fadeMs, 0, l.panel.Show)
+	} else {
+		if !l.panel.IsVisible() {
+			native.PrepareWindowIn(l.panel.NativeHandle())
+		}
+		l.panel.Show()
+	}
+	logx.Info("[launcher] shown", "query", query != "", "accessibility", granted, "transparent", fadeMs < 0)
+	if !granted {
+		l.watchPermission()
+	}
+}
+
+// watchPermission checks the Accessibility permission every second while the launcher shows, and drops
+// the guide once it is granted.
+func (l *Launcher) watchPermission() {
+	if !l.axPolling.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer l.axPolling.Store(false)
+		for {
+			time.Sleep(time.Second)
+			if !l.panel.IsVisible() {
+				return
+			}
+			if native.CheckPermission(false) {
+				logx.Info("[launcher] accessibility granted")
+				l.panel.Update(func() { l.axGranted = true })
+				return
+			}
+		}
+	}()
+}
+
+// permissionGuide asks for the Accessibility permission, which selection, explain and paste need.
+func (l *Launcher) permissionGuide(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c.Key("ax-guide")).Margin(6, 2, 4, 2).Padding(10, 12).Gap(10).AlignItems(ui.Center).Radius(10).
+		Background(t.Accent.Alpha(0.08)).Border(0.5, t.Accent.Alpha(0.22)).Transition(fadeIn).Children(func() {
+		ui.Icon(c, icons.Get("shield-alert")).FontSize(16).TextColor(t.Accent)
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Text(c, i18n.T("launcher.perm.title")).FontSize(13).FontWeight(600)
+			ui.Text(c, i18n.T("launcher.perm.desc")).FontSize(12).TextColor(t.TextMuted)
+		})
+		b := ui.ButtonBase(c.Key("ax-grant")).Height(26).Padding(0, 12).Radius(6).Center().Label(i18n.T("launcher.perm.action")).
+			Tooltip(i18n.T("launcher.perm.waiting")).Background(t.Accent).Transition(hoverColors)
+		if b.Hovered() {
+			b.Background(t.Accent.Mix(ui.RGB(0, 0, 0), 0.1))
+		}
+		b.Children(func() {
+			ui.Text(c, i18n.T("launcher.perm.action")).FontSize(12).FontWeight(600).TextColor(t.AccentText)
+		})
+		if b.Clicked() {
+			logx.Info("[launcher] accessibility guide clicked")
+			go func() {
+				native.CheckPermission(true)
+				native.OpenAccessibilitySettings()
+			}()
+		}
+	})
 }
 
 // Hide hides it and clears the query, as closing does.
@@ -271,7 +352,9 @@ func (l *Launcher) Hide() {
 
 // Toggle shows or hides it.
 func (l *Launcher) Toggle() {
-	if l.panel.IsVisible() {
+	visible := l.panel.IsVisible()
+	logx.Info("[launcher] toggle", "visible", visible, "focused", l.panel.IsFocused())
+	if visible {
 		l.Hide()
 		return
 	}
@@ -534,6 +617,9 @@ func (l *Launcher) view(c *ui.Context) {
 			case p.plugin != nil:
 				mode("plugin:"+p.plugin.id, func() { l.pluginCard(c, p) })
 			default:
+				if !l.axGranted && strings.TrimSpace(l.query) == "" {
+					l.permissionGuide(c)
+				}
 				if calc.LooksLikeMath(l.query) {
 					calcCard(c, "", l.query)
 					ui.Box(c).Height(6)
@@ -555,7 +641,10 @@ func (l *Launcher) view(c *ui.Context) {
 				if t.Dark {
 					name = "logo-dark"
 				}
-				ui.Image(c, assets.Bitmap(name)).Size(18, 18)
+				img := ui.Image(c, assets.Bitmap(name)).Size(18, 18)
+				if l.introLogo {
+					img.Opacity(0)
+				}
 				ui.Icon(c, icons.Get("settings")).FontSize(12).TextColor(t.TextMuted)
 			}).Clicked() {
 				l.app.ShowSettings("")

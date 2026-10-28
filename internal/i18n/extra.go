@@ -70,6 +70,13 @@ var extra = map[string]map[string]string{
 		"settings.aiGlow.desc":                           "AI 回答生成时，窗口边缘和输入框显示流动的彩色光效。",
 		"chat.web.setup":                                 "去配置",
 		"chat.web.setup.tip":                             "联网搜索还没有配置 API Key，点击前往设置",
+		"onboarding.tagline":                             "划词即译，随手问 AI",
+		"onboarding.placeholder":                         "搜应用、翻译、问 AI…",
+		"launcher.perm.title":                            "开启辅助功能权限",
+		"launcher.perm.desc":                             "划词翻译、AI 解释和剪贴板粘贴都需要它。在系统设置里打开 popMind 的开关即可。",
+		"launcher.perm.action":                           "去授权",
+		"launcher.perm.waiting":                          "授权后会自动生效",
+		"dmg.hint":                                       "把 popMind 拖到「应用程序」文件夹即可完成安装",
 		// zh-CN:end
 	},
 	"en": {
@@ -140,6 +147,13 @@ var extra = map[string]map[string]string{
 		"settings.aiGlow.desc":                           "While an AI reply is written, the window's edge and the input glow in flowing colors.",
 		"chat.web.setup":                                 "Set up",
 		"chat.web.setup.tip":                             "Web search has no API key yet: open its settings",
+		"onboarding.tagline":                             "Select to translate, ask AI anywhere",
+		"onboarding.placeholder":                         "Search apps, translate, ask AI…",
+		"launcher.perm.title":                            "Turn on Accessibility access",
+		"launcher.perm.desc":                             "Selection translate, AI explain and clipboard paste need it. Switch popMind on in System Settings.",
+		"launcher.perm.action":                           "Grant Access",
+		"launcher.perm.waiting":                          "Takes effect once granted",
+		"dmg.hint":                                       "Drag popMind to Applications to install",
 		// en:end
 	},
 }

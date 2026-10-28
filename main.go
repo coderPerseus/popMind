@@ -63,6 +63,8 @@ func ready() {
 	}
 	logx.Info("[native] permission", "accessibility", native.CheckPermission(false))
 
+	// Decided before the settings load, since loading writes them.
+	firstRun := views.FirstRun()
 	settings.Capabilities.Load(mygo.App.Locale())
 	i18n.SetLanguage(settings.Capabilities.Get().AppLanguage)
 	applyThemeMode(settings.ThemeMode())
@@ -89,6 +91,9 @@ func ready() {
 		refreshTrayMenu()
 	})
 	apps.Default.Warmup()
+	if firstRun {
+		app.Onboard()
+	}
 	runSelfTest(app)
 }
 
@@ -144,6 +149,10 @@ func trayMenu() *mygo.Menu {
 			native.CheckPermission(true)
 			native.OpenAccessibilitySettings()
 		}})
+	}
+	if mygo.IsDev() {
+		// Development only: play the first-run intro again (release builds leave it out).
+		items = append(items, &mygo.MenuItem{Label: "播放安装动画", Click: func(*mygo.MenuItem, *mygo.Window) { app.Onboard() }})
 	}
 	items = append(items,
 		mygo.Separator(),
