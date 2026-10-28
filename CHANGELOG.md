@@ -4,6 +4,14 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.7.1
+
+- Translating text from a terminal (a coding agent's reply, a CLI's output): tables drawn with box lines (┌─┬─┐) or in ASCII (+---+) become real tables, translated cell by cell, and the shared indent and reply markers (⏺) are dropped, so nothing is mistaken for code.
+- Tables in translated Markdown fit the popup and the launcher, their cells wrapping instead of running off the side.
+- Single-letter table cells (a, b, x) are kept as they are rather than translated.
+
+<br>
+
 ## v0.7.0
 
 - First-run intro: over the desktop, with a breathing aurora behind it, popMind is written out by hand; the "p" opens into the logo's bubble and the "M" moves into it and turns into its "m", then the logo flies into the launcher, which fades in around it. Shown once, on a fresh install; a click or Escape skips it.
