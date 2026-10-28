@@ -4,6 +4,11 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.8.1
+
+- The intro plays the first time each new version opens, after installing or updating, and only once.
+- Development builds leave out "Check for Updates…", which they cannot do.
+
 ## v0.8.0
 
 - Updates inside popMind: it checks for a new version after launch and daily, shows what changed, and installs it in place with a click, then restarts into it. "Check for Updates…" is in the menu bar menu and in Settings, with a switch for the automatic checks.
