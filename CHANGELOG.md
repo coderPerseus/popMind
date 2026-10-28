@@ -4,6 +4,14 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.7.0
+
+- First-run intro: over the desktop, with a breathing aurora behind it, popMind is written out by hand; the "p" opens into the logo's bubble and the "M" moves into it and turns into its "m", then the logo flies into the launcher, which fades in around it. Shown once, on a fresh install; a click or Escape skips it.
+- The launcher asks for the Accessibility permission while it is missing, with a button to grant it, and drops the request once it is granted.
+- The disk image opens as a drag-to-install window: popMind beside the Applications folder, with an arrow and a hint between them.
+
+<br>
+
 ## v0.6.0
 
 - Input translation (Cmd+Shift+I): a box by the pointer; Enter translates into the chosen language, the translation replaces the text and goes on the clipboard, edits included. The engine and language are remembered.
