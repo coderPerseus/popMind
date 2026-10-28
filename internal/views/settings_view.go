@@ -216,7 +216,7 @@ func (s *SettingsWindow) generalSection(c *ui.Context) {
 			}
 		})
 		s.legacyRow(c)
-		updates := updaterInUse()
+		updates := !mygo.IsDev() && updaterInUse() // development builds cannot update themselves
 		row(c, i18n.T("settings.advanced.version"), "", func() {
 			Muted(c, mygo.App.Version())
 			if updates && ui.Button(c.Key("check-update"), i18n.T("settings.advanced.checkUpdate")).Clicked() {

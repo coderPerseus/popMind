@@ -167,9 +167,12 @@ func trayMenu() *mygo.Menu {
 		// Development only: play the first-run intro again (release builds leave it out).
 		items = append(items, &mygo.MenuItem{Label: "播放安装动画", Click: func(*mygo.MenuItem, *mygo.Window) { app.Onboard() }})
 	}
+	items = append(items, mygo.Separator())
+	if !mygo.IsDev() { // development builds cannot update themselves
+		items = append(items, &mygo.MenuItem{Label: i18n.T("settings.advanced.checkUpdate") + "…",
+			Click: func(*mygo.MenuItem, *mygo.Window) { updater.CheckForUpdates() }})
+	}
 	items = append(items,
-		mygo.Separator(),
-		&mygo.MenuItem{Label: i18n.T("settings.advanced.checkUpdate") + "…", Click: func(*mygo.MenuItem, *mygo.Window) { updater.CheckForUpdates() }},
 		&mygo.MenuItem{Label: i18n.T("tray.version", "version", mygo.App.Version()), Disabled: true},
 		&mygo.MenuItem{Label: i18n.T("tray.quit"), Accelerator: "Cmd+Q", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	)

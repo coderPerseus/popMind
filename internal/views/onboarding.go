@@ -65,22 +65,21 @@ const (
 	obBreath      = 3.4 // seconds per breath of the aurora
 )
 
-// FirstRun reports whether popMind starts for the first time: no intro shown yet and no settings from
-// earlier versions. Call before the settings are loaded (loading writes them). POPMIND_ONBOARDING=1 plays the
-// intro anyway.
+// FirstRun reports whether this install opens for the first time: the intro plays once per version, after
+// each install or update, and onboarding.json keeps the version it last played for. Development builds play
+// it only when asked (POPMIND_ONBOARDING=1, or the tray's item).
 func FirstRun() bool {
 	if os.Getenv("POPMIND_ONBOARDING") == "1" {
 		return true
 	}
-	if _, err := os.Stat(settings.Path(onboardingFile)); err == nil {
+	if mygo.IsDev() {
 		return false
 	}
-	if _, err := os.Stat(settings.Path("capability-settings.json")); err == nil {
-		// Someone upgrading from a version without the intro: they know popMind already.
-		markOnboarded()
-		return false
+	var seen struct {
+		Version string `json:"version"`
 	}
-	return true
+	_ = jsonx.ReadFile(settings.Path(onboardingFile), &seen)
+	return seen.Version != mygo.App.Version()
 }
 
 func markOnboarded() {
