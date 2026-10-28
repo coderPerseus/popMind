@@ -79,6 +79,17 @@ func hasWords(s string) bool {
 	return false
 }
 
+// isLabel reports whether s is a lone letter (a, b, x in a table's cells): a name, not a word to translate.
+func isLabel(s string) bool {
+	letters := 0
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			letters++
+		}
+	}
+	return letters <= 1 && len([]rune(strings.TrimSpace(s))) <= 2
+}
+
 func (d *mdDoc) unit(text string) string {
 	lead := text[:len(text)-len(strings.TrimLeft(text, " \t"))]
 	trail := text[len(strings.TrimRight(text, " \t")):]
@@ -96,7 +107,7 @@ func (d *mdDoc) unit(text string) string {
 		protected = append(protected, m)
 		return prefix + "{{" + strconv.Itoa(len(protected)-1) + "}}"
 	})
-	if !hasWords(mdHolder.ReplaceAllString(masked, "")) {
+	if words := mdHolder.ReplaceAllString(masked, ""); !hasWords(words) || isLabel(words) {
 		return text
 	}
 	d.units = append(d.units, mdUnit{text: masked, protected: protected})

@@ -41,6 +41,8 @@ type Translator struct {
 	cancel   context.CancelFunc
 	copiedAt time.Time
 	md       *markdown.Options
+	// Inset is how much narrower than the window the result shows (its paddings), so that a table fits.
+	Inset float32
 }
 
 // markdownOptions renders translated markdown: links open in the browser, code wraps in the narrow popup.
@@ -313,7 +315,12 @@ func (t *Translator) Body(c *ui.Context, showSource bool) {
 		ui.Column(c.Key(fmt.Sprint("tr-result-", t.seq))).Transition(fadeIn).Gap(8).Selectable().Children(func() {
 			if t.Result.Markdown {
 				opts := t.markdownOptions()
-				opts.Theme = MarkdownTheme(th)
+				w, _ := c.Size()
+				inset := t.Inset
+				if inset == 0 {
+					inset = 28
+				}
+				opts.Theme = fitTables(MarkdownTheme(th), t.Result.TranslatedText, w-inset)
 				markdown.View(c, t.Result.TranslatedText, opts)
 			} else {
 				ui.Text(c, t.Result.TranslatedText).FontSize(15).FontWeight(500).LineHeight(1.55)
@@ -400,4 +407,41 @@ func wordSection(c *ui.Context, title string, body func()) {
 		ui.Text(c, title).FontSize(11).FontWeight(600).TextColor(c.Theme().TextMuted)
 		body()
 	})
+}
+
+type fitKey struct {
+	th          *markdown.Theme
+	cols, width int
+}
+
+var (
+	fitMu     sync.Mutex
+	fitThemes = map[fitKey]*markdown.Theme{}
+)
+
+// fitTables returns th with its tables' columns kept narrow enough for the widest table of text to fit in
+// width, its cells wrapping instead of running off the side.
+func fitTables(th *markdown.Theme, text string, width float32) *markdown.Theme {
+	cols := 0
+	for _, line := range strings.Split(text, "\n") {
+		l := strings.TrimSpace(line)
+		if strings.HasPrefix(l, "|") && strings.Contains(l, "---") {
+			cols = max(cols, strings.Count(strings.Trim(l, "|"), "|")+1)
+		}
+	}
+	if cols == 0 || width <= 0 {
+		return th
+	}
+	key := fitKey{th, cols, int(width)}
+	fitMu.Lock()
+	defer fitMu.Unlock()
+	if out := fitThemes[key]; out != nil {
+		return out
+	}
+	out := *th
+	fs := th.FontSize
+	maxCol := (width/float32(cols) - 2*th.TableCellPadding[0]*fs - 2) / fs
+	out.TableMaxColumn = max(4, min(th.TableMaxColumn, maxCol))
+	fitThemes[key] = &out
+	return &out
 }

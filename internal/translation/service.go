@@ -114,7 +114,7 @@ func detect(ctx context.Context, text string, engineID string) (string, string) 
 // Translate translates in, trying the preferred engine first and the others after it.
 func Translate(ctx context.Context, in Input) (Result, error) {
 	c := settings.Capabilities.Get()
-	text := NormalizeText(strings.TrimSpace(in.Text))
+	text := NormalizeText(strings.TrimSpace(CleanTerminalText(in.Text)))
 	if text == "" {
 		return Result{}, errors.New("Translation text is empty")
 	}

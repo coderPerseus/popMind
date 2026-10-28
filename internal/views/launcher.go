@@ -211,6 +211,7 @@ func newLauncher(app *App) *Launcher {
 		Content:       ui.View(l.view),
 	})
 	l.translator.Update = l.panel.Update
+	l.translator.Inset = 48 // the body's and the card's paddings
 	l.panel.OnClose(func(e *mygo.CloseEvent) {
 		if quitting.Load() {
 			return
