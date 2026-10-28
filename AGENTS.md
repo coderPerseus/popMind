@@ -17,7 +17,7 @@ The website (pm.luckysnail.cn) is `website/`: a static Void + Solid site in the 
 - `./native/build.sh` builds the native library (once, and after changing `native/popmind_native.mm`)
 - `GOTOOLCHAIN=go1.27.3 go tool mygo dev` runs the development app ("popMind Dev", its own data folder); it rebuilds on Go changes, and must be restarted after rebuilding the native library
 - `GOTOOLCHAIN=go1.27.3 go vet ./... && go test ./...` checks; `POPMIND_RENDER_DIR=<dir> go test ./internal/views/` renders the windows to PNGs for review
-- `cd website && bun install && bun run dev` runs the website; `bun run build` builds it into `website/dist/client`; `POPMIND_SITE_DIR=$PWD/website/public go test ./internal/views/ -run TestRenderSiteAssets` remakes its pictures
+- `cd website && bun install && bun run dev` runs the website; `bun run build` builds it into `website/dist/client`; `bun run deploy` puts it live on the Aliyun server (Workbench CLI, `scripts/deploy.sh`), checks it and notifies IndexNow; `POPMIND_SITE_DIR=$PWD/website/public go test ./internal/views/ -run TestRenderSiteAssets` remakes its pictures
 - `./scripts/package-mac.sh` builds the release (`build/`: .pkg, .dmg, .zip); `POPMIND_MAC_SIGN_IDENTITY` signs it. Releases are built by `.github/workflows/release-packages.yml` on a `v*` tag matching `mygo.json`'s version
 
 ## Coding Style & Naming Conventions

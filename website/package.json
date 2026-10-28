@@ -8,7 +8,7 @@
     "preview": "vp preview",
     "seo:check": "bun scripts/seo-check.ts",
     "seo:indexnow": "bun scripts/indexnow.ts",
-    "deploy": "bun run build && cd deploy && cf deploy"
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "hono": "^4.11.9",
