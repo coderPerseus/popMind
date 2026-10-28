@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/ui"
 
 	"popmind/internal/ai"
@@ -215,7 +216,21 @@ func (s *SettingsWindow) generalSection(c *ui.Context) {
 			}
 		})
 		s.legacyRow(c)
-		row(c, i18n.T("settings.advanced.version"), "", func() { Muted(c, mygo.App.Version()) })
+		updates := updaterInUse()
+		row(c, i18n.T("settings.advanced.version"), "", func() {
+			Muted(c, mygo.App.Version())
+			if updates && ui.Button(c.Key("check-update"), i18n.T("settings.advanced.checkUpdate")).Clicked() {
+				updater.CheckForUpdates()
+			}
+		})
+		if updates {
+			row(c, i18n.T("settings.update.auto"), i18n.T("settings.update.autoDesc"), func() {
+				on := updater.AutomaticChecks()
+				if ui.Switch(c.Key("auto-update"), &on).Changed() {
+					updater.SetAutomaticChecks(on)
+				}
+			})
+		}
 	})
 }
 
@@ -682,4 +697,16 @@ func (s *SettingsWindow) clipboardSection(c *ui.Context) {
 	footnote(c, i18n.T("clip.settings.ignoredApps.desc"))
 	_ = c.Theme()
 	s.syncSection(c)
+}
+
+// updaterInUse reports whether the update plugin runs (main uses it; the render tests do not), whose
+// functions panic otherwise.
+func updaterInUse() (ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	updater.AutomaticChecks()
+	return true
 }

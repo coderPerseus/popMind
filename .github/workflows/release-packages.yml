@@ -4,11 +4,15 @@ name: Build Release Packages
 #   popMind-<version>.pkg            installs over /Applications/popMind.app (quits it, relaunches)
 #   popMind <version> arm64.dmg      drag to Applications (background with an arrow, made by dmgbuild)
 #   popMind-<version>-mac-arm64.zip
+#   popmind-<version>-darwin-arm64.tar.gz, deltas, update-darwin-arm64.json   in-app updates (myGo's updater)
 #
 # Signing: the self-signed "popMind Self Signed" certificate (secrets MAC_SELF_SIGN_P12_BASE64 and
 # MAC_SELF_SIGN_P12_PASSWORD, made once by archive/electron/scripts/create-mac-signing-cert.sh) is the one the
 # Electron releases were signed with, so the app's designated requirement stays the same and users keep their
 # Accessibility / Screen Recording grants across the update.
+#
+# In-app updates: MYGO_UPDATER_PRIVATE_KEY (the secret of the key whose public half is updates.publicKey in
+# mygo.json) signs them; installed apps read update-darwin-arm64.json from the latest release.
 
 on:
   workflow_dispatch:
@@ -32,6 +36,7 @@ jobs:
     env:
       MAC_SELF_SIGN_P12_BASE64: ${{ secrets.MAC_SELF_SIGN_P12_BASE64 }}
       MAC_SELF_SIGN_P12_PASSWORD: ${{ secrets.MAC_SELF_SIGN_P12_PASSWORD }}
+      MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
 
     steps:
       - name: Checkout
@@ -48,6 +53,15 @@ jobs:
           version="$(python3 -c 'import json; print(json.load(open("mygo.json"))["version"])')"
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "Tag $GITHUB_REF_NAME does not match mygo.json version $version" >&2
+            exit 1
+          fi
+
+      - name: Check the update signing key
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # A release without signed updates would leave the apps that install it unable to update.
+          if [ -z "${MYGO_UPDATER_PRIVATE_KEY:-}" ]; then
+            echo "Missing MYGO_UPDATER_PRIVATE_KEY: releases must carry signed updates." >&2
             exit 1
           fi
 
@@ -118,6 +132,9 @@ jobs:
             build/*.pkg
             build/*.dmg
             build/*.zip
+            build/darwin-arm64/*.tar.gz
+            build/darwin-arm64/*.delta
+            build/darwin-arm64/update-*.json
 
   release:
     name: Publish GitHub Release
@@ -141,8 +158,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The artifacts keep build/'s folders (the update files are in darwin-arm64/): upload the files.
+          mapfile -t files < <(find release-artifacts -type f | sort)
+          printf '%s\n' "${files[@]}"
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" release-artifacts/* --clobber
+            gh release upload "${GITHUB_REF_NAME}" "${files[@]}" --clobber
           else
-            gh release create "${GITHUB_REF_NAME}" release-artifacts/* --generate-notes --verify-tag
+            gh release create "${GITHUB_REF_NAME}" "${files[@]}" --generate-notes --verify-tag
           fi

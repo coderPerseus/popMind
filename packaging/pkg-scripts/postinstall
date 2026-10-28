@@ -2,7 +2,7 @@
 # Runs as root after popMind.app has been written to /Applications.
 # 1. Remove leftover copies such as "popMind 2.app" created by older installers,
 #    so only one popMind (and one permission entry) exists.
-# 2. Launch the freshly installed app for the logged-in user.
+# 2. Give the app to the logged-in user, so that it can update itself, and launch it for them.
 
 APP_PATH="/Applications/popMind.app"
 BUNDLE_ID="com.popmind.app"
@@ -35,6 +35,10 @@ shopt -u nullglob
 CONSOLE_USER="$(/usr/bin/stat -f%Su /dev/console)"
 if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ] && [ "$CONSOLE_USER" != "loginwindow" ]; then
   CONSOLE_UID="$(/usr/bin/id -u "$CONSOLE_USER")"
+  # The app updates itself in place (myGo's updater), so it must be the user's to write, as an app dragged
+  # from the disk image is; the installer writes it as root's.
+  log "giving $APP_PATH to $CONSOLE_USER for updates"
+  /usr/sbin/chown -R "$CONSOLE_USER":staff "$APP_PATH" || true
   log "launching popMind for user $CONSOLE_USER"
   /bin/launchctl asuser "$CONSOLE_UID" /usr/bin/sudo -u "$CONSOLE_USER" /usr/bin/open "$APP_PATH" || true
 fi

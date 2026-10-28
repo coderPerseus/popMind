@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
+	updaterui "github.com/egoist/mygo/plugins/updater/native"
 
 	"popmind/internal/apps"
 	"popmind/internal/assets"
@@ -25,6 +27,9 @@ func main() {
 		return // the running popMind shows itself
 	}
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
+	// Updates from the GitHub releases (mygo.json's updates), signed with popMind's key: checked in the
+	// background after launch and daily, offered in myGo's native update window, installed in place.
+	mygo.Use(updaterui.Plugin)
 	mygo.App.OnWindowAllClosed(func() {})
 	mygo.App.OnSecondInstance(func([]string, string) {
 		if app != nil {
@@ -66,7 +71,7 @@ func ready() {
 	// Decided before the settings load, since loading writes them.
 	firstRun := views.FirstRun()
 	settings.Capabilities.Load(mygo.App.Locale())
-	i18n.SetLanguage(settings.Capabilities.Get().AppLanguage)
+	setLanguage(settings.Capabilities.Get().AppLanguage)
 	applyThemeMode(settings.ThemeMode())
 
 	app = views.Start()
@@ -86,7 +91,7 @@ func ready() {
 	createTray()
 	shortcuts.Apply(settings.Capabilities.Get().Shortcuts)
 	settings.Capabilities.Subscribe(func(c settings.Capability) {
-		i18n.SetLanguage(c.AppLanguage)
+		setLanguage(c.AppLanguage)
 		shortcuts.Apply(c.Shortcuts)
 		refreshTrayMenu()
 	})
@@ -95,6 +100,14 @@ func ready() {
 		app.Onboard()
 	}
 	runSelfTest(app)
+}
+
+// setLanguage shows popMind in lang, and myGo's own windows (the update window) with it.
+func setLanguage(lang string) {
+	i18n.SetLanguage(lang)
+	if lang != "" && lang != mygo.App.Locale() {
+		mygo.App.SetLocale(lang)
+	}
 }
 
 func shutdown() {
@@ -156,6 +169,7 @@ func trayMenu() *mygo.Menu {
 	}
 	items = append(items,
 		mygo.Separator(),
+		&mygo.MenuItem{Label: i18n.T("settings.advanced.checkUpdate") + "…", Click: func(*mygo.MenuItem, *mygo.Window) { updater.CheckForUpdates() }},
 		&mygo.MenuItem{Label: i18n.T("tray.version", "version", mygo.App.Version()), Disabled: true},
 		&mygo.MenuItem{Label: i18n.T("tray.quit"), Accelerator: "Cmd+Q", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	)

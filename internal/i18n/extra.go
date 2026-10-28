@@ -77,6 +77,8 @@ var extra = map[string]map[string]string{
 		"launcher.perm.action":                           "去授权",
 		"launcher.perm.waiting":                          "授权后会自动生效",
 		"dmg.hint":                                       "把 popMind 拖到「应用程序」文件夹即可完成安装",
+		"settings.update.auto":                           "自动检查更新",
+		"settings.update.autoDesc":                       "启动后和每天在后台检查一次，有新版本时提示安装",
 		// zh-CN:end
 	},
 	"en": {
@@ -154,6 +156,8 @@ var extra = map[string]map[string]string{
 		"launcher.perm.action":                           "Grant Access",
 		"launcher.perm.waiting":                          "Takes effect once granted",
 		"dmg.hint":                                       "Drag popMind to Applications to install",
+		"settings.update.auto":                           "Check for updates automatically",
+		"settings.update.autoDesc":                       "Checks after launch and daily, and offers new versions to install",
 		// en:end
 	},
 }
