@@ -4,21 +4,22 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.8.0
+
+- Updates inside popMind: it checks for a new version after launch and daily, shows what changed, and installs it in place with a click, then restarts into it. "Check for Updates…" is in the menu bar menu and in Settings, with a switch for the automatic checks.
+- Updates are signed with popMind's own key and checked before installing.
+
 ## v0.7.1
 
 - Translating text from a terminal (a coding agent's reply, a CLI's output): tables drawn with box lines (┌─┬─┐) or in ASCII (+---+) become real tables, translated cell by cell, and the shared indent and reply markers (⏺) are dropped, so nothing is mistaken for code.
 - Tables in translated Markdown fit the popup and the launcher, their cells wrapping instead of running off the side.
 - Single-letter table cells (a, b, x) are kept as they are rather than translated.
 
-<br>
-
 ## v0.7.0
 
 - First-run intro: over the desktop, with a breathing aurora behind it, popMind is written out by hand; the "p" opens into the logo's bubble and the "M" moves into it and turns into its "m", then the logo flies into the launcher, which fades in around it. Shown once, on a fresh install; a click or Escape skips it.
 - The launcher asks for the Accessibility permission while it is missing, with a button to grant it, and drops the request once it is granted.
 - The disk image opens as a drag-to-install window: popMind beside the Applications folder, with an arrow and a hint between them.
-
-<br>
 
 ## v0.6.0
 
@@ -30,15 +31,11 @@ All notable changes to popMind are listed here.
 - Floating windows are translucent over the desktop, as system panels are; the launcher opens centered.
 - Selection bubble: icons only, their labels in a tooltip on hover, which now works without clicking the bubble first.
 
-<br>
-
 ## v0.5.1
 
 - Quit works again: from the tray menu, Cmd+Q or the system, popMind now quits instead of ignoring it.
 - Selection bubble: each button shows its icon and label until it is clicked once, then its icon alone; the label shows in a tooltip on hover.
 - Images to custom relays: a relay that crashes on images sent the OpenAI way (new-api in front of Gemini) gets them through its Gemini API; a relay's own failure no longer reads as the model refusing images; the way that worked is remembered across restarts.
-
-<br>
 
 ## v0.5.0
 
@@ -50,13 +47,9 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 - AI: models are listed from the provider once a key and base URL are in; a custom provider for relays (OpenAI, Anthropic or Gemini API); a model's abilities follow the model, not the provider.
 - Clipboard panel rebuilt: filters, pinboards, multi-select, Quick Look, editing, link previews, and Cloudflare R2 sync compatible with the previous version's bucket.
 
-<br>
-
 ## v0.2.0
 
 - Current released version published on GitHub Releases.
-
-<br>
 
 ## ERA template baseline
 
@@ -112,8 +105,6 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 ```
 
 </details>
-
-<br>
 
 ## Earlier ERA template changes
 
@@ -178,8 +169,6 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 
 </details>
 
-<br>
-
 ## v11.0.0
 
 - 🎉 Electron version upgraded `v36`
@@ -235,8 +224,6 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 | typescript                | `^5.8.3`   |
 | vite                      | `^6.3.5`   |
 
-<br>
-
 ## v10.2.0
 
 - 🎉 Electron version upgraded `v35.x.x`
@@ -263,14 +250,10 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 | typescript                         | `^5.8.3`   |
 | vite                               | `^6.3.2`   |
 
-<br>
-
 ## v10.1.0
 
 - Add pnpm configuration for only built dependencies
 - Prevent app from quitting on macOS when all windows are closed
-
-<br>
 
 ## v10.0.0
 
@@ -303,8 +286,6 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 | electron-builder     | `^25.1.8` |
 | @vitejs/plugin-react | `^4.3.4`  |
 
-<br>
-
 ## v8.1.0
 
 - 🎉 Electron version upgraded `v23.0.0`.
@@ -331,8 +312,6 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 | react                                | `^18.3.1` |
 | react-dom                            | `^18.3.1` |
 
-<br>
-
 ## v8.0.0
 
 - 🎉 Application UI and Themes (light/dark).
@@ -347,8 +326,6 @@ popMind is rebuilt as a native macOS app in Go with [myGo](https://github.com/eg
 - Converted `less` to `scss` for window components stylesheet.
 - Updated forge config with more useful hints.
 - Upgraded outdated packages to their latest supported versions.
-
-<br>
 
 ## v7.8.0
 
@@ -369,8 +346,6 @@ Upgraded outdated packages:
 | react-refresh-webpack-plugin   | `0.5.11` |
 | fork-ts-checker-webpack-plugin | `9.0.2`  |
 
-<br>
-
 ## v7.7.0
 
 Upgraded outdated packages:
@@ -389,8 +364,6 @@ Upgraded outdated packages:
 | webpack                      | `5.88.2` |
 | react-refresh-webpack-plugin | `0.5.11` |
 
-<br>
-
 ## v7.6.0
 
 Upgraded outdated packages:
@@ -407,8 +380,6 @@ Upgraded outdated packages:
 | ts-loader          | `9.4.4`  |
 | typescript         | `5.1.6`  |
 | webpack            | `5.88.1` |
-
-<br>
 
 ## v7.5.0
 
@@ -428,8 +399,6 @@ Upgraded outdated packages:
 | typescript         | `5.1.3`  |
 | webpack            | `5.85.1` |
 
-<br>
-
 ## v7.3.3
 
 Upgraded outdated packages:
@@ -444,8 +413,6 @@ Upgraded outdated packages:
 | sass-loader        | `13.2.2` | ⬆️  |
 | typescript         | `5.0.4`  | ⬆️  |
 | webpack            | `5.80.0` | ⬆️  |
-
-<br>
 
 ## v7.3.2
 
@@ -465,8 +432,6 @@ Upgraded outdated packages:
 | @types/react-dom   | `18.0.11`  | ⬆️  |
 | @typescript-eslint | `5.56.0`   | ⬆️  |
 
-<br>
-
 ## v7.3.1
 
 Upgraded outdated packages:
@@ -480,8 +445,6 @@ Upgraded outdated packages:
 | @types/react       | `18.0.28` | ⬆️  |
 | @types/react-dom   | `18.0.11` | ⬆️  |
 | @typescript-eslint | `5.54.0`  | ⬆️  |
-
-<br>
 
 ## v7.3.0
 
@@ -498,8 +461,6 @@ Upgraded outdated packages:
   - `sass` upgraded to `v1.58.0`
   - `typescript` upgraded to `v4.9.5`
 
-<br>
-
 ## v7.2.0
 
 - 🎉 Electron version upgraded `v22.0.0`
@@ -514,8 +475,6 @@ Upgraded outdated packages:
   - `ts-loader` upgraded to `v9.4.2`
   - `typescript` upgraded to `v4.9.4`
   - `webpack` upgraded to `v5.75.0`
-
-<br>
 
 ## v7.1.0
 
@@ -537,8 +496,6 @@ Upgraded outdated packages:
   - `ts-loader` upgraded to `v9.4.1`
   - `typescript` upgraded to `v4.8.4`
 
-<br>
-
 ## v7.0.0
 
 - 🥳 New layout for default application.
@@ -555,8 +512,6 @@ Upgraded outdated packages:
   - `sass` upgrded to `v1.54.0`
   - `typescript` upgraded to `v4.7.4`
 
-<br>
-
 ## v6.2.0
 
 - Upgraded outdated deps:
@@ -567,8 +522,6 @@ Upgraded outdated packages:
   - `sass` upgraded to `v1.54.0`.
   - `sass-loader` upgraded to `v13.0.2`.
   - `webpack` upgraded to `v5.74.0`.
-
-<br>
 
 ## v6.1.0
 
@@ -592,8 +545,6 @@ Upgraded outdated packages:
   - `typescript` upgraded to `v4.7.4`
   - `webpack` upgraded to `5.73.0`
 
-<br>
-
 ## v6.0.0
 
 - 🙌🏻 New Layout for default application.
@@ -612,8 +563,6 @@ Upgraded outdated packages:
   - `webpack` upgraded to `v5.72.0`
   - `react` deps upgraded to `v18.0.0`
 
-<br>
-
 ## v5.5.0
 
 - Upgraded outdated deps:
@@ -625,8 +574,6 @@ Upgraded outdated packages:
   - `ts-loader` upgraded to `v9.2.8`
   - `typescript` upgraded to `v4.6.3`
   - `webpack` upgraded to `v5.70.0`
-
-<br>
 
 ## v5.4.0
 
@@ -640,8 +587,6 @@ Upgraded outdated packages:
   - `css-loader` upgraded to `v6.6.0`
   - `@typescript-eslint` deps upgraded to `v5.12.1`
 
-<br>
-
 ## v5.3.0
 
 - Electron Window : File menu visible by default
@@ -654,8 +599,6 @@ Upgraded outdated packages:
   - `typescript` upgraded to `v4.5.4`
   - `webpack` upgraded to `v5.66.0`
 
-<br>
-
 ## v5.2.0
 
 - 🎉 Electron core upgraded `v16`
@@ -666,8 +609,6 @@ Upgraded outdated packages:
   - `typescript` upgraded to `^4.5.2`
   - `webpack` upgraded to `^5.64.4`
 
-<br>
-
 ## v5.1.0
 
 - Fix: CSS/LESS `background-image` corrupted image file output.
@@ -675,8 +616,6 @@ Upgraded outdated packages:
 - Fix: Typo in eslint alias map for `@components`
 - Updated: Window (submodule) to latest version.
 - Removed: Unused contextBridge api declaration.
-
-<br>
 
 ## v5.0.0
 
@@ -693,8 +632,6 @@ Upgraded outdated packages:
   - `@typescript-eslint` deps upgraded to `v5.3.0`
   - `webpack` upgraded to `v5.62.1`
 
-<br>
-
 ## v4.2.0
 
 - 🎉 Electron core upgraded to version `v15`
@@ -707,8 +644,6 @@ Upgraded outdated packages:
   - `@types/node` upgraded to `^16.9.6`
   - `@typescript-eslint` deps upgraded to `^4.31.2`
   - `css-loader` upgraded to `^6.3.0`
-
-<br>
 
 ## v4.1.0
 
@@ -728,15 +663,11 @@ Upgraded outdated packages:
   - `typescript` upgraded to `^4.4.2`
   - `webpack` upgraded to `^5.51.1`
 
-<br>
-
 ## v4.0.1
 
 - Update file-loader configuration for `assets` files
 - Add packager configuration for app executable file details
 - Update `README` with similar useful projects
-
-<br>
 
 ## v4.0.0
 
@@ -756,8 +687,6 @@ Upgraded outdated packages:
   - `typescript` upgraded to `^4.3.5`
   - `webpack` upgraded to `^5.50.0`
 
-<br>
-
 ## v3.1.0
 
 - Electron core 🚀 upgraded to version 13.
@@ -772,8 +701,6 @@ Upgraded outdated packages:
   - `webpack` upgraded to `^5.38.1`
   - `fork-ts-checker-webpack-plugin` upgraded to `^6.2.10`
 
-<br>
-
 ## v3.0.1
 
 - Upgraded outdated packages
@@ -786,8 +713,6 @@ Upgraded outdated packages:
   - `ts-loader` upgraded to `8.2.0`
   - `typescript` upgraded to `^4.2.4`
   - `webpack` upgraded to `^5.36.2`
-
-<br>
 
 ## v3.0.0
 

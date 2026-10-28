@@ -1,7 +1,7 @@
 {
   "name": "popMind",
   "identifier": "com.popmind.app",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "copyright": "© 2026 popMind",
   "out": "build",
   "macos": {
@@ -11,5 +11,9 @@
       "NSAppleEventsUsageDescription": "popMind reads the text you select and pastes clipboard items into other apps."
     },
     "entitlements": "packaging/entitlements.plist"
+  },
+  "updates": {
+    "publicKey": "5mdwTYfAqpy666F3k5hpagdylvMeKlod1GHLq7y0gZ0=",
+    "github": "coderPerseus/popMind"
   }
 }
