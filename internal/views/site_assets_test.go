@@ -81,11 +81,6 @@ func TestRenderSiteAssets(t *testing.T) {
 		in := &InputTranslation{app: &App{}, status: "idle", target: "en",
 			draft: "周五前我会把修复后的版本发给你，麻烦帮忙再测一下，有问题随时告诉我。"}
 		savePNG(t, filepath.Join(out, "input.png"), in.view, inputTrWidth, inputTrHeight, 2)
-		// The launcher as it opens: plugins and commands, Accessibility granted.
-		l := &Launcher{app: &App{}, icons: map[string]*ui.Bitmap{}, placeholder: i18n.Placeholders()[0], axGranted: true}
-		l.translator.Reset()
-		l.translator.Update = func(fn func()) { fn() }
-		savePNG(t, filepath.Join(out, "launcher.png"), l.view, launcherWidth, launcherHeight, 2)
 	}
 	i18n.SetLanguage("zh-CN")
 

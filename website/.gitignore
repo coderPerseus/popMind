@@ -4,3 +4,4 @@ dist/
 .void-wrangler.jsonc
 deploy/node_modules/
 deploy/.cloudflare/
+.wrangler/
