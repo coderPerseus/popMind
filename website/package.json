@@ -1,0 +1,27 @@
+{
+  "name": "popmind-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun scripts/gen-seo.ts && vp dev",
+    "build": "bun scripts/gen-seo.ts && vp build",
+    "preview": "vp preview",
+    "seo:check": "bun scripts/seo-check.ts",
+    "seo:indexnow": "bun scripts/indexnow.ts",
+    "deploy": "bun run build && cd deploy && cf deploy"
+  },
+  "dependencies": {
+    "hono": "^4.11.9",
+    "solid-js": "^1.9.11"
+  },
+  "devDependencies": {
+    "@void/solid": "1.1.12",
+    "typescript": "^7.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@^1.2.0",
+    "vite-plus": "^1.2.0",
+    "void": "^1.1.12"
+  },
+  "overrides": {
+    "vite": "$vite"
+  }
+}

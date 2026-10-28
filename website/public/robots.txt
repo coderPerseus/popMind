@@ -1,0 +1,57 @@
+User-agent: *
+Allow: /
+Disallow: /_void/
+
+User-agent: Googlebot
+Allow: /
+Disallow: /_void/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /_void/
+
+User-agent: Baiduspider
+Allow: /
+Disallow: /_void/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /_void/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /_void/
+
+User-agent: GPTBot
+Allow: /
+Disallow: /_void/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /_void/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /_void/
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /_void/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /_void/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /_void/
+
+User-agent: Bytespider
+Allow: /
+Disallow: /_void/
+
+User-agent: YouBot
+Allow: /
+Disallow: /_void/
+
+Sitemap: https://pm.luckysnail.cn/sitemap.xml

@@ -1,0 +1,295 @@
+# popMind
+
+> popMind is a free, open-source (GPL-3.0) macOS app for Apple silicon Macs (macOS 12 or later) that acts on the text you select in any app: translate it, have AI explain it and ask follow-ups, copy it, or hand it to ChatGPT, Grok, Perplexity or Google. It also has a ⌥Space launcher (apps, math, /tr, -ai, /ex) and a ⌥V clipboard history. AI features use your own API keys (OpenAI, Anthropic, Google Gemini, Kimi, DeepSeek, custom relays, local Gemma). Chinese name: popMind（macOS 划词 AI 工具）. Current version: 0.8.1.
+
+- Website: https://pm.luckysnail.cn/en (English), https://pm.luckysnail.cn/zh (简体中文)
+- Download (latest, 6.5 MB disk image): https://github.com/coderPerseus/popMind/releases/latest/download/popMind-arm64.dmg
+- Source code: https://github.com/coderPerseus/popMind
+- Releases and changelog: https://github.com/coderPerseus/popMind/releases
+
+## Pages
+
+- [popMind — home (English)](https://pm.luckysnail.cn/en): what it does, features, models, specs, shortcuts, FAQ
+- [popMind — 首页（简体中文）](https://pm.luckysnail.cn/zh): 功能、模型、规格、快捷键、常见问题
+- [Install guide (English)](https://pm.luckysnail.cn/en/install-guide): download, first launch on macOS, Accessibility permission
+- [安装引导（简体中文）](https://pm.luckysnail.cn/zh/install-guide): 下载、首次打开、辅助功能权限
+
+## Optional
+
+- [Full facts, features and FAQ in Markdown](https://pm.luckysnail.cn/llms-full.txt)
+
+## English
+
+### Select text. AI responds.
+
+Browser, PDF, terminal, chat: select text in any app and popMind appears beside it to translate, explain, ask, copy or hand off to an AI tool, in one step. No switching apps, no breaking your reading.
+
+### Four ways in, all at hand.
+
+- **Select, and it is there** (Select): Select text in any app and a row of actions appears by the pointer: translate, explain, ask, copy, or open a link.
+- **One box for everything** (⌥ Space): Find apps, do math, /tr to translate, -ai to ask, /ex to explain, or hand off to ChatGPT, Perplexity or Google.
+- **Write in yours, send in theirs** (⌘ ⇧ I): Press it in any text field, write in your language, press Return: the translation replaces it and goes on the clipboard.
+- **A clipboard that remembers** (⌥ V): Text, links, code, images and files you copied stay in the history, a search away from pasting again.
+
+### Not just the browser. Every app.
+
+popMind works across macOS, not inside one web page: wherever you can select text, it appears.
+
+Browsers, PDF readers, Terminal, VS Code, WeChat, Slack, Mail, Notes, and any app where you can select text.
+
+### Made for people who read in other languages and work with AI.
+
+#### Developers: Docs, errors and AI agents' replies, read without stalling.
+
+English docs, GitHub issues, and the long output of tools like Claude Code in your terminal: select it for a translation that keeps its formatting.
+
+- **Terminal output too**: Tables drawn with lines come back as real tables; Markdown headings, lists and code keep their shape.
+- **Ask about errors**: Select an error and click Explain, or type /ex in the launcher: AI explains it in context, and you keep asking.
+- **Snippets kept**: Commands, configs and code you copied stay in the clipboard history, a filter away.
+
+#### Students and researchers: Read papers, look up terms, ask as you go.
+
+Select in your PDF reader or browser: words get dictionary entries, terms get explained by AI, and you can keep asking.
+
+- **A dictionary for words**: Select a single word for its phonetics, parts of speech and meanings, read aloud with a click.
+- **AI that sees the context**: Optionally sends a picture of the window you read, so answers fit the text; with web search, answers cite their sources.
+- **Whole paragraphs**: Switch between Google, DeepL, Bing, Youdao and your AI model; when one fails, the next takes over.
+
+#### Working across borders: Understand their messages. Reply in your language.
+
+In WeChat, Slack or Mail, select a message to understand it; to reply, write in your language and press ⌘⇧I.
+
+- **Input translation**: A box opens by the pointer; write, press Return, and the translation replaces your text and goes on the clipboard, ready to send.
+- **Your target language**: English, Japanese, Korean and more; the engine and language are remembered for next time.
+- **Select to understand**: Translate what you receive in place, without copying it to a website and back.
+
+#### Content creators: Read the world fast. Keep what you find.
+
+Translate or explain posts, news and reports as you read, hand a question to Perplexity or ChatGPT to dig in, and keep the good parts in clipboard boards.
+
+- **Hand off to AI tools**: From the launcher, take your question to ChatGPT, Grok, Perplexity or Google search.
+- **Pinboards**: Keep text, links and images you reuse in boards of your own, out of the way of what is new.
+- **Sync across Macs**: Optional: sync the clipboard history through your own Cloudflare R2 bucket.
+
+### Your text stays yours.
+
+What you read, what you write and your API keys never pass through our servers.
+
+- **Open source**: All of the code is on GitHub (GPL-3.0), for anyone to check.
+- **Kept on your Mac**: Settings, clipboard history and API keys stay on your Mac.
+- **Straight to your provider**: Selected text goes only to the engine or AI provider you chose, with no relay of ours.
+- **Signed updates**: Updates are checked before installing: popMind installs only versions signed with its key.
+
+### Your keys, your models.
+
+API keys stay on your Mac; requests go straight to the provider you chose.
+
+- **AI models**: OpenAI, Anthropic, Google Gemini, Kimi, DeepSeek, Custom relays, Local Gemma
+- **Translation**: Google, DeepL, Bing, Youdao, AI translation
+- **Web search**: Tavily, Serper, Brave, Jina
+
+### Specs
+
+| Item | Value |
+| --- | --- |
+| Version | 0.8.1 |
+| Requires | macOS 12 or later, Apple silicon (M-series) |
+| Download | 6.5 MB disk image, drag to install |
+| Price and license | Free and open source (GPL-3.0) |
+| Languages | English, Simplified Chinese |
+| Translation engines | Google, DeepL, Bing, Youdao, AI translation, local Gemma |
+| AI providers | OpenAI, Anthropic, Google Gemini, Kimi, DeepSeek, custom relays |
+| Web search | Tavily, Serper, Brave, Jina |
+| Updates | In the app, signature checked before installing |
+| Data | Settings, clipboard history and API keys stay on your Mac |
+
+### Default shortcuts (change them in Settings → Shortcuts)
+
+| Action | Shortcut |
+| --- | --- |
+| Open or close the launcher | ⌥ Space |
+| Open the clipboard history | ⌥ V |
+| Input translation | ⌘ ⇧ I |
+| Close the bubble and floating windows | ⌘ ⇧ X |
+
+### Questions
+
+**Why does popMind need Accessibility?**
+
+To read the text you select, show the bubble by the pointer, and paste clipboard items back into your app. Until it is granted, the launcher shows how to turn it on.
+
+**Is Screen Recording required?**
+
+No. It is only used by the optional picture of the window for explanations; without it, popMind skips the picture without asking.
+
+**macOS says it cannot verify popMind. What now?**
+
+popMind is not notarized by Apple yet. Open System Settings → Privacy & Security and click Open Anyway, once. The install guide shows each step.
+
+**Does it cost anything?**
+
+popMind is free and open source. AI explanations and AI translation use your own API key, at the provider's prices; Google, Bing and the other engines work as they are.
+
+**Is my data uploaded?**
+
+Settings, clipboard history and API keys stay on your Mac. Selected text goes only to the engine or AI provider you chose; clipboard sync happens only with an R2 bucket of your own.
+
+**How does popMind update?**
+
+It checks GitHub Releases once a day, shows what is new, and installs the update in the app when you agree, then restarts. Check any time from the menu bar. Updates are signed, and popMind installs only those signed with its key.
+
+**How is it different from a browser translation extension?**
+
+popMind works across macOS: select text in a terminal, a PDF reader, chat or mail, and it has a launcher, input translation and a clipboard history. Browser extensions do well at in-page work such as side-by-side translation of whole pages and video subtitles, which popMind does not do. They work well together.
+
+**Does it run on Intel Macs?**
+
+For now, only Apple silicon (M-series) Macs.
+
+### Install guide
+
+popMind is not on the App Store, so macOS asks once more the first time it opens. These steps take a few minutes.
+
+1. **Download and drag to Applications**: Open the disk image and drag popMind onto the Applications folder beside it.
+2. **First launch: allow it to run**: macOS says it cannot verify the developer; click Done. Then open System Settings → Privacy & Security, find popMind under Security, click Open Anyway, and confirm. Only once.
+3. **Grant Accessibility**: popMind plays its intro, then opens the launcher. The card at its top takes you to System Settings → Privacy & Security → Accessibility; switch popMind on. It works at once, no restart.
+4. **Set up AI (optional)**: Add an API key in Settings → AI for AI explanations and translation. With Google or Bing translation only, skip this.
+5. **Later updates**: New versions are offered in the app: click Install Update, with no more security prompts.
+
+## 简体中文
+
+### 选中文本，AI 即刻响应。
+
+浏览器、PDF、终端、微信……在任何应用里选中一段文字，旁边就弹出 popMind：翻译、解释、追问、复制、跳转 AI，一步到位。不用切换应用，不打断阅读。
+
+### 四种用法，随手就来。
+
+- **选中即弹出** (划词): 在任何应用里选中文字，光标旁出现一排图标：翻译、解释、追问、复制，链接还能直接打开。
+- **一个搜索框，什么都能做** (⌥ Space): 搜应用、算算式、/tr 翻译、-ai 提问、/ex 解释，或者一键交给 ChatGPT、Perplexity、Google。
+- **写中文，发外文** (⌘ ⇧ I): 在输入框里按一下，写好中文回车，就换成译文并放进剪贴板。
+- **剪贴板，一直都在** (⌥ V): 复制过的文字、链接、代码、图片和文件都留在历史里，搜一下就能再粘贴。
+
+### 不止浏览器，任何应用里都能用。
+
+popMind 是系统级的工具，不是某个网页上的插件：只要能选中文字，它就能出现。
+
+浏览器, PDF 阅读器, 终端, VS Code, 微信, 飞书 / Slack, 邮件, 备忘录, 以及任何能选中文字的应用.
+
+### 为每天要读外文、用 AI 的人而做。
+
+#### 开发者: 文档、报错、AI 编程助手的回复，读起来不再卡。
+
+英文文档、GitHub issue、终端里 Claude Code 这类工具的长篇输出，选中就有译文，格式原样保留。
+
+- **终端输出也能翻**: 线条画的表格还原成真正的表格，Markdown 的标题、列表、代码不走样。
+- **报错直接问**: 选中报错点“解释”，或在搜索框输入 /ex，AI 结合上下文讲清原因，可以一直追问。
+- **代码片段不丢**: 复制过的命令、配置和代码都在剪贴板历史里，按类型筛一下就找到。
+
+#### 学生与科研: 读论文、查术语，读到哪问到哪。
+
+在 PDF 阅读器、浏览器里划词，单词查释义，术语让 AI 讲明白，看不懂就接着问。
+
+- **查单词像查词典**: 选中一个单词，给出音标、词性和释义，点一下就朗读。
+- **AI 结合上下文解释**: 可选附上所读窗口的截图，回答更贴合原文；接入联网搜索后带上参考来源。
+- **长段落整段翻**: Google、DeepL、Bing、有道和你的 AI 模型随时切换，一个失败自动换下一个。
+
+#### 跨境与海外协作: 看懂外文消息，用中文写回去。
+
+在微信、飞书、Slack、邮件里收到外文，选中就懂；回复时用中文写，⌘⇧I 一键换成外文。
+
+- **输入翻译**: 光标旁弹出输入框，写好中文回车，译文替换原文并放进剪贴板，直接发送。
+- **目标语言随你选**: 英语、日语、韩语等常用语言，引擎和语言会记住，下次不用再选。
+- **划词即懂**: 收到的外文选中就翻，不用复制到网页翻译再切回来。
+
+#### 内容创作者: 海外资讯读得快，素材收得住。
+
+读推文、资讯和报告时，选中就能翻译、解释，想深挖就交给 Perplexity 或 ChatGPT；看到好内容随手存进剪贴板分组。
+
+- **一键交给外部 AI**: 在搜索框把问题带进 ChatGPT、Grok、Perplexity 或 Google 搜索。
+- **Pinboard 收集素材**: 常用的文字、链接和图片收进自己的分组，不会被新内容挤掉。
+- **跨 Mac 同步**: 可选：用你自己的 Cloudflare R2 存储桶，在几台 Mac 之间同步剪贴板历史。
+
+### 安心用，数据在你手里。
+
+你读的内容、写的内容和你的 API Key，都不经过我们的服务器。
+
+- **开源，代码可查**: 全部源代码公开在 GitHub（GPL-3.0），每一行都可以自己检查。
+- **数据存在本机**: 设置、剪贴板历史和 API Key 都保存在你的 Mac 上。
+- **直连你选的服务商**: 划词内容只发给你选择的翻译引擎或 AI 服务商，不经过中转。
+- **更新有签名**: 应用内更新会先校验签名，只安装 popMind 自己签名的版本。
+
+### 用你自己的 Key，接你喜欢的模型。
+
+API Key 保存在本机，请求直接发给你选的服务商。
+
+- **AI 模型**: OpenAI, Anthropic, Google Gemini, Kimi, DeepSeek, 自定义中转站, 本地 Gemma
+- **翻译引擎**: Google, DeepL, Bing, 有道, AI 翻译
+- **联网搜索**: Tavily, Serper, Brave, Jina
+
+### 规格一览
+
+| 项目 | 内容 |
+| --- | --- |
+| 当前版本 | 0.8.1 |
+| 系统要求 | macOS 12 及以上，Apple 芯片（M 系列） |
+| 安装包 | 6.5 MB，DMG 拖拽安装 |
+| 价格与许可证 | 免费，开源（GPL-3.0） |
+| 界面语言 | 简体中文、English |
+| 翻译引擎 | Google、DeepL、Bing、有道、AI 翻译、本地 Gemma |
+| AI 服务商 | OpenAI、Anthropic、Google Gemini、Kimi、DeepSeek、自定义中转站 |
+| 联网搜索 | Tavily、Serper、Brave、Jina |
+| 更新方式 | 应用内更新，安装前校验签名 |
+| 数据存储 | 设置、剪贴板历史和 API Key 都保存在本机 |
+
+### 默认快捷键（可在 设置 → 快捷键 里修改）
+
+| 操作 | 快捷键 |
+| --- | --- |
+| 打开 / 关闭搜索框 | ⌥ Space |
+| 打开剪贴板历史 | ⌥ V |
+| 输入翻译 | ⌘ ⇧ I |
+| 关闭划词气泡和浮窗 | ⌘ ⇧ X |
+
+### 常见问题
+
+**为什么需要“辅助功能”权限？**
+
+用来读取你选中的文字、在光标旁弹出气泡，以及把剪贴板内容粘贴回原来的应用。没有授权时，搜索框顶部会提示去开启。
+
+**需要“屏幕录制”权限吗？**
+
+不需要。它只用于“截图辅助解释”这个可选功能；不开启时会自动跳过截图，不会弹窗打扰。
+
+**打开时提示“无法验证开发者”怎么办？**
+
+popMind 还没有经过 Apple 公证。打开 系统设置 → 隐私与安全性，点“仍要打开”即可，只需一次。安装引导里有详细步骤。
+
+**要付费吗？**
+
+popMind 免费、开源。AI 解释和 AI 翻译用的是你自己的 API Key，按服务商的价格计费；Google、Bing 等翻译引擎可以直接用。
+
+**我的数据会被上传吗？**
+
+设置、剪贴板历史和 API Key 都保存在本机。划词内容只发给你选择的翻译引擎或 AI 服务商；剪贴板同步只在你配置了自己的 R2 存储桶后才会进行。
+
+**怎么更新？**
+
+popMind 每天检查一次 GitHub Releases，有新版本时展示更新内容，你点安装后在应用内完成更新并重启。也可以在菜单栏随时点“检查更新”。更新包带签名，只安装 popMind 自己签名的版本。
+
+**和浏览器翻译插件有什么不同？**
+
+popMind 是系统级的，在终端、PDF 阅读器、微信、邮件等任何应用里都能划词，还有搜索框、输入翻译和剪贴板历史。浏览器插件擅长整页双语对照、视频字幕这类网页内的翻译，popMind 不做这些。两者可以一起用。
+
+**支持 Intel 芯片的 Mac 吗？**
+
+目前只提供 Apple 芯片（M 系列）版本。
+
+### 安装引导
+
+popMind 不在 App Store 上架，第一次打开时 macOS 会多问一句。按下面几步走，几分钟就能用上。
+
+1. **下载并拖进“应用程序”**: 下载 DMG 后打开，把 popMind 拖到右边的“应用程序”文件夹。
+2. **第一次打开：允许运行**: macOS 会提示“无法验证开发者”，先点“完成”。然后打开 系统设置 → 隐私与安全性，在“安全性”下找到 popMind 的提示，点“仍要打开”，再确认一次。只需要做一次。
+3. **授予“辅助功能”权限**: popMind 打开后会播放一段开场动画，然后弹出搜索框。顶部的卡片会引导你去 系统设置 → 隐私与安全性 → 辅助功能，打开 popMind 的开关。授权后自动生效，不用重启。
+4. **配置 AI（可选）**: 在设置 → AI 里填入 API Key，就能用 AI 解释和 AI 翻译。只用 Google、Bing 翻译的话，这一步可以跳过。
+5. **以后的更新**: 新版本会在应用内提示，点“安装更新”即可，不会再弹安全提示。

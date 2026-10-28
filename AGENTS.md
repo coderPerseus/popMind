@@ -10,13 +10,14 @@ popMind is a Go app built with [myGo](https://github.com/egoist/mygo): native UI
 - `clipboard/` history store (SQLite, the Electron app's schema), capture, search, paste; `clipsync/` Cloudflare R2 sync
 - `settings/` settings files (same names and shapes as the Electron app's), `i18n/` strings (`extra.go` for new ones, `scripts/add-i18n.py` adds them), `native/` purego wrapper of the native library, `logx/`, `jsonx/`
 
-The native macOS bridge is `native/popmind_native.mm` (C ABI, built by `native/build.sh` into `resources/darwin-arm64/`). `packaging/` holds the entitlements and installer scripts. `docs/` is documentation. The Electron app this replaced is in `archive/electron/` locally (not committed; `scripts/gen-defaults.mjs` and `scripts/gen-icons.mjs` read from it). Generated output (`build/`, `.mygo/`, `resources/darwin-*/`) is never edited by hand.
+The website (pm.luckysnail.cn) is `website/`: a static Void + Solid site in the hz design system, as Windeck's, in Chinese (`/`, `/zh`) and English (`/en`), with an install guide; its words are `website/lib/content.ts`, and its pictures (logo, icons, share card, the app's windows) are made by `TestRenderSiteAssets`. The native macOS bridge is `native/popmind_native.mm` (C ABI, built by `native/build.sh` into `resources/darwin-arm64/`). `packaging/` holds the entitlements and installer scripts. `docs/` is documentation. The Electron app this replaced is in `archive/electron/` locally (not committed; `scripts/gen-defaults.mjs` and `scripts/gen-icons.mjs` read from it). Generated output (`build/`, `.mygo/`, `resources/darwin-*/`) is never edited by hand.
 
 ## Build, Test, and Development Commands
 
 - `./native/build.sh` builds the native library (once, and after changing `native/popmind_native.mm`)
 - `GOTOOLCHAIN=go1.27.3 go tool mygo dev` runs the development app ("popMind Dev", its own data folder); it rebuilds on Go changes, and must be restarted after rebuilding the native library
 - `GOTOOLCHAIN=go1.27.3 go vet ./... && go test ./...` checks; `POPMIND_RENDER_DIR=<dir> go test ./internal/views/` renders the windows to PNGs for review
+- `cd website && bun install && bun run dev` runs the website; `bun run build` builds it into `website/dist/client`; `POPMIND_SITE_DIR=$PWD/website/public go test ./internal/views/ -run TestRenderSiteAssets` remakes its pictures
 - `./scripts/package-mac.sh` builds the release (`build/`: .pkg, .dmg, .zip); `POPMIND_MAC_SIGN_IDENTITY` signs it. Releases are built by `.github/workflows/release-packages.yml` on a `v*` tag matching `mygo.json`'s version
 
 ## Coding Style & Naming Conventions

@@ -52,4 +52,7 @@ rm -f "$dmg"
 if [ "$identity" != "-" ]; then
   codesign --force --sign "$identity" "$dmg"
 fi
+# The same image under a name that never changes, which the website's download button points to
+# (releases/latest/download/popMind-arm64.dmg).
+cp "$dmg" build/popMind-arm64.dmg
 ls -lh build/*.pkg build/*.dmg build/*.zip

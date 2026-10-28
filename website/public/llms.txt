@@ -1,0 +1,19 @@
+# popMind
+
+> popMind is a free, open-source (GPL-3.0) macOS app for Apple silicon Macs (macOS 12 or later) that acts on the text you select in any app: translate it, have AI explain it and ask follow-ups, copy it, or hand it to ChatGPT, Grok, Perplexity or Google. It also has a ⌥Space launcher (apps, math, /tr, -ai, /ex) and a ⌥V clipboard history. AI features use your own API keys (OpenAI, Anthropic, Google Gemini, Kimi, DeepSeek, custom relays, local Gemma). Chinese name: popMind（macOS 划词 AI 工具）. Current version: 0.8.1.
+
+- Website: https://pm.luckysnail.cn/en (English), https://pm.luckysnail.cn/zh (简体中文)
+- Download (latest, 6.5 MB disk image): https://github.com/coderPerseus/popMind/releases/latest/download/popMind-arm64.dmg
+- Source code: https://github.com/coderPerseus/popMind
+- Releases and changelog: https://github.com/coderPerseus/popMind/releases
+
+## Pages
+
+- [popMind — home (English)](https://pm.luckysnail.cn/en): what it does, features, models, specs, shortcuts, FAQ
+- [popMind — 首页（简体中文）](https://pm.luckysnail.cn/zh): 功能、模型、规格、快捷键、常见问题
+- [Install guide (English)](https://pm.luckysnail.cn/en/install-guide): download, first launch on macOS, Accessibility permission
+- [安装引导（简体中文）](https://pm.luckysnail.cn/zh/install-guide): 下载、首次打开、辅助功能权限
+
+## Optional
+
+- [Full facts, features and FAQ in Markdown](https://pm.luckysnail.cn/llms-full.txt)

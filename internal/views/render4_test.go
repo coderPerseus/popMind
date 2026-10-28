@@ -51,7 +51,13 @@ func TestRenderClipboardPanel(t *testing.T) {
 		Title: "季度报告-2026-Q3-final-version.pdf", Preview: "3 files", ByteSize: 2_400_000}, 26*time.Hour, "com.apple.finder", "Finder")
 	add(clipboard.TextRecord("#FF6B35", 0), 3*time.Hour, "com.figma.Desktop", "Figma")
 	add(clipboard.TextRecord("func main() {\n\tfmt.Println(\"hello, popMind\")\n\tfor i := 0; i < 3; i++ {\n\t\tlog.Print(i)\n\t}\n}", 0), 40*time.Minute, "com.microsoft.VSCode", "Code")
-	add(clipboard.TextRecord("api_key = sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789", 0), 20*time.Minute, "com.apple.Terminal", "Terminal")
+	// The website's pictures (POPMIND_RENDER_SITE) show no secret-looking text; the review render keeps one, to
+	// check how sensitive items look.
+	if os.Getenv("POPMIND_RENDER_SITE") != "" {
+		add(clipboard.TextRecord("周三 15:00 评审 popMind 新版本：划词翻译、剪贴板同步、应用内更新", 0), 20*time.Minute, "com.apple.Notes", "Notes")
+	} else {
+		add(clipboard.TextRecord("api_key = sk-proj-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789", 0), 20*time.Minute, "com.apple.Terminal", "Terminal")
+	}
 	linkID := add(clipboard.TextRecord("https://github.com/egoist/mygo", 0), 8*time.Minute, "com.google.Chrome", "Chrome")
 	add(clipboard.TextRecord("https://www.example.com/articles/2026/10/very-long-path-for-a-link-card?ref=popmind", 0), 6*time.Minute, "com.google.Chrome", "Chrome")
 	textID := add(clipboard.TextRecord("向量数据库（Vector Database）是专门用来存储、索引和检索高维向量的数据库。它通过近似最近邻（ANN）算法，在海量 embedding 中快速找到语义上最相似的内容，是 RAG、推荐系统和图片搜索的基础设施。", 0), time.Minute, "com.tencent.xinWeChat", "WeChat")

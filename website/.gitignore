@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.void/
+.void-wrangler.jsonc
+deploy/node_modules/
+deploy/.cloudflare/
