@@ -530,10 +530,10 @@ func (p *ClipboardPanel) cardMenu(m *ui.Menu) {
 	if m.Item(paste + "    ↩").Chosen() {
 		p.paste(targets, false)
 	}
-	if m.Item(i18n.T("clip.panel.menu.pastePlain") + "    ⇧↩").Chosen() {
+	if m.Item(i18n.T("clip.panel.menu.pastePlain") + "    " + KeyLabel("⇧↩")).Chosen() {
 		p.paste(targets, true)
 	}
-	if m.Item(i18n.T("clip.panel.menu.copy") + "    ⌘C").Chosen() {
+	if m.Item(i18n.T("clip.panel.menu.copy") + "    " + KeyLabel("⌘C")).Chosen() {
 		p.copy(targets)
 	}
 	m.Separator()
@@ -584,19 +584,19 @@ func (p *ClipboardPanel) cardMenu(m *ui.Menu) {
 			p.quickLook = false
 			p.toggleQuickLook()
 		}
-		if m.Item(i18n.T("clip.panel.menu.rename") + "    ⌘R").Chosen() {
+		if m.Item(i18n.T("clip.panel.menu.rename") + "    " + KeyLabel("⌘R")).Chosen() {
 			p.startRename(it)
 		}
-		if clipboard.CanEdit(it) && m.Item(i18n.T("clip.panel.menu.edit")+"    ⌘E").Chosen() {
+		if clipboard.CanEdit(it) && m.Item(i18n.T("clip.panel.menu.edit")+"    "+KeyLabel("⌘E")).Chosen() {
 			p.startEdit(it)
 		}
 		switch it.Kind {
 		case clipboard.KindLink:
-			if m.Item(i18n.T("clip.panel.menu.openLink") + "    ⌘O").Chosen() {
+			if m.Item(i18n.T("clip.panel.menu.openLink") + "    " + KeyLabel("⌘O")).Chosen() {
 				p.open(it)
 			}
 		case clipboard.KindFile:
-			if m.Item(i18n.T("clip.panel.menu.openFile") + "    ⌘O").Chosen() {
+			if m.Item(i18n.T("clip.panel.menu.openFile") + "    " + KeyLabel("⌘O")).Chosen() {
 				p.open(it)
 			}
 			if m.Item(i18n.T("clip.panel.menu.reveal")).Chosen() {

@@ -5,6 +5,8 @@ name: Build Release Packages
 #   popMind <version> arm64.dmg      drag to Applications (background with an arrow, made by dmgbuild)
 #   popMind-<version>-mac-arm64.zip
 #   popmind-<version>-darwin-arm64.tar.gz, deltas, update-darwin-arm64.json   in-app updates (myGo's updater)
+#   popMind-<version>-windows-x64-setup.exe, popMind-windows-x64-setup.exe     Windows installer (NSIS)
+#   popmind-<version>-windows-amd64.tar.gz, deltas, update-windows-amd64.json  Windows in-app updates
 #
 # Signing: the self-signed "popMind Self Signed" certificate (secrets MAC_SELF_SIGN_P12_BASE64 and
 # MAC_SELF_SIGN_P12_PASSWORD, made once by archive/electron/scripts/create-mac-signing-cert.sh) is the one the
@@ -107,6 +109,11 @@ jobs:
       - name: Build packages
         run: ./scripts/package-mac.sh
 
+      - name: Build Windows packages
+        run: |
+          brew install makensis
+          ./scripts/package-windows.sh
+
       - name: Verify the signature keeps users' permissions
         if: steps.signing_mode.outputs.mode == 'self-signed'
         run: |
@@ -135,6 +142,10 @@ jobs:
             build/darwin-arm64/*.tar.gz
             build/darwin-arm64/*.delta
             build/darwin-arm64/update-*.json
+            build/*windows-x64-setup.exe
+            build/windows-amd64/*.tar.gz
+            build/windows-amd64/*.delta
+            build/windows-amd64/update-*.json
 
   release:
     name: Publish GitHub Release

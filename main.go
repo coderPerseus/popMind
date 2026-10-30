@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
@@ -23,9 +24,15 @@ import (
 var app *views.App
 
 func main() {
-	if !mygo.App.RequestSingleInstanceLock() {
+	// POPMIND_TEST_DATA_DIR runs a separate copy for tests (the Windows test PC, over SSH): its own data
+	// folder, alongside the copy in use.
+	testDir := os.Getenv("POPMIND_TEST_DATA_DIR")
+	if testDir == "" && !mygo.App.RequestSingleInstanceLock() {
 		return // the running popMind shows itself
 	}
+	// The languages popMind is written in: myGo picks the one the user reads best (its own controls, the
+	// update window), rather than English for everyone.
+	mygo.App.SetLanguages("en", "zh-Hans")
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
 	// Updates from the GitHub releases (mygo.json's updates), signed with popMind's key: checked in the
 	// background after launch and daily, offered in myGo's native update window, installed in place.
@@ -54,6 +61,9 @@ func ready() {
 	if override := os.Getenv("POPMIND_USER_DATA_DIR"); override != "" && mygo.IsDev() {
 		dataDir = override
 	}
+	if testDir := os.Getenv("POPMIND_TEST_DATA_DIR"); testDir != "" {
+		dataDir = testDir
+	}
 	settings.SetDataDir(dataDir)
 	logPath, err := logx.Init(dataDir)
 	if err != nil {
@@ -70,7 +80,7 @@ func ready() {
 
 	// Decided before the settings load, since loading writes them.
 	firstRun := views.FirstRun()
-	settings.Capabilities.Load(mygo.App.Locale())
+	settings.Capabilities.Load(systemLanguage())
 	setLanguage(settings.Capabilities.Get().AppLanguage)
 	applyThemeMode(settings.ThemeMode())
 
@@ -86,6 +96,10 @@ func ready() {
 	shortcuts.SetHandler("toggleHome", app.Launcher.Toggle)
 	shortcuts.SetHandler("clipboardHistory", app.ToggleClipboard)
 	shortcuts.SetHandler("inputTranslation", app.InputTr.Toggle)
+	if runtime.GOOS == "darwin" { // no screen capture on Windows yet: the shortcut stays off there
+		shortcuts.SetHandler("screenshotTranslate", app.ScreenshotTranslate)
+		views.WarmScreenshotOCR()
+	}
 	shortcuts.SetHandler("hideBubble", func() { windows.DismissTopmost(windows.DismissEscape) })
 
 	createTray()
@@ -100,6 +114,14 @@ func ready() {
 		app.Onboard()
 	}
 	runSelfTest(app)
+}
+
+// systemLanguage is the user's first preferred language, which a first launch takes as popMind's.
+func systemLanguage() string {
+	if langs := mygo.App.PreferredLanguages(); len(langs) > 0 {
+		return langs[0]
+	}
+	return mygo.App.Locale()
 }
 
 // setLanguage shows popMind in lang, and myGo's own windows (the update window) with it.
@@ -153,10 +175,15 @@ func trayMenu() *mygo.Menu {
 	items := []*mygo.MenuItem{
 		{Label: i18n.T("tray.openHome"), Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowLauncher("") }},
 		{Label: i18n.T("tray.openClipboard"), Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowClipboard("") }},
+	}
+	if runtime.GOOS == "darwin" {
+		items = append(items, &mygo.MenuItem{Label: i18n.T("tray.screenshotTranslate"), Click: func(*mygo.MenuItem, *mygo.Window) { app.ScreenshotTranslate() }})
+	}
+	items = append(items,
 		mygo.Separator(),
 		pickerItem(),
-		{Label: i18n.T("tray.openSettings"), Accelerator: "Cmd+,", Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowSettings("") }},
-	}
+		&mygo.MenuItem{Label: i18n.T("tray.openSettings"), Accelerator: "Cmd+,", Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowSettings("") }},
+	)
 	if native.Loaded() && !native.CheckPermission(false) {
 		items = append(items, &mygo.MenuItem{Label: i18n.T("tray.accessibility"), Click: func(*mygo.MenuItem, *mygo.Window) {
 			native.CheckPermission(true)

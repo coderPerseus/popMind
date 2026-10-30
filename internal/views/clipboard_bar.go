@@ -128,7 +128,7 @@ func (p *ClipboardPanel) topBar(c *ui.Context) {
 					}
 				}
 			})
-			if barButton(c, "filters", "sliders-horizontal", "", i18n.T("clip.panel.filter.more")+" (⌘F)", p.filterRow).Clicked() {
+			if barButton(c, "filters", "sliders-horizontal", "", i18n.T("clip.panel.filter.more")+" ("+KeyLabel("⌘F")+")", p.filterRow).Clicked() {
 				p.filterRow = !p.filterRow
 				p.input.Focus()
 			}
@@ -172,7 +172,7 @@ func (p *ClipboardPanel) topBar(c *ui.Context) {
 			}
 			barButton(c, "more", "ellipsis", "", i18n.T("clip.panel.more.title"), false).Menu(func(m *ui.Menu) {
 				if on, _ := p.paused(); on {
-					if m.Item(i18n.T("clip.panel.pause.resume") + "    ⌘T").Chosen() {
+					if m.Item(i18n.T("clip.panel.pause.resume") + "    " + KeyLabel("⌘T")).Chosen() {
 						p.setPaused("resume")
 					}
 				} else {
@@ -183,16 +183,16 @@ func (p *ClipboardPanel) topBar(c *ui.Context) {
 						if sub.Item(i18n.T("clip.panel.pause.1h")).Chosen() {
 							p.setPaused("1h")
 						}
-						if sub.Item(i18n.T("clip.panel.pause.forever") + "    ⌘T").Chosen() {
+						if sub.Item(i18n.T("clip.panel.pause.forever") + "    " + KeyLabel("⌘T")).Chosen() {
 							p.setPaused("forever")
 						}
 					})
 				}
 				m.Separator()
-				if m.Item(i18n.T("clip.panel.dialog.newTextTitle") + "…    ⌘N").Chosen() {
+				if m.Item(i18n.T("clip.panel.dialog.newTextTitle") + "…    " + KeyLabel("⌘N")).Chosen() {
 					p.dialog = clipDialog{kind: "newText", open: true}
 				}
-				if m.Item(i18n.T("clip.panel.pinboard.new") + "…    ⇧⌘N").Chosen() {
+				if m.Item(i18n.T("clip.panel.pinboard.new") + "…    " + KeyLabel("⇧⌘N")).Chosen() {
 					p.newPinboard(false)
 				}
 				m.Separator()
@@ -337,7 +337,7 @@ func (p *ClipboardPanel) tabs(c *ui.Context) {
 		for _, pb := range p.pins {
 			tab(pb.ID, pb.Name, pb.Color)
 		}
-		if barButton(c, "tab:new", "plus", "", i18n.T("clip.panel.pinboard.new")+" (⇧⌘N)", false).Clicked() {
+		if barButton(c, "tab:new", "plus", "", i18n.T("clip.panel.pinboard.new")+" ("+KeyLabel("⇧⌘N")+")", false).Clicked() {
 			p.newPinboard(false)
 		}
 	})

@@ -79,6 +79,11 @@ var extra = map[string]map[string]string{
 		"dmg.hint":                                       "把 popMind 拖到「应用程序」文件夹即可完成安装",
 		"settings.update.auto":                           "自动检查更新",
 		"settings.update.autoDesc":                       "启动后和每天在后台检查一次，有新版本时提示安装",
+		"screenshot.noText":                              "截图里没有识别到文字",
+		"screenshot.failed":                              "截图翻译失败",
+		"screenshot.permission":                          "截图翻译需要「屏幕录制」权限，请在系统设置中为 popMind 打开后重试。",
+		"screenshot.unsupported":                         "当前系统暂不支持截图翻译",
+		"screenshot.recognizing":                         "识别文字中",
 		// zh-CN:end
 	},
 	"en": {
@@ -158,6 +163,11 @@ var extra = map[string]map[string]string{
 		"dmg.hint":                                       "Drag popMind to Applications to install",
 		"settings.update.auto":                           "Check for updates automatically",
 		"settings.update.autoDesc":                       "Checks after launch and daily, and offers new versions to install",
+		"screenshot.noText":                              "No text found in the screenshot",
+		"screenshot.failed":                              "Screenshot translation failed",
+		"screenshot.permission":                          "Screenshot Translate needs the Screen Recording permission: turn it on for popMind in System Settings, then try again.",
+		"screenshot.unsupported":                         "Screenshot Translate is not available on this system",
+		"screenshot.recognizing":                         "Reading the text",
 		// en:end
 	},
 }

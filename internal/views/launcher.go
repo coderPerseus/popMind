@@ -3,6 +3,7 @@ package views
 import (
 	"math/rand/v2"
 	"net/url"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -259,8 +260,27 @@ func (l *Launcher) Show(query string) { l.show(query, 90) }
 // it ahead of time, so that the frames it takes to show fall while nothing moves).
 func (l *Launcher) ShowTransparent() { l.show("", -1) }
 
-// FadeIn fades the launcher in over ms, from where ShowTransparent left it.
-func (l *Launcher) FadeIn(ms int) { native.AnimateWindowIn(l.panel.NativeHandle(), ms, 0) }
+// FadeIn fades the launcher in over ms, from where ShowTransparent left it: the native fade on macOS,
+// the window's opacity stepped elsewhere.
+func (l *Launcher) FadeIn(ms int) {
+	if runtime.GOOS == "darwin" {
+		native.AnimateWindowIn(l.panel.NativeHandle(), ms, 0)
+		return
+	}
+	go func() {
+		start, d := time.Now(), time.Duration(ms)*time.Millisecond
+		for {
+			t := float64(time.Since(start)) / float64(d)
+			if t >= 1 {
+				l.panel.SetOpacity(1)
+				return
+			}
+			u := 1 - t
+			l.panel.SetOpacity(1 - u*u*u)
+			time.Sleep(16 * time.Millisecond)
+		}
+	}()
+}
 
 // show shows it, fading in over fadeMs, or staying transparent when fadeMs < 0.
 func (l *Launcher) show(query string, fadeMs int) {
@@ -278,10 +298,16 @@ func (l *Launcher) show(query string, fadeMs int) {
 		l.input.Focus()
 	})
 	if fadeMs >= 0 {
+		if runtime.GOOS != "darwin" {
+			l.panel.SetOpacity(1) // after an intro that ended before its fade
+		}
 		showIn(l.panel, fadeMs, 0, l.panel.Show)
 	} else {
 		if !l.panel.IsVisible() {
 			native.PrepareWindowIn(l.panel.NativeHandle())
+			if runtime.GOOS != "darwin" {
+				l.panel.SetOpacity(0)
+			}
 		}
 		l.panel.Show()
 	}
@@ -655,7 +681,11 @@ func (l *Launcher) view(c *ui.Context) {
 			Kbd(c, "↵")
 			ui.Box(c).Width(0.5).Height(14).Margin(0, 4).Background(Hairline(t))
 			ui.Text(c, i18n.T("main.footer.settings")).FontSize(12).TextColor(t.TextMuted)
-			Kbd(c, "⌘")
+			if runtime.GOOS == "darwin" {
+				Kbd(c, "⌘")
+			} else {
+				Kbd(c, "Ctrl")
+			}
 			Kbd(c, ",")
 		})
 	})

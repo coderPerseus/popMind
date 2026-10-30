@@ -31,9 +31,20 @@ func Init(dir string) (string, error) {
 		return "", err
 	}
 	mu.Lock()
-	out = io.MultiWriter(os.Stderr, f)
+	out = eachWriter{f, os.Stderr}
 	mu.Unlock()
 	return path, nil
+}
+
+// eachWriter writes to all of its writers, whatever each one says: a Windows GUI app has no stderr, and
+// io.MultiWriter would stop at its error before the file.
+type eachWriter []io.Writer
+
+func (w eachWriter) Write(p []byte) (int, error) {
+	for _, x := range w {
+		_, _ = x.Write(p)
+	}
+	return len(p), nil
 }
 
 func write(level, msg string, kv []any) {

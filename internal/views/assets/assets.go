@@ -29,3 +29,9 @@ func Bitmap(name string) *ui.Bitmap {
 	cache.Store(name, b)
 	return b
 }
+
+// Bytes returns the file of name (without .png) as it is, or nil.
+func Bytes(name string) []byte {
+	data, _ := files.ReadFile(name + ".png")
+	return data
+}

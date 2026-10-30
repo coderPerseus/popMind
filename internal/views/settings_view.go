@@ -3,6 +3,7 @@ package views
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -618,8 +619,12 @@ func accelerator(ev ui.InputEvent) string {
 	return strings.Join(append(mods, key), "+")
 }
 
-// keysLabel shows an accelerator as macOS does: ⌥Space.
+// keysLabel shows an accelerator as the platform does: ⌥Space on macOS, Alt+Space on Windows.
 func keysLabel(acc string) string {
+	if runtime.GOOS != "darwin" {
+		return strings.NewReplacer("CommandOrControl+", "Ctrl+", "CmdOrCtrl+", "Ctrl+", "Command+", "Ctrl+", "Cmd+", "Ctrl+",
+			"Control+", "Ctrl+", "Option+", "Alt+").Replace(acc)
+	}
 	return strings.NewReplacer("CommandOrControl+", "⌘", "CmdOrCtrl+", "⌘", "Command+", "⌘", "Cmd+", "⌘",
 		"Control+", "⌃", "Ctrl+", "⌃", "Alt+", "⌥", "Option+", "⌥", "Shift+", "⇧").Replace(acc)
 }

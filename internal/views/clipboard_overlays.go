@@ -414,7 +414,7 @@ func (p *ClipboardPanel) textDialog(c *ui.Context, title string, save func(strin
 		})
 	}
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "⌘↩ "+i18n.T("clip.panel.dialog.save")).FontSize(11).TextColor(macTertiary(t)).Grow(1)
+		ui.Text(c, KeyLabel("⌘↩")+" "+i18n.T("clip.panel.dialog.save")).FontSize(11).TextColor(macTertiary(t)).Grow(1)
 		if dialogButton(c, "cancel", i18n.T("clip.panel.dialog.cancel"), false, false) {
 			p.closeDialog()
 		}

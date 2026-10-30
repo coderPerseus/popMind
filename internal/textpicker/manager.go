@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"math"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +94,7 @@ type Manager struct {
 	timer              *time.Timer
 	picked             *Picked
 	dragging           bool
+	suspended          bool // a screen capture is under way: its drags are not selections
 	ignorePointerUntil time.Time
 	suppressUntil      time.Time
 	ignoreGesture      time.Time
@@ -120,7 +122,11 @@ func New(ui UI) *Manager {
 }
 
 // cocoaToScreen converts AppKit's bottom-left coordinates to myGo's top-left ones.
+// On Windows the events already come with the origin at the top-left.
 func cocoaToScreen(x, y float64) Point {
+	if runtime.GOOS == "windows" {
+		return Point{X: x, Y: y}
+	}
 	primary := mygo.Screen.PrimaryDisplay().Bounds
 	return Point{X: x, Y: float64(primary.Y+primary.Height) - y}
 }
@@ -190,6 +196,22 @@ func (m *Manager) SetEnabled(on bool) {
 	m.enabled = on
 	m.mu.Unlock()
 	if !on {
+		m.ui.HideBubble()
+	}
+}
+
+// Suspend ignores every gesture while on (a screen capture's drag is not a selection); turning it off
+// also ignores the focus change the capture leaves behind for a moment.
+func (m *Manager) Suspend(on bool) {
+	m.mu.Lock()
+	m.suspended = on
+	if on {
+		m.cancelPending("suspended")
+	} else {
+		m.ignoreAppFocus = time.Now().Add(600 * time.Millisecond)
+	}
+	m.mu.Unlock()
+	if on {
 		m.ui.HideBubble()
 	}
 }
@@ -270,7 +292,7 @@ func (m *Manager) onAction(scene string, pt Point) {
 	}
 	now := time.Now()
 	m.mu.Lock()
-	enabled := m.enabled
+	enabled := m.enabled && !m.suspended
 	pointerLocked := m.dragging || now.Before(m.ignorePointerUntil)
 	m.mu.Unlock()
 	isDismiss := dismissScenes[scene]

@@ -78,7 +78,8 @@ func FirstRun() bool {
 	var seen struct {
 		Version string `json:"version"`
 	}
-	_ = jsonx.ReadFile(settings.Path(onboardingFile), &seen)
+	err := jsonx.ReadFile(settings.Path(onboardingFile), &seen)
+	logx.Info("[onboarding] first run check", "seen", seen.Version, "version", mygo.App.Version(), "readErr", err)
 	return seen.Version != mygo.App.Version()
 }
 
@@ -200,6 +201,7 @@ func (a *App) Onboard() {
 		Content:       ui.View(o.view),
 	})
 	o.win.SetPosition(b.X, b.Y)
+	o.shownAt = time.Now() // before Show: on Windows the first frame draws within it
 	o.win.Show()
 	o.win.Focus()
 	// Where the launcher will show (centered in the work area, as Launcher.Show places it), in the intro's
@@ -212,7 +214,6 @@ func (a *App) Onboard() {
 		W: launcherWidth, H: launcherHeight,
 	}
 	o.mu.Unlock()
-	o.shownAt = time.Now()
 	logx.Info("[onboarding] shown", "bounds", ib, "launcher", o.launcher)
 	// In case no frames come (the window covered), or they stop.
 	time.AfterFunc(2*time.Second, func() {

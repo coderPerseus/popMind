@@ -4,6 +4,9 @@
 package views
 
 import (
+	"runtime"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 
 	"popmind/internal/views/icons"
@@ -102,6 +105,14 @@ func Panel(c *ui.Context) {
 		tint := float32(0.5)
 		if t.Dark {
 			tint = 0.55
+		}
+		// Windows' acrylic blurs less than macOS's materials: more of the surface keeps text clear over
+		// busy windows behind.
+		if runtime.GOOS == "windows" {
+			tint = 0.82
+			if t.Dark {
+				tint = 0.86
+			}
 		}
 		c.Root().Background(Surface(t).Alpha(tint))
 		return
@@ -203,4 +214,42 @@ func Picker(c *ui.Context, selected *string, options []Option, label string) ui.
 		})
 	})
 	return sel.Trigger
+}
+
+// KeyLabel writes a shortcut written the Mac way ("⇧⌘N", "⌘↩") for the platform: as it is on macOS,
+// "Ctrl+Shift+N" and "Ctrl+Enter" on Windows and Linux.
+func KeyLabel(mac string) string {
+	if runtime.GOOS == "darwin" {
+		return mac
+	}
+	var ctrl, alt, shift bool
+	key := ""
+	for _, r := range mac {
+		switch r {
+		case '⌘', '⌃':
+			ctrl = true
+		case '⌥':
+			alt = true
+		case '⇧':
+			shift = true
+		case '↩':
+			key += "Enter"
+		default:
+			key += string(r)
+		}
+	}
+	var parts []string
+	if ctrl {
+		parts = append(parts, "Ctrl")
+	}
+	if alt {
+		parts = append(parts, "Alt")
+	}
+	if shift {
+		parts = append(parts, "Shift")
+	}
+	if key != "" {
+		parts = append(parts, key)
+	}
+	return strings.Join(parts, "+")
 }

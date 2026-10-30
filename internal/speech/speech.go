@@ -15,17 +15,10 @@ var (
 	role    string
 )
 
-var voices = map[string]string{"en-US": "Samantha", "en-GB": "Daniel", "zh-CN": "Tingting"}
-
 // Speak reads text in lang ("en-US", "en-GB", "zh-CN"), stopping what was being read. done runs when it ends.
 func Speak(text, lang, r string, done func()) {
 	Stop()
-	args := []string{}
-	if v := voices[lang]; v != "" {
-		args = append(args, "-v", v)
-	}
-	args = append(args, "--", strings.TrimSpace(text))
-	cmd := exec.Command("/usr/bin/say", args...)
+	cmd := command(strings.TrimSpace(text), lang)
 	if err := cmd.Start(); err != nil {
 		logx.Warn("[speech] say failed", "err", err)
 		if done != nil {

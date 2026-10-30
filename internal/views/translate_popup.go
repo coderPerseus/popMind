@@ -10,6 +10,7 @@ import (
 	"popmind/internal/logx"
 	"popmind/internal/native"
 	"popmind/internal/textpicker"
+	"popmind/internal/translation"
 	"popmind/internal/views/icons"
 	"popmind/internal/windows"
 )
@@ -94,6 +95,30 @@ func (p *TranslatePopup) Show(text string, anchor textpicker.Anchor) {
 	p.win.SetBounds(r)
 	showIn(p.win, 120, 0, p.win.Show)
 	logx.Info("[translate-popup] shown", "chars", len([]rune(text)), "x", r.X, "y", r.Y)
+}
+
+// ShowNotice shows a message instead of a translation (a screenshot with no text, a missing permission).
+func (p *TranslatePopup) ShowNotice(msg string, anchor textpicker.Anchor) {
+	p.showStatus("notice", msg, anchor)
+}
+
+// ShowWorking shows msg with a spinner until Show or ShowNotice replaces it (a screenshot being read).
+func (p *TranslatePopup) ShowWorking(msg string, anchor textpicker.Anchor) {
+	p.showStatus("working", msg, anchor)
+}
+
+func (p *TranslatePopup) showStatus(status, msg string, anchor textpicker.Anchor) {
+	windows.Dispatch(windows.DismissContext{Reason: windows.DismissSurfaceOpened, Target: "translation"})
+	r := placeAbove(anchor, translateWidth, translateMinHeight, floatingGap)
+	p.win.Update(func() {
+		p.tr.stop()
+		p.tr.Text, p.tr.Status, p.tr.Err = "", status, msg
+		p.tr.Result = translation.Result{}
+		p.above = float64(r.Y) < anchor.TopY
+	})
+	p.win.SetBounds(r)
+	showIn(p.win, 120, 0, p.win.Show)
+	logx.Info("[translate-popup] "+status, "msg", msg)
 }
 
 // Hide hides it and stops the translation.

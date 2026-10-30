@@ -2,12 +2,12 @@ package clipsync
 
 import (
 	"bytes"
-	"os"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -28,8 +28,12 @@ func TestCompatWithElectron(t *testing.T) {
 	k, _ := deriveKeys(creds.EncryptionKey)
 	goItem, _ := pack(itemPayload{V: 1, FP: "txt:go", Kind: "text", Text: "来自 Go", Reps: []repJSON{}})
 
-	out, err := exec.Command("node", "--experimental-transform-types", "--no-warnings", "testdata/compat.mts",
-		base64.StdEncoding.EncodeToString(k.seal(goItem))).Output()
+	sealed := base64.StdEncoding.EncodeToString(k.seal(goItem))
+	out, err := exec.Command("node", "--experimental-transform-types", "--no-warnings", "testdata/compat.mts", sealed).Output()
+	if ee, ok := err.(*exec.ExitError); ok && strings.Contains(string(ee.Stderr), "bad option: --experimental-transform-types") {
+		// Node 26 dropped the flag, and only strips types: the archived app's TypeScript needs transforming.
+		t.Skip("this Node cannot run the archived app's TypeScript (it needs Node 22–25)")
+	}
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			t.Fatalf("node: %v\n%s", err, ee.Stderr)

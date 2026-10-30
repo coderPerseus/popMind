@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-popMind is a Go app built with [myGo](https://github.com/egoist/mygo): native UI (myGo's `ui` package), no web frontend. `main.go` starts the app (tray, shortcuts, windows); `shortcuts.go` registers global shortcuts; `selftest.go` holds env-driven self tests. Packages live in `internal/`:
+popMind is a Go app for macOS and Windows, built with [myGo](https://github.com/egoist/mygo): native UI (myGo's `ui` package), no web frontend. `main.go` starts the app (tray, shortcuts, windows); `shortcuts.go` registers global shortcuts; `selftest.go` holds env-driven self tests. Packages live in `internal/`:
 
 - `views/` every window and panel in myGo native UI (launcher, selection bubble, translation popup, explain chat, clipboard panel, settings); shared look in `style.go`, motion in `motion.go`
 - `textpicker/` selection detection and the bubble logic; `windows/` dismiss rules of floating surfaces
@@ -18,6 +18,7 @@ The website (pm.luckysnail.cn) is `website/`: a static Void + Solid site in the 
 - `GOTOOLCHAIN=go1.27.3 go tool mygo dev` runs the development app ("popMind Dev", its own data folder); it rebuilds on Go changes, and must be restarted after rebuilding the native library
 - `GOTOOLCHAIN=go1.27.3 go vet ./... && go test ./...` checks; `POPMIND_RENDER_DIR=<dir> go test ./internal/views/` renders the windows to PNGs for review
 - `cd website && bun install && bun run dev` runs the website; `bun run build` builds it into `website/dist/client`; `bun run deploy` puts it live on the Aliyun server (Workbench CLI, `scripts/deploy.sh`), checks it and notifies IndexNow; `POPMIND_SITE_DIR=$PWD/website/public go test ./internal/views/ -run TestRenderSiteAssets` remakes its pictures
+- `./scripts/package-windows.sh` builds the Windows installer and updates from the Mac (`brew install makensis`); Windows-specific code is in `internal/native/*_windows.go`; how the test PC is reached and driven is in `docs/windows-port-plan.md`
 - `./scripts/package-mac.sh` builds the release (`build/`: .pkg, .dmg, .zip); `POPMIND_MAC_SIGN_IDENTITY` signs it. Releases are built by `.github/workflows/release-packages.yml` on a `v*` tag matching `mygo.json`'s version
 
 ## Coding Style & Naming Conventions

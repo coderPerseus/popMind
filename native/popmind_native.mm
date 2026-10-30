@@ -891,6 +891,27 @@ bool ShouldJoinWithoutSpace(const std::string& lhs, const std::string& rhs, doub
   return gap <= std::max(0.008, avgHeight * 0.14);
 }
 
+// The last and the first UTF-8 character of a string.
+std::string LastCodepoint(const std::string& s) {
+  size_t i = s.size();
+  while (i > 0 && (static_cast<unsigned char>(s[i - 1]) & 0xC0) == 0x80) i--;
+  return i > 0 ? s.substr(i - 1) : s;
+}
+
+std::string FirstCodepoint(const std::string& s) {
+  if (s.empty()) return s;
+  size_t n = 1;
+  while (n < s.size() && (static_cast<unsigned char>(s[n]) & 0xC0) == 0x80) n++;
+  return s.substr(0, n);
+}
+
+// Two lines of one paragraph join with a space between Latin words, and without one where either side
+// of the break is CJK (Chinese and Japanese run on across lines).
+bool ShouldJoinLinesWithoutSpace(const std::string& lhs, const std::string& rhs) {
+  if (lhs.empty() || rhs.empty()) return true;
+  return ContainsCJKCharacter(LastCodepoint(lhs)) || ContainsCJKCharacter(FirstCodepoint(rhs));
+}
+
 std::string JoinLineFragments(const OCRMergedLine& line) {
   if (line.fragments.empty()) return "";
 
@@ -959,11 +980,13 @@ std::string NormalizeMergedOCRText(const std::string& text) {
   return TrimAsciiWhitespace(ToStdString(normalized));
 }
 
-// `languages == nullptr` keeps the legacy language list; `fast` selects the fast recognition level.
+// `languages == nullptr` keeps the legacy language list; `fast` selects the fast recognition level;
+// `autoLanguage` lets Vision detect the language of each text (macOS 13+): more accurate on English than a
+// list that starts with Chinese, which also turns English commas into Chinese ones.
 bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outText,
                                 std::string* outError,
                                 const std::vector<std::string>* languages = nullptr,
-                                bool fast = false) {
+                                bool fast = false, bool autoLanguage = false) {
   if (!outText || !outError) return false;
 
   *outText = "";
@@ -1013,6 +1036,9 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
     request.recognitionLevel =
         fast ? VNRequestTextRecognitionLevelFast : VNRequestTextRecognitionLevelAccurate;
     request.usesLanguageCorrection = fast ? NO : YES;
+    if (autoLanguage) {
+      if (@available(macOS 13.0, *)) request.automaticallyDetectsLanguage = YES;
+    }
     if (languages && !languages->empty()) {
       NSMutableArray<NSString*>* languageList = [NSMutableArray arrayWithCapacity:languages->size()];
       for (const auto& language : *languages) {
@@ -1118,7 +1144,7 @@ bool RecognizeTextFromImagePath(const std::string& imagePath, std::string* outTe
         } else if (shouldKeepLineBreak) {
           joined += forceParagraphBreak ? "\n\n" : "\n";
           joined += mergedLineText;
-        } else if (ShouldJoinWithoutSpace(previousLineText, mergedLineText, 0.0, heightRef)) {
+        } else if (ShouldJoinLinesWithoutSpace(previousLineText, mergedLineText)) {
           joined += mergedLineText;
         } else {
           joined += " ";
@@ -3258,17 +3284,18 @@ __attribute__((visibility("default"))) char* pm_capture_frontmost_window_png(int
 __attribute__((visibility("default"))) char* pm_recognize_text(const char* imagePath, const char* optionsJson) {
   @autoreleasepool {
     std::vector<std::string> languages;
-    bool fast = false;
+    bool fast = false, autoLanguage = false;
     NSDictionary* options = ParseJson(optionsJson);
     if ([options isKindOfClass:[NSDictionary class]]) {
       for (id entry in options[@"languages"]) {
         if ([entry isKindOfClass:[NSString class]]) languages.push_back(ToStdString(entry));
       }
       fast = [options[@"fast"] boolValue];
+      autoLanguage = [options[@"auto"] boolValue];
     }
     if (languages.empty()) languages = {"zh-Hans", "zh-Hant", "en-US"};
     std::string text, error;
-    if (!RecognizeTextFromImagePath(imagePath ? imagePath : "", &text, &error, &languages, fast)) {
+    if (!RecognizeTextFromImagePath(imagePath ? imagePath : "", &text, &error, &languages, fast, autoLanguage)) {
       return DupJson(@{@"error" : @(error.empty() ? "ocr_failed" : error.c_str())});
     }
     return DupJson(@{@"text" : [NSString stringWithUTF8String:text.c_str()] ?: @""});

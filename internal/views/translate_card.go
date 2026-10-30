@@ -299,6 +299,10 @@ func (t *Translator) Body(c *ui.Context, showSource bool) {
 	switch t.Status {
 	case "idle":
 		Muted(c, i18n.T("translate.placeholder"))
+	case "notice":
+		Muted(c, t.Err)
+	case "working":
+		ui.Row(c.Key("tr-working")).Children(func() { Working(c, t.Err+"…", 12) })
 	case "loading":
 		ui.Row(c.Key("tr-loading")).Children(func() { Working(c, i18n.T("tr.loading")+"…", 12) })
 	case "error":
