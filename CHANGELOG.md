@@ -4,6 +4,12 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.9.0
+
+- popMind for Windows (10 and 11, 64-bit): the selection bubble, translation and AI explanations, the launcher, input translation, the clipboard history, settings, the first-run intro and in-app updates. Shortcuts use Ctrl and Alt (the launcher is Alt+Space). It installs per user, with no administrator rights; apps run as administrator are out of its reach.
+- Screenshot Translate is back on macOS (⌘⌥T, or the menu bar menu): drag an area of the screen, or press Space for a window, and its text is read on the Mac and translated beside it. Vision detects the language of each line, so English, Chinese, Japanese and Korean, and mixes of them, read correctly, and the lines of a paragraph join with the right spacing. popMind prepares the text recognizer in the background after launch, so the first screenshot does not wait.
+- The website offers the download for the visitor's system.
+
 ## v0.8.1
 
 - The intro plays the first time each new version opens, after installing or updating, and only once.
