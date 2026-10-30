@@ -69,7 +69,7 @@ function app(lang: Lang) {
     url: SITE_URL + paths[lang].home,
     applicationCategory: 'UtilitiesApplication',
     applicationSubCategory: lang === 'zh' ? '划词翻译与 AI 助手' : 'Translation and AI assistant',
-    operatingSystem: `macOS ${MIN_MACOS} or later (Apple silicon)`,
+    operatingSystem: `macOS ${MIN_MACOS} or later (Apple silicon), Windows 10/11 (x64)`,
     softwareVersion: VERSION,
     fileSize: DOWNLOAD_SIZE,
     downloadUrl: DOWNLOAD_URL,

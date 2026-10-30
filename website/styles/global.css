@@ -1537,3 +1537,13 @@ code {
     padding-top: 48px;
   }
 }
+
+.platform-note {
+  color: var(--brand-text);
+}
+
+.ending .platform-note {
+  color: #b5acf1;
+  margin: 0;
+  font-size: 14px;
+}

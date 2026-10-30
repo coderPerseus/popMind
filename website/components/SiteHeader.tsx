@@ -1,5 +1,6 @@
 import type { Content, Lang } from '../lib/content';
-import { DOWNLOAD_URL, paths } from '../lib/content';
+import { paths } from '../lib/content';
+import DownloadButton from './DownloadButton';
 import Logo from './Logo';
 
 // The nav: 64 high, the mark at the left, the one action at the right. On the guide, the section links
@@ -29,9 +30,7 @@ export default function SiteHeader(props: { t: Content; lang: Lang; page: 'home'
           <a class="lang" href={paths[other()][props.page]} hreflang={other() === 'zh' ? 'zh-CN' : 'en'}>
             {n().other}
           </a>
-          <a class="button button--primary" href={DOWNLOAD_URL}>
-            {n().download}
-          </a>
+          <DownloadButton t={props.t} size="small" label="short" />
         </div>
       </div>
     </header>

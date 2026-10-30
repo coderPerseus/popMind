@@ -1,7 +1,7 @@
 // The site's words, in Simplified Chinese and English: the same pages in two languages. Facts only: every
 // feature here is in the app as released, every number measured.
 
-import { DOWNLOAD_SIZE, LICENSE, MIN_MACOS, SHORTCUTS, VERSION } from './facts';
+import { DOWNLOAD_SIZE, LICENSE, MIN_MACOS, SHORTCUTS, VERSION, WINDOWS_ASSET } from './facts';
 
 export type Lang = 'zh' | 'en';
 
@@ -10,6 +10,7 @@ export const REPO_URL = 'https://github.com/coderPerseus/popMind';
 // The latest release's disk image, under a name that does not change from version to version.
 export const DOWNLOAD_URL = `${REPO_URL}/releases/latest/download/popMind-arm64.dmg`;
 export const RELEASES_URL = `${REPO_URL}/releases`;
+export const WINDOWS_DOWNLOAD_URL = `${REPO_URL}/releases/latest/download/${WINDOWS_ASSET}`;
 export const AUTHOR_URL = 'https://github.com/coderPerseus';
 
 // Where each language lives: the home pages and the install guides.
@@ -28,6 +29,16 @@ export const content = {
       download: '下载 macOS 版',
       how: '看看适合你的场景',
       note: `免费开源 · macOS ${MIN_MACOS} 及以上 · Apple 芯片`,
+    },
+    download: {
+      mac: '下载 macOS 版',
+      windows: '下载 Windows 版',
+      windowsSoon: 'Windows 版开发中',
+      windowsSoonNote: 'Windows 版正在开发，先在 GitHub 关注进度；现在下载的是 macOS 版。',
+      mobile: '在电脑上下载',
+      mobileNote: 'popMind 是电脑上的应用，请在 Mac 上打开本页下载。',
+      other: '下载 macOS 版',
+      short: '下载',
     },
     demo: {
       app: '阅读器',
@@ -145,7 +156,7 @@ export const content = {
       specsCaption: '规格一览',
       specs: [
         ['当前版本', VERSION],
-        ['系统要求', `macOS ${MIN_MACOS} 及以上，Apple 芯片（M 系列）`],
+        ['系统要求', `macOS ${MIN_MACOS} 及以上，Apple 芯片（M 系列）；Windows 10 / 11（64 位）`],
         ['安装包', `${DOWNLOAD_SIZE}，DMG 拖拽安装`],
         ['价格与许可证', `免费，开源（${LICENSE}）`],
         ['界面语言', '简体中文、English'],
@@ -201,6 +212,16 @@ export const content = {
       download: 'Download for macOS',
       how: 'See it in your work',
       note: `Free and open source · macOS ${MIN_MACOS} or later · Apple silicon`,
+    },
+    download: {
+      mac: 'Download for macOS',
+      windows: 'Download for Windows',
+      windowsSoon: 'Windows: coming soon',
+      windowsSoonNote: 'popMind for Windows is in the works: follow it on GitHub. This download is the macOS version.',
+      mobile: 'Download on a computer',
+      mobileNote: 'popMind is a desktop app: open this page on your Mac to download it.',
+      other: 'Download for macOS',
+      short: 'Download',
     },
     demo: {
       app: 'Reader',
@@ -318,7 +339,7 @@ export const content = {
       specsCaption: 'Specs',
       specs: [
         ['Version', VERSION],
-        ['Requires', `macOS ${MIN_MACOS} or later, Apple silicon (M-series)`],
+        ['Requires', `macOS ${MIN_MACOS} or later, Apple silicon (M-series); Windows 10 / 11 (64-bit)`],
         ['Download', `${DOWNLOAD_SIZE} disk image, drag to install`],
         ['Price and license', `Free and open source (${LICENSE})`],
         ['Languages', 'English, Simplified Chinese'],

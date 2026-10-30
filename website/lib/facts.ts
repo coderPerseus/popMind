@@ -27,3 +27,8 @@ export const SHORTCUTS = {
   inputTranslation: keys(shortcutDefaults.inputTranslation),
   hideBubble: keys(shortcutDefaults.hideBubble),
 };
+
+// Windows: released from v0.9.0. The download buttons send Windows visitors to the installer (the name
+// is the stable one CI uploads); false sends them to the releases page instead.
+export const WINDOWS_READY = true;
+export const WINDOWS_ASSET = 'popMind-windows-x64-setup.exe';

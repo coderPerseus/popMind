@@ -1,5 +1,6 @@
 import { For } from 'solid-js';
-import { DOWNLOAD_URL, content, paths, type Lang } from '../lib/content';
+import { content, paths, type Lang } from '../lib/content';
+import DownloadButton from './DownloadButton';
 import Icon, { icons } from './Icon';
 import SiteHeader from './SiteHeader';
 import SiteFooter from './SiteFooter';
@@ -37,10 +38,7 @@ export default function Guide(props: { lang: Lang }) {
             )}
           </For>
         </ol>
-        <a class="button button--primary button--large" href={DOWNLOAD_URL}>
-          <Icon d={icons.download} size={20} />
-          {g.download}
-        </a>
+        <DownloadButton t={t} note />
       </main>
       <SiteFooter t={t} />
     </div>

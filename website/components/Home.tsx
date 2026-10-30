@@ -1,5 +1,7 @@
 import { For, Show } from 'solid-js';
-import { DOWNLOAD_URL, content, paths, type Lang } from '../lib/content';
+import { content, paths, type Lang } from '../lib/content';
+import { PlatformNote } from './PlatformNote';
+import DownloadButton from './DownloadButton';
 import Icon, { icons } from './Icon';
 import Logo from './Logo';
 import SelectDemo from './SelectDemo';
@@ -33,14 +35,12 @@ export default function Home(props: { lang: Lang }) {
           <h1 class="bubble display">{t.hero.title}</h1>
           <p class="lead">{t.hero.lead}</p>
           <div class="actions">
-            <a class="button button--primary button--large" href={DOWNLOAD_URL}>
-              <Icon d={icons.download} size={20} />
-              {t.hero.download}
-            </a>
+            <DownloadButton t={t} />
             <a class="button button--large" href="#how">
               {t.hero.how}
             </a>
           </div>
+          <PlatformNote t={t} />
           <p class="note">
             {t.hero.note} ·{' '}
             <a class="link" href={paths[props.lang].guide}>
@@ -250,10 +250,7 @@ export default function Home(props: { lang: Lang }) {
             <Logo size={72} />
             <h2 class="h2">{t.cta.title}</h2>
             <p>{t.cta.lead}</p>
-            <a class="button button--primary button--large" href={DOWNLOAD_URL}>
-              <Icon d={icons.download} size={20} />
-              {t.cta.button}
-            </a>
+            <DownloadButton t={t} label="cta" note />
           </div>
         </section>
       </main>
