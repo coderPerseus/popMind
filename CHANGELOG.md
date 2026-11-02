@@ -4,6 +4,12 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.10.0
+
+- Open at login: popMind starts in the background when you log in, so the selection bubble and shortcuts are ready. It is on after installing; Settings › General › Startup turns it off or on again.
+- The menu bar menu shows each item's shortcut on the right, the same ones as in Settings (⌥Space, ⌥V, ⌘⌥T), and follows them when they change.
+- Fixed popMind sometimes hanging at launch, before the menu bar icon was ready.
+
 ## v0.9.0
 
 - popMind for Windows (10 and 11, 64-bit): the selection bubble, translation and AI explanations, the launcher, input translation, the clipboard history, settings, the first-run intro and in-app updates. Shortcuts use Ctrl and Alt (the launcher is Alt+Space). It installs per user, with no administrator rights; apps run as administrator are out of its reach.

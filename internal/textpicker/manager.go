@@ -89,6 +89,7 @@ type Manager struct {
 
 	mu                 sync.Mutex
 	running            bool
+	starting           bool // StartActionMonitor is under way
 	enabled            bool
 	token              int
 	timer              *time.Timer
@@ -142,13 +143,20 @@ func (m *Manager) Start() bool {
 		return false
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.running {
-		return true
+	if m.running || m.starting {
+		m.mu.Unlock()
+		return m.running
 	}
-	m.running = native.StartActionMonitor()
-	logx.Info("[textpicker] monitor", "running", m.running)
-	return m.running
+	m.starting = true
+	m.mu.Unlock()
+	// Installing the monitors waits for the main thread, so the lock is not held meanwhile: the main
+	// thread may be waiting for it (the tray menu asks Enabled at launch).
+	ok := native.StartActionMonitor()
+	m.mu.Lock()
+	m.running, m.starting = ok, false
+	m.mu.Unlock()
+	logx.Info("[textpicker] monitor", "running", ok)
+	return ok
 }
 
 func (m *Manager) pollPermission() {

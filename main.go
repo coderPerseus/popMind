@@ -103,6 +103,7 @@ func ready() {
 	shortcuts.SetHandler("hideBubble", func() { windows.DismissTopmost(windows.DismissEscape) })
 
 	createTray()
+	views.DefaultOpenAtLogin()
 	shortcuts.Apply(settings.Capabilities.Get().Shortcuts)
 	settings.Capabilities.Subscribe(func(c settings.Capability) {
 		setLanguage(c.AppLanguage)
@@ -172,12 +173,14 @@ func refreshTrayMenu() {
 }
 
 func trayMenu() *mygo.Menu {
+	keys := settings.Capabilities.Get().Shortcuts
 	items := []*mygo.MenuItem{
-		{Label: i18n.T("tray.openHome"), Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowLauncher("") }},
-		{Label: i18n.T("tray.openClipboard"), Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowClipboard("") }},
+		{Label: i18n.T("tray.openHome"), Accelerator: keys["toggleHome"], Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowLauncher("") }},
+		{Label: i18n.T("tray.openClipboard"), Accelerator: keys["clipboardHistory"], Click: func(*mygo.MenuItem, *mygo.Window) { app.ShowClipboard("") }},
 	}
 	if runtime.GOOS == "darwin" {
-		items = append(items, &mygo.MenuItem{Label: i18n.T("tray.screenshotTranslate"), Click: func(*mygo.MenuItem, *mygo.Window) { app.ScreenshotTranslate() }})
+		items = append(items, &mygo.MenuItem{Label: i18n.T("tray.screenshotTranslate"), Accelerator: keys["screenshotTranslate"],
+			Click: func(*mygo.MenuItem, *mygo.Window) { app.ScreenshotTranslate() }})
 	}
 	items = append(items,
 		mygo.Separator(),

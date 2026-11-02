@@ -43,6 +43,7 @@ type settingsUI struct {
 	loadedDraft bool
 	models      modelList
 	sync        syncUI
+	loginErr    string // why turning "Open at login" on did not take
 }
 
 func (s *SettingsWindow) save(patch map[string]any) {
@@ -198,6 +199,24 @@ func (s *SettingsWindow) generalSection(c *ui.Context) {
 			lang := cap.AppLanguage
 			if Picker(c.Key("lang"), &lang, []Option{{"zh-CN", "简体中文"}, {"en", "English"}}, "language").Changed() {
 				s.save(map[string]any{"appLanguage": lang})
+			}
+		})
+	})
+	group(c, i18n.T("settings.group.startup"), func() {
+		desc := i18n.T("settings.openAtLogin.desc")
+		if s.ui.loginErr != "" {
+			desc = s.ui.loginErr
+		}
+		row(c, i18n.T("settings.openAtLogin.title"), desc, func() {
+			on := mygo.App.OpenAtLogin()
+			if ui.Switch(c.Key("open-at-login"), &on).Changed() {
+				s.ui.loginErr = ""
+				if err := SetOpenAtLogin(on); err != nil {
+					s.ui.loginErr = i18n.T("settings.openAtLogin.error", "reason", err.Error())
+					if runtime.GOOS == "darwin" {
+						s.ui.loginErr = i18n.T("settings.openAtLogin.failed")
+					}
+				}
 			}
 		})
 	})

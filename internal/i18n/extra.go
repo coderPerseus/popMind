@@ -84,6 +84,11 @@ var extra = map[string]map[string]string{
 		"screenshot.permission":                          "截图翻译需要「屏幕录制」权限，请在系统设置中为 popMind 打开后重试。",
 		"screenshot.unsupported":                         "当前系统暂不支持截图翻译",
 		"screenshot.recognizing":                         "识别文字中",
+		"settings.group.startup":                         "启动",
+		"settings.openAtLogin.title":                     "开机自动启动",
+		"settings.openAtLogin.desc":                      "登录电脑后自动在后台运行，划词和快捷键随时可用",
+		"settings.openAtLogin.failed":                    "未能开启，请在“系统设置 › 通用 › 登录项”中允许 popMind",
+		"settings.openAtLogin.error":                     "未能开启：{reason}",
 		// zh-CN:end
 	},
 	"en": {
@@ -168,6 +173,11 @@ var extra = map[string]map[string]string{
 		"screenshot.permission":                          "Screenshot Translate needs the Screen Recording permission: turn it on for popMind in System Settings, then try again.",
 		"screenshot.unsupported":                         "Screenshot Translate is not available on this system",
 		"screenshot.recognizing":                         "Reading the text",
+		"settings.group.startup":                         "Startup",
+		"settings.openAtLogin.title":                     "Open at login",
+		"settings.openAtLogin.desc":                      "Runs in the background after you log in, so the selection bubble and shortcuts are ready",
+		"settings.openAtLogin.failed":                    "Could not turn it on: allow popMind in System Settings › General › Login Items",
+		"settings.openAtLogin.error":                     "Could not turn it on: {reason}",
 		// en:end
 	},
 }
