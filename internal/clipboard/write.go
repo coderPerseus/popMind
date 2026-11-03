@@ -56,8 +56,9 @@ func (s *Store) Paste(id string, plainText bool, targetPid int, direct bool) Pas
 	} else if native.Frontmost().Pid <= 0 {
 		return PasteResult{Action: "copied", Reason: "no_target"}
 	}
+	front := native.Frontmost()
 	r := native.PostPasteKeystroke()
-	logx.Info("[clip-write] paste", "ok", r.OK, "reason", r.Reason, "targetPid", targetPid)
+	logx.Info("[clip-write] paste", "ok", r.OK, "reason", r.Reason, "targetPid", targetPid, "frontPid", front.Pid, "front", front.Name)
 	if !r.OK {
 		return PasteResult{Action: "copied", Reason: r.Reason}
 	}

@@ -4,6 +4,11 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.10.1
+
+- Clipboard history: Tab and Shift+Tab move to the next and previous card, also while typing in the search field.
+- Clipboard history: when popMind cannot paste for lack of the accessibility permission, it asks for it and opens the setting, instead of only copying without a word.
+
 ## v0.10.0
 
 - Open at login: popMind starts in the background when you log in, so the selection bubble and shortcuts are ready. It is on after installing; Settings › General › Startup turns it off or on again.

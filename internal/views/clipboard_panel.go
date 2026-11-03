@@ -516,6 +516,7 @@ func (p *ClipboardPanel) paste(items []clipboard.Item, plain bool) {
 		if len(ids) == 1 {
 			if res := p.store.Paste(ids[0], plain, target, direct); res.Reason != "" {
 				logx.Warn("[clip-panel] paste", "action", res.Action, "reason", res.Reason)
+				askPastePermission(res.Reason)
 			}
 			return
 		}
@@ -524,11 +525,23 @@ func (p *ClipboardPanel) paste(items []clipboard.Item, plain bool) {
 			res := p.store.Paste(id, plain, target, direct)
 			if res.Reason != "" {
 				logx.Warn("[clip-panel] paste", "index", i, "reason", res.Reason)
+				askPastePermission(res.Reason)
 				return
 			}
 			time.Sleep(160 * time.Millisecond)
 		}
 	}()
+}
+
+// askPastePermission asks for the accessibility permission when a paste stopped for lack of it: the item is
+// only copied then, and without a word the paste would look broken.
+func askPastePermission(reason string) {
+	if reason != "no_permission" {
+		return
+	}
+	logx.Info("[clip-panel] asking for the accessibility permission")
+	native.CheckPermission(true)
+	native.OpenAccessibilitySettings()
 }
 
 func (p *ClipboardPanel) copy(items []clipboard.Item) {
@@ -899,6 +912,13 @@ func (p *ClipboardPanel) handleKey(k ui.Key, mods ui.Modifiers, text string) boo
 			dir = "prev"
 		}
 		p.move(dir, shift)
+	case ui.KeyTab:
+		// Tab and Shift+Tab step through the cards, also while the search field has text.
+		dir := "next"
+		if shift {
+			dir = "prev"
+		}
+		p.move(dir, false)
 	case ui.KeyEnter:
 		p.paste(p.targets(), shift)
 	case ui.KeySpace:
@@ -919,7 +939,7 @@ func (p *ClipboardPanel) handleKey(k ui.Key, mods ui.Modifiers, text string) boo
 
 var clipKeys = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9, ui.KeyF,
 	ui.KeyA, ui.KeyC, ui.KeyO, ui.KeyR, ui.KeyE, ui.KeyN, ui.KeyZ, ui.KeyT, ui.KeyComma, ui.KeyUp, ui.KeyDown,
-	ui.KeyLeft, ui.KeyRight, ui.KeyBackspace, ui.KeyDelete, ui.KeyEscape, ui.KeyEnter, ui.KeySpace}
+	ui.KeyLeft, ui.KeyRight, ui.KeyBackspace, ui.KeyDelete, ui.KeyEscape, ui.KeyEnter, ui.KeySpace, ui.KeyTab}
 
 // shortcuts handles the panel's keys while the search field does not have the focus.
 func (p *ClipboardPanel) shortcuts(c *ui.Context) {
