@@ -38,10 +38,12 @@ func (m *shortcutManager) SetHandler(id string, fn func()) {
 
 // Apply registers bindings (id → accelerator, "" off), replacing the earlier ones.
 func (m *shortcutManager) Apply(bindings map[string]string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.bindings = bindings
-	m.registerLocked()
+	mygo.RunOnMain(func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		m.bindings = bindings
+		m.registerLocked()
+	})
 }
 
 func (m *shortcutManager) registerLocked() {
@@ -98,11 +100,13 @@ func (m *shortcutManager) Status() []shortcutStatus {
 
 // SetRecording suspends every shortcut while Settings records a new one, so the keys reach the page.
 func (m *shortcutManager) SetRecording(recording bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.recording == recording {
-		return
-	}
-	m.recording = recording
-	m.registerLocked()
+	mygo.RunOnMain(func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.recording == recording {
+			return
+		}
+		m.recording = recording
+		m.registerLocked()
+	})
 }
