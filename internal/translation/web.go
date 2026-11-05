@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -212,29 +213,124 @@ func bingRequest(ctx context.Context, r Request) ([]bingItem, error) {
 			return items, nil
 		}
 		if attempt >= 1 {
-			return nil, errors.New("Bing translate returned an unexpected payload")
+			body := string(data)
+			if len(body) > 120 {
+				body = body[:120]
+			}
+			return nil, fmt.Errorf("Bing translate returned an unexpected payload: %s", body)
 		}
 	}
 }
 
+// bingMaxChars is the most Bing's translator takes at once; a longer text gets status 400.
+const bingMaxChars = 1000
+
 func bingTranslate(ctx context.Context, r Request) (Result, error) {
-	items, err := bingRequest(ctx, r)
-	if err != nil {
-		return Result{}, err
-	}
-	if len(items) == 0 {
-		return Result{}, errors.New("Bing translate returned an empty result")
-	}
-	var lines []string
-	for _, t := range items[0].Translations {
-		if s := strings.TrimSpace(t.Text); s != "" {
-			lines = append(lines, s)
+	var out strings.Builder
+	detected := ""
+	for _, chunk := range splitText(r.Text, bingMaxChars) {
+		req := r
+		req.Text = chunk.text
+		items, err := bingRequest(ctx, req)
+		if err != nil {
+			return Result{}, err
+		}
+		if len(items) == 0 {
+			return Result{}, errors.New("Bing translate returned an empty result")
+		}
+		var lines []string
+		for _, t := range items[0].Translations {
+			if s := strings.TrimSpace(t.Text); s != "" {
+				lines = append(lines, s)
+			}
+		}
+		if len(lines) == 0 {
+			return Result{}, errors.New("Bing translate returned an empty result")
+		}
+		if out.Len() > 0 {
+			sep := chunk.sep
+			if sep == " " && slices.Contains([]string{"zh", "ja", "ko"}, Family(r.TargetLanguage)) {
+				sep = "" // Chinese, Japanese and Korean put no space between sentences.
+			}
+			out.WriteString(sep)
+		}
+		out.WriteString(strings.Join(lines, "\n"))
+		if detected == "" {
+			detected = items[0].DetectedLanguage.Language
 		}
 	}
-	if len(lines) == 0 {
-		return Result{}, errors.New("Bing translate returned an empty result")
+	return textResult(Bing, r, out.String(), fromBing(detected)), nil
+}
+
+// textChunk is a piece of a text and what joins it to the piece before: a newline between lines, a space
+// inside a line cut in two.
+type textChunk struct{ text, sep string }
+
+// splitText cuts text into pieces of at most max characters, between lines where it can, else between
+// sentences, else anywhere.
+func splitText(text string, max int) []textChunk {
+	size := func(s string) int { return len([]rune(s)) }
+	if size(text) <= max {
+		return []textChunk{{text, ""}}
 	}
-	return textResult(Bing, r, strings.Join(lines, "\n"), fromBing(items[0].DetectedLanguage.Language)), nil
+	var out []textChunk
+	cur, curSep := "", ""
+	add := func(piece, sep string) {
+		switch {
+		case cur == "":
+			cur, curSep = piece, sep
+		case size(cur)+size(sep)+size(piece) <= max:
+			cur += sep + piece
+		default:
+			out = append(out, textChunk{cur, curSep})
+			cur, curSep = piece, sep
+		}
+	}
+	for _, line := range strings.Split(text, "\n") {
+		if size(line) <= max {
+			add(line, "\n")
+			continue
+		}
+		// A line too long on its own starts a piece and is cut between sentences, its pieces joined by spaces.
+		if cur != "" {
+			out = append(out, textChunk{cur, curSep})
+			cur = ""
+		}
+		first := true
+		for _, sentence := range splitSentences(line) {
+			for r := []rune(sentence); len(r) > 0; {
+				n := min(len(r), max)
+				sep := " "
+				if first {
+					sep, first = "\n", false
+				}
+				add(string(r[:n]), sep)
+				r = r[n:]
+			}
+		}
+	}
+	if cur != "" {
+		out = append(out, textChunk{cur, curSep})
+	}
+	return out
+}
+
+// splitSentences cuts a line after each sentence end, keeping the spaces with the sentence before.
+func splitSentences(line string) []string {
+	var out []string
+	start := 0
+	r := []rune(line)
+	for i, c := range r {
+		end := strings.ContainsRune("。！？!?", c) || (c == '.' && (i+1 == len(r) || r[i+1] == ' '))
+		if end {
+			out = append(out, strings.TrimSpace(string(r[start:i+1])))
+			start = i + 1
+		}
+	}
+	if rest := strings.TrimSpace(string(r[start:])); rest != "" {
+		out = append(out, rest)
+	}
+	return out
 }
 
 func bingDetect(ctx context.Context, text string) (string, error) {
@@ -319,7 +415,18 @@ func deeplRequest(ctx context.Context, text, source, target string) (translated,
 	if len(payload.Result.Texts) > 0 {
 		translated = strings.TrimSpace(payload.Result.Texts[0].Text)
 	}
+	if deeplRefused(translated) {
+		return "", "", errDeepLRefused
+	}
 	return translated, fromDeepL(payload.Result.Lang), nil
+}
+
+// errDeepLRefused is DeepL turning the web client away: since November 2026 it answers every text with a
+// notice, in many languages, to update the app, as if it were the translation.
+var errDeepLRefused = errors.New("DeepL web translation is unavailable: DeepL asks for a newer app")
+
+func deeplRefused(text string) bool {
+	return strings.Contains(text, "older version of DeepL") || strings.Contains(text, "旧版本的 DeepL")
 }
 
 func deeplTranslate(ctx context.Context, r Request) (Result, error) {

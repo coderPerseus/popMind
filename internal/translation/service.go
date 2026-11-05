@@ -42,9 +42,6 @@ var engines = map[string]engine{
 	}, nil, func(c settings.Capability) bool { return ai.Resolve(c, ai.Gemma) != nil }},
 }
 
-// builtInFallback are the free web engines, tried last even when the user has not enabled them.
-var builtInFallback = []string{Bing, Google, DeepL}
-
 const (
 	webTimeout = 8 * time.Second
 	llmTimeout = 45 * time.Second
@@ -57,11 +54,12 @@ func VisibleEngines(c settings.Capability) []string {
 	return slices.DeleteFunc(slices.Clone(EngineOrder), func(id string) bool { return id == Gemma && !gemmaConfigured(c) })
 }
 
-// EnabledEngines lists the enabled engines, the AI (or Gemma) one first when configured.
+// EnabledEngines lists the engines turned on in the settings and ready to use, the AI (or Gemma) one first.
+// Translation only ever uses these: an engine turned off is never tried, not even when the others fail.
 func EnabledEngines(c settings.Capability) []string {
 	var enabled []string
 	for _, id := range VisibleEngines(c) {
-		if c.EnabledEngines[id] {
+		if c.EnabledEngines[id] && engines[id].configured(c) {
 			enabled = append(enabled, id)
 		}
 	}
@@ -124,7 +122,8 @@ func Translate(ctx context.Context, in Input) (Result, error) {
 		mode = QueryMode(text, source)
 	}
 	preferred := PreferredEngine(c, in.Engine)
-	useWord := mode == "word"
+	// Word lookups are Youdao's dictionary, so they need Youdao turned on.
+	useWord := mode == "word" && slices.Contains(EnabledEngines(c), Youdao)
 	engineID := preferred
 	if useWord {
 		engineID = Youdao
@@ -162,8 +161,8 @@ func Translate(ctx context.Context, in Input) (Result, error) {
 	if useWord {
 		textPrimary = preferred
 	}
-	for _, id := range append(append([]string{textPrimary}, EnabledEngines(c)...), builtInFallback...) {
-		if id != "" && !slices.Contains(chain, id) && engines[id].configured(c) {
+	for _, id := range append([]string{textPrimary}, EnabledEngines(c)...) {
+		if id != "" && !slices.Contains(chain, id) {
 			chain = append(chain, id)
 		}
 	}
@@ -178,11 +177,12 @@ func Translate(ctx context.Context, in Input) (Result, error) {
 		if id != Youdao {
 			attempt.QueryMode = "text"
 		}
-		timeout := webTimeout
+		// A longer text takes longer: one more webTimeout for each 500 characters.
+		timeout := webTimeout * time.Duration(1+len([]rune(text))/500)
 		if id == AI || id == Gemma {
 			timeout = llmTimeout
 		} else if markdown {
-			timeout = 3 * webTimeout
+			timeout = max(timeout, 3*webTimeout)
 		}
 		actx, cancel := context.WithTimeout(ctx, timeout)
 		var res Result

@@ -3,7 +3,6 @@ package views
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -12,7 +11,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"popmind/internal/ai"
 	"popmind/internal/i18n"
 	"popmind/internal/logx"
 	"popmind/internal/settings"
@@ -142,17 +140,11 @@ func languageOptions(withAuto bool) []Option {
 	return out
 }
 
+// engineOptions are the engines turned on in the settings; the ones turned off are not offered.
 func engineOptions() []Option {
-	c := settings.Capabilities.Get()
-	enabled := translation.EnabledEngines(c)
 	out := []Option{}
-	for _, id := range enabled {
+	for _, id := range translation.EnabledEngines(settings.Capabilities.Get()) {
 		out = append(out, Option{id, translation.EngineLabels[id]})
-	}
-	for _, id := range translation.VisibleEngines(c) {
-		if !slices.Contains(enabled, id) && (id != translation.AI || ai.Resolve(c, "") != nil) {
-			out = append(out, Option{id, translation.EngineLabels[id]})
-		}
 	}
 	return out
 }

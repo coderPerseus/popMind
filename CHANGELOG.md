@@ -4,6 +4,12 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.10.2
+
+- Translation uses only the engines turned on in Settings › Translation: one turned off is no longer tried when the others fail, and the engine menu of the translation popup lists only the ones turned on.
+- Bing translates long texts: they are cut into pieces Bing accepts and joined back with their lines kept, and long texts get more time.
+- DeepL's free web translation no longer works (DeepL answers every text with a notice to update the app). popMind now treats that as a failure and moves on to the next engine, instead of showing the notice as the translation.
+
 ## v0.10.1
 
 - Clipboard history: Tab and Shift+Tab move to the next and previous card, also while typing in the search field.
