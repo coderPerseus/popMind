@@ -19,7 +19,11 @@ func NormalizeText(s string) string {
 	return strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n"))
 }
 
-var whitespace = regexp.MustCompile(`\s+`)
+var (
+	whitespace = regexp.MustCompile(`\s+`)
+	blankLines = regexp.MustCompile(`\n{2,}`)
+	digit      = regexp.MustCompile(`\d`)
+)
 
 func truncate(s string, max int) string {
 	r := []rune(s)
@@ -51,7 +55,7 @@ func Preview(kind, text, url, color string, files []string, w, h int) string {
 	case KindLink:
 		return truncate(cmpOr(url, text), previewMax)
 	}
-	return truncate(regexp.MustCompile(`\n{2,}`).ReplaceAllString(text, "\n"), previewMax)
+	return truncate(blankLines.ReplaceAllString(text, "\n"), previewMax)
 }
 
 // DeriveTitle is an item's title when it has no custom one.
@@ -136,7 +140,7 @@ func localTags(text string) (subKind string, tags []string) {
 	switch {
 	case emailPattern.MatchString(t):
 		subKind = "email"
-	case phonePattern.MatchString(t) && len(regexp.MustCompile(`\d`).FindAllString(t, -1)) >= 7:
+	case phonePattern.MatchString(t) && len(digit.FindAllString(t, -1)) >= 7:
 		subKind = "phone"
 	case numberPattern.MatchString(t):
 		subKind = "number"

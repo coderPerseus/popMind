@@ -160,16 +160,28 @@ func utf16Text(data []byte) string {
 	return string(utf16.Decode(u))
 }
 
+// cfHTMLField is a line of CF_HTML's header: a name and an offset.
+var cfHTMLField = regexp.MustCompile(`(StartHTML|EndHTML|StartFragment|EndFragment):(\d+)`)
+
 // cfHTMLFragment takes the header off CF_HTML: the HTML from StartHTML (else StartFragment) to its end.
 func cfHTMLFragment(data []byte) []byte {
 	s := string(bytes.TrimRight(data, "\x00"))
-	field := func(name string) int {
-		m := regexp.MustCompile(name + `:(\d+)`).FindStringSubmatch(s)
-		if m == nil {
-			return -1
+	// The header ends where the HTML begins.
+	header := s
+	if i := strings.IndexByte(s, '<'); i >= 0 {
+		header = s[:i]
+	}
+	offsets := map[string]int{}
+	for _, m := range cfHTMLField.FindAllStringSubmatch(header, -1) {
+		if _, seen := offsets[m[1]]; !seen {
+			offsets[m[1]], _ = strconv.Atoi(m[2])
 		}
-		n, _ := strconv.Atoi(m[1])
-		return n
+	}
+	field := func(name string) int {
+		if n, ok := offsets[name]; ok {
+			return n
+		}
+		return -1
 	}
 	start, end := field("StartHTML"), field("EndHTML")
 	if start < 0 || start > len(s) {
@@ -597,7 +609,7 @@ func IsClipboardFallbackActive() bool {
 	return fallbackActive
 }
 
-// sendKeys presses vk with Ctrl, as the user would.
+// sendCtrl presses vk with Ctrl, as the user would.
 func sendCtrl(vk uint16) bool {
 	inputs := []keyInput{
 		{Type: inputKeyboard, Vk: vkControl},

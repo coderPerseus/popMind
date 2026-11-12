@@ -7,7 +7,7 @@ import (
 	"popmind/internal/logx"
 )
 
-// SettingsWindow is the settings window (P4 fills its sections).
+// SettingsWindow is the settings window; settings_view.go draws its sections.
 type SettingsWindow struct {
 	app     *App
 	win     *mygo.Window

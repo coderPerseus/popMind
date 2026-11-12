@@ -140,8 +140,9 @@ func (w *ChatWindow) view(c *ui.Context) {
 			if w.pinned {
 				tip = i18n.T("translate.unpin")
 			}
-			if ActiveIconButton(c, "pin", tip, w.pinned).Clicked() {
+			if ToggleClicked(ActiveIconButton(c, "pin", tip, w.pinned)) {
 				w.pinned = !w.pinned
+				logx.Info("[chat] pin", "pinned", w.pinned)
 			}
 			if IconButton(c, "x", i18n.T("common.close")).Clicked() {
 				go w.Hide()

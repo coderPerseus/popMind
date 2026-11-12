@@ -127,17 +127,6 @@ func Resolve(c settings.Capability, provider string) *Model {
 		APIKey: strings.TrimSpace(cfg.APIKey), BaseURL: strings.TrimSpace(cfg.BaseURL), ContextLimit: limit}
 }
 
-// Configured lists the providers with a key, in ProviderOrder.
-func Configured(c settings.Capability) []string {
-	var out []string
-	for _, id := range ProviderOrder {
-		if Resolve(c, id) != nil {
-			out = append(out, id)
-		}
-	}
-	return out
-}
-
 // SupportsImages reports whether the model takes images: from what the model is (ProfileOf), whatever provider
 // it is reached through, unless it refused one earlier in this session.
 func (m *Model) SupportsImages() bool {

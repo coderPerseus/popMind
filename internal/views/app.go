@@ -36,6 +36,9 @@ type App struct {
 	// Set by main: the shortcut manager's status, and suspending shortcuts while one is recorded.
 	ShortcutStatus       func() []ShortcutState
 	SetShortcutRecording func(bool)
+	// PickerToggled, set by main, runs after Settings turns the text picker on or off (the menu bar's item
+	// names the other state).
+	PickerToggled func()
 }
 
 // Start creates the windows, hidden, so that they show at once when asked for, and starts the text picker.

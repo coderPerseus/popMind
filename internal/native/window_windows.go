@@ -26,7 +26,6 @@ var (
 	procDeleteObject           = gdi32.NewProc("DeleteObject")
 	procDeleteDC               = gdi32.NewProc("DeleteDC")
 	procDwmSetWindowAttribute  = dwmapi.NewProc("DwmSetWindowAttribute")
-	procDwmGetWindowAttribute  = dwmapi.NewProc("DwmGetWindowAttribute")
 )
 
 const (
@@ -43,7 +42,6 @@ const (
 	wsExNoActivate        = 0x08000000
 	dwmwaCornerPreference = 33
 	dwmwcpRound           = 2
-	dwmwaExtendedFrame    = 9
 	pwRenderFullContent   = 2
 	dibRGBColors          = 0
 )

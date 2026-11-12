@@ -8,12 +8,13 @@ const here = dirname(fileURLToPath(import.meta.url))
 const lucide = resolve(here, '../archive/electron/node_modules/lucide-react/dist/esm/icons')
 const out = resolve(here, '../internal/views/icons')
 
+// Only the icons the views draw: add a name here when a view starts using one.
 const names = `languages circle-question-mark copy message-square ban external-link search x check chevron-down chevron-right
-corner-down-left settings pin pin-off refresh-cw loader-circle volume-2 square send-horizontal sparkles globe
-calculator app-window clipboard clipboard-list trash-2 pencil plus minus eye eye-off info layers list-filter
-ellipsis grip-horizontal grip-vertical keyboard sun moon monitor shield-alert key-round search-x arrow-up-right
-file image link type circle-stop arrow-down history inbox book-open
-sliders-horizontal pause play file-text link-2 files palette calendar-days smartphone square-pen folder-search
+settings pin refresh-cw volume-2 square send-horizontal sparkles globe
+calculator app-window clipboard clipboard-list plus info list-filter
+ellipsis grip-horizontal grip-vertical keyboard shield-alert key-round search-x
+file image link type history
+sliders-horizontal pause file-text link-2 files palette calendar-days smartphone square-pen
 clipboard-copy clipboard-paste arrow-right`.split(/\s+/).filter(Boolean)
 
 const attrs = (o) => Object.entries(o).filter(([k]) => k !== 'key').map(([k, v]) => `${k}="${v}"`).join(' ')

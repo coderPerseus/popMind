@@ -11,6 +11,7 @@ var (
 	trailingWrap = regexp.MustCompile(`[>)}\]\s"'` + "`" + `，。！？、；：,.!?;:]+$`)
 	bareLink     = regexp.MustCompile(`(?i)^(\[[0-9a-f:]+\]|[a-z0-9.-]+)(?::\d{1,5})?(?:[/?#]\S*)?$`)
 	hostLabel    = regexp.MustCompile(`(?i)^[a-z0-9-]+$`)
+	httpScheme   = regexp.MustCompile(`(?i)^https?://`)
 	ipv4         = regexp.MustCompile(`^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$`)
 	genericTLDs  = map[string]bool{}
 )
@@ -57,7 +58,7 @@ func NormalizeLink(text string) string {
 		return ""
 	}
 	withProtocol := t
-	if !regexp.MustCompile(`(?i)^https?://`).MatchString(t) {
+	if !httpScheme.MatchString(t) {
 		m := bareLink.FindStringSubmatch(t)
 		if m == nil || !likelyHostname(m[1]) {
 			return ""

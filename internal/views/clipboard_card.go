@@ -331,7 +331,7 @@ func (p *ClipboardPanel) card(c *ui.Context, i, badge int) ui.Element {
 			case clipboard.KindFile:
 				p.fileBody(c, it)
 			case clipboard.KindLink:
-				p.linkBody(c, it, bg)
+				p.linkBody(c, it)
 			default:
 				p.textBody(c, it, bg)
 			}
@@ -414,7 +414,7 @@ func (p *ClipboardPanel) textBody(c *ui.Context, it clipboard.Item, bg ui.Color)
 	fade(c, bg)
 }
 
-func (p *ClipboardPanel) linkBody(c *ui.Context, it clipboard.Item, bg ui.Color) {
+func (p *ClipboardPanel) linkBody(c *ui.Context, it clipboard.Item) {
 	t := c.Theme()
 	pv := p.preview(it)
 	title := it.CustomTitle
@@ -461,7 +461,6 @@ func (p *ClipboardPanel) linkBody(c *ui.Context, it clipboard.Item, bg ui.Color)
 			ui.Text(c, it.URL).FontSize(11).TextColor(macTertiary(t)).MaxLines(2)
 		}
 	})
-	_ = bg
 }
 
 func (p *ClipboardPanel) imageBody(c *ui.Context, it clipboard.Item) {

@@ -93,6 +93,7 @@ func ready() {
 		return out
 	}
 	app.SetShortcutRecording = shortcuts.SetRecording
+	app.PickerToggled = refreshTrayMenu
 	shortcuts.SetHandler("toggleHome", app.Launcher.Toggle)
 	shortcuts.SetHandler("clipboardHistory", app.ToggleClipboard)
 	shortcuts.SetHandler("inputTranslation", app.InputTr.Toggle)

@@ -30,15 +30,10 @@ const server = await createServer({
 try {
   const capability = await server.ssrLoadModule('/lib/capability/shared.ts')
   const shortcuts = await server.ssrLoadModule('/lib/shortcuts/shared.ts')
-  const translation = await server.ssrLoadModule('/lib/translation/shared.ts')
   mkdirSync(out, { recursive: true })
   const write = (name, value) => writeFileSync(resolve(out, name), JSON.stringify(value, null, 2) + '\n')
   write('capability-settings.json', capability.defaultCapabilitySettings)
   write('shortcuts.json', shortcuts.defaultShortcutBindings)
-  const exported = Object.fromEntries(
-    Object.entries(translation).filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value) ? true : Array.isArray(value))
-  )
-  write('translation-shared.json', exported)
   const i18n = await server.ssrLoadModule('/lib/i18n/shared.ts')
   const clipPanel = await server.ssrLoadModule('/lib/clipboard/i18n/panel.ts')
   const clipSettings = await server.ssrLoadModule('/lib/clipboard/i18n/settings.ts')

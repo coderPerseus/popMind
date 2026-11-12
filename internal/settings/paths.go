@@ -43,19 +43,3 @@ func LegacyDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "Library", "Application Support", "popmind")
 }
-
-// importLegacy copies name from the Electron app's data directory when popMind has none yet.
-func importLegacy(name string) bool {
-	target := Path(name)
-	if _, err := os.Stat(target); err == nil {
-		return false
-	}
-	data, err := os.ReadFile(filepath.Join(LegacyDir(), name))
-	if err != nil {
-		return false
-	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return false
-	}
-	return os.WriteFile(target, data, 0o644) == nil
-}

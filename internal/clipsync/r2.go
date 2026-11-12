@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -143,8 +144,26 @@ func (r *R2) send(ctx context.Context, method, key string, query map[string]stri
 	return res, data, err
 }
 
+var (
+	xmlTagsMu sync.Mutex
+	xmlTags   = map[string]*regexp.Regexp{}
+	contents  = regexp.MustCompile(`<Contents>([\s\S]*?)</Contents>`)
+)
+
+// xmlTag is the pattern of a tag's values, compiled once per tag.
+func xmlTag(tag string) *regexp.Regexp {
+	xmlTagsMu.Lock()
+	defer xmlTagsMu.Unlock()
+	re := xmlTags[tag]
+	if re == nil {
+		re = regexp.MustCompile("<" + tag + ">([\\s\\S]*?)</" + tag + ">")
+		xmlTags[tag] = re
+	}
+	return re
+}
+
 func xmlValues(s, tag string) []string {
-	re := regexp.MustCompile("<" + tag + ">([\\s\\S]*?)</" + tag + ">")
+	re := xmlTag(tag)
 	var out []string
 	for _, m := range re.FindAllStringSubmatch(s, -1) {
 		out = append(out, html.UnescapeString(m[1]))
@@ -168,7 +187,6 @@ func fail(res *http.Response, data []byte) error {
 func (r *R2) List(ctx context.Context, prefix string) ([]Object, error) {
 	var all []Object
 	token := ""
-	contents := regexp.MustCompile(`<Contents>([\s\S]*?)</Contents>`)
 	for {
 		q := map[string]string{"list-type": "2", "prefix": prefix, "max-keys": "1000"}
 		if token != "" {

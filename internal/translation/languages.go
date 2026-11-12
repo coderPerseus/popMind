@@ -73,6 +73,9 @@ var (
 	cjkKana     = regexp.MustCompile(`[\x{4e00}-\x{9fff}\x{3040}-\x{30ff}\x{ac00}-\x{d7af}]`)
 	latin       = regexp.MustCompile(`[A-Za-z]`)
 	englishWord = regexp.MustCompile(`^[A-Za-z]+(?:['-][A-Za-z]+)*$`)
+	hangul      = regexp.MustCompile(`[\x{ac00}-\x{d7af}]`)
+	kana        = regexp.MustCompile(`[\x{3040}-\x{30ff}]`)
+	han         = regexp.MustCompile(`[\x{4e00}-\x{9fff}]`)
 )
 
 // Trim normalizes line endings and spaces, as trimTranslationText.
@@ -98,11 +101,11 @@ func GuessSourceLanguage(text string) string {
 	switch {
 	case t == "":
 		return "auto"
-	case regexp.MustCompile(`[\x{ac00}-\x{d7af}]`).MatchString(t):
+	case hangul.MatchString(t):
 		return "ko"
-	case regexp.MustCompile(`[\x{3040}-\x{30ff}]`).MatchString(t):
+	case kana.MatchString(t):
 		return "ja"
-	case regexp.MustCompile(`[\x{4e00}-\x{9fff}]`).MatchString(t):
+	case han.MatchString(t):
 		return "zh-CN"
 	case looksLikeEnglish(t):
 		return "en"
@@ -130,6 +133,12 @@ func QueryMode(text, sourceLanguage string) string {
 var (
 	identifierChars = regexp.MustCompile(`^[\p{L}\p{N}_-]+$`)
 	camelBoundary   = regexp.MustCompile(`[\p{Ll}\p{N}][\p{Lu}]|[\p{Lu}]{2}[\p{Ll}]`)
+	idSeparators    = regexp.MustCompile(`[-_]+`)
+	idAcronymEnd    = regexp.MustCompile(`([\p{Lu}]+)([\p{Lu}][\p{Ll}])`)
+	idLowerUpper    = regexp.MustCompile(`([\p{Ll}\p{N}])([\p{Lu}])`)
+	idLetterDigit   = regexp.MustCompile(`(\p{L})(\p{N})`)
+	idDigitLetter   = regexp.MustCompile(`(\p{N})(\p{L})`)
+	idAllCaps       = regexp.MustCompile(`^[\p{Lu}\p{N}]+$`)
 )
 
 // NormalizeText splits code identifiers (fooBar, foo_bar) into words before translating them.
@@ -138,14 +147,14 @@ func NormalizeText(text string) string {
 		!(strings.ContainsAny(text, "-_") || camelBoundary.MatchString(text)) {
 		return text
 	}
-	s := regexp.MustCompile(`[-_]+`).ReplaceAllString(text, " ")
-	s = regexp.MustCompile(`([\p{Lu}]+)([\p{Lu}][\p{Ll}])`).ReplaceAllString(s, "$1 $2")
-	s = regexp.MustCompile(`([\p{Ll}\p{N}])([\p{Lu}])`).ReplaceAllString(s, "$1 $2")
-	s = regexp.MustCompile(`(\p{L})(\p{N})`).ReplaceAllString(s, "$1 $2")
-	s = regexp.MustCompile(`(\p{N})(\p{L})`).ReplaceAllString(s, "$1 $2")
+	s := idSeparators.ReplaceAllString(text, " ")
+	s = idAcronymEnd.ReplaceAllString(s, "$1 $2")
+	s = idLowerUpper.ReplaceAllString(s, "$1 $2")
+	s = idLetterDigit.ReplaceAllString(s, "$1 $2")
+	s = idDigitLetter.ReplaceAllString(s, "$1 $2")
 	tokens := strings.Fields(s)
 	for i, tok := range tokens {
-		if !regexp.MustCompile(`^[\p{Lu}\p{N}]+$`).MatchString(tok) {
+		if !idAllCaps.MatchString(tok) {
 			tokens[i] = strings.ToLower(tok)
 		}
 	}

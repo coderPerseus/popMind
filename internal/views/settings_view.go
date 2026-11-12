@@ -208,7 +208,9 @@ func (s *SettingsWindow) generalSection(c *ui.Context) {
 			desc = s.ui.loginErr
 		}
 		row(c, i18n.T("settings.openAtLogin.title"), desc, func() {
-			on := mygo.App.OpenAtLogin()
+			// Rendered without a window (the render tests) there is no running app to ask, and asking waits
+			// for its main thread forever.
+			on := s.win != nil && mygo.App.OpenAtLogin()
 			if ui.Switch(c.Key("open-at-login"), &on).Changed() {
 				s.ui.loginErr = ""
 				if err := SetOpenAtLogin(on); err != nil {
@@ -265,10 +267,13 @@ func (s *SettingsWindow) selectionSection(c *ui.Context) {
 			}
 		})
 		if s.app != nil && s.app.Picker != nil {
-			row(c, i18n.T("tray.disableSelection"), "", func() {
+			row(c, i18n.T("tray.enableSelection"), "", func() {
 				on := s.app.Picker.Enabled()
 				if ui.Switch(c, &on).Changed() {
 					s.app.Picker.SetEnabled(on)
+					if s.app.PickerToggled != nil {
+						s.app.PickerToggled()
+					}
 				}
 			})
 		}
@@ -352,7 +357,6 @@ func (s *SettingsWindow) translationSection(c *ui.Context) {
 }
 
 func (s *SettingsWindow) aiSection(c *ui.Context) {
-	t := c.Theme()
 	cap := settings.Capabilities.Get()
 	active := ""
 	if cap.AIService.ActiveProvider != nil {
@@ -476,7 +480,6 @@ func (s *SettingsWindow) aiSection(c *ui.Context) {
 			})
 		}
 	})
-	_ = t
 }
 
 func (s *SettingsWindow) testAI() {
@@ -517,27 +520,43 @@ func (s *SettingsWindow) testSearch(id, key string) {
 	}()
 }
 
-var shortcutOrder = []string{"toggleHome", "clipboardHistory", "inputTranslation", "hideBubble"}
+// settingsShortcuts are the shortcuts Settings lists: the ones this build handles (screenshot translation is
+// macOS's so far).
+func settingsShortcuts() []string {
+	if runtime.GOOS == "darwin" {
+		return []string{"toggleHome", "clipboardHistory", "inputTranslation", "screenshotTranslate", "hideBubble"}
+	}
+	return []string{"toggleHome", "clipboardHistory", "inputTranslation", "hideBubble"}
+}
 
 func (s *SettingsWindow) shortcutsSection(c *ui.Context) {
 	t := c.Theme()
 	cap := settings.Capabilities.Get()
 	states := map[string]ShortcutState{}
+	// holder is the shortcut that keeps an accelerator two share: the one registered with it.
+	holder := map[string]string{}
 	if s.app != nil && s.app.ShortcutStatus != nil {
 		for _, st := range s.app.ShortcutStatus() {
 			states[st.ID] = st
+			if st.State == "registered" {
+				holder[st.Accelerator] = st.ID
+			}
 		}
 	}
 	Muted(c, i18n.T("settings.shortcuts.intro"))
 	group(c, "", func() {
-		for _, id := range shortcutOrder {
+		for _, id := range settingsShortcuts() {
 			acc := cap.Shortcuts[id]
 			desc := i18n.T("settings.shortcuts.action." + id + "Desc")
 			switch states[id].State {
 			case "failed":
 				desc = i18n.T("settings.shortcuts.failed")
 			case "conflict":
-				desc = i18n.T("settings.shortcuts.conflict", "name", "")
+				name := ""
+				if other := holder[states[id].Accelerator]; other != "" {
+					name = i18n.T("settings.shortcuts.action." + other)
+				}
+				desc = i18n.T("settings.shortcuts.conflict", "name", name)
 			}
 			row(c, i18n.T("settings.shortcuts.action."+id), desc, func() {
 				recording := s.ui.recording == id
@@ -719,7 +738,6 @@ func (s *SettingsWindow) clipboardSection(c *ui.Context) {
 		})
 	})
 	footnote(c, i18n.T("clip.settings.ignoredApps.desc"))
-	_ = c.Theme()
 	s.syncSection(c)
 }
 

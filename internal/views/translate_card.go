@@ -228,7 +228,6 @@ func (t *Translator) Footer(c *ui.Context, languages bool) {
 			t.Retranslate()
 		}
 	})
-	_ = th
 }
 
 // actionButton is a small labeled button of a footer; primary is in the accent color.

@@ -16,13 +16,7 @@ var defaultCapabilityJSON []byte
 //go:embed defaults/shortcuts.json
 var defaultShortcutsJSON []byte
 
-//go:embed defaults/translation-shared.json
-var translationSharedJSON []byte
-
 const capabilityFile = "capability-settings.json"
-
-// CapabilityStateChannel is pushed to every page when the settings change.
-const CapabilityStateChannel = "capability:state"
 
 // Capability is the typed view of the fields the Go side reads; the full settings stay a JSON object so
 // fields the Go side does not know survive round trips.
@@ -85,7 +79,6 @@ type CapabilityStore struct {
 	mu        sync.Mutex
 	value     map[string]any
 	listeners []func(Capability)
-	notify    func(map[string]any)
 }
 
 // Capabilities is the app's capability store.
@@ -104,20 +97,6 @@ func DefaultShortcuts() map[string]string {
 	var v map[string]string
 	_ = json.Unmarshal(defaultShortcutsJSON, &v)
 	return v
-}
-
-// TranslationShared is lib/translation/shared.ts's exported constants (languages, engine order and labels).
-func TranslationShared() map[string]any {
-	var v map[string]any
-	_ = json.Unmarshal(translationSharedJSON, &v)
-	return v
-}
-
-// SetBroadcaster sets how changes reach pages (the IPC broadcast); call at startup.
-func (s *CapabilityStore) SetBroadcaster(fn func(map[string]any)) {
-	s.mu.Lock()
-	s.notify = fn
-	s.mu.Unlock()
 }
 
 // Load reads the settings, importing the Electron app's on first launch. locale picks the initial language.
@@ -160,7 +139,7 @@ func (s *CapabilityStore) Get() Capability {
 	return c
 }
 
-// Update merges patch, persists and broadcasts the result, which it returns.
+// Update merges patch, persists the result and tells the subscribers; it returns the new settings.
 func (s *CapabilityStore) Update(patch map[string]any) (map[string]any, error) {
 	s.mu.Lock()
 	if s.value == nil {
@@ -173,12 +152,8 @@ func (s *CapabilityStore) Update(patch map[string]any) (map[string]any, error) {
 	}
 	s.value = next
 	listeners := append([]func(Capability){}, s.listeners...)
-	notify := s.notify
 	s.mu.Unlock()
 
-	if notify != nil {
-		notify(jsonx.Clone(next).(map[string]any))
-	}
 	var typed Capability
 	_ = jsonx.Convert(next, &typed)
 	for _, fn := range listeners {

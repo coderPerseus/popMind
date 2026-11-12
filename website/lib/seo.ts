@@ -79,7 +79,7 @@ function app(lang: Lang) {
     isAccessibleForFree: true,
     inLanguage: ['zh-CN', 'en'],
     image: `${SITE_URL}/og.png`,
-    screenshot: ['translate', 'explain', 'launcher', 'clipboard'].map((s) => `${SITE_URL}/shots/${lang}/${s}.png`),
+    screenshot: ['translate', 'explain', 'input', 'clipboard'].map((s) => `${SITE_URL}/shots/${lang}/${s}.png`),
     featureList: [...t.how.map((h) => h.title), ...t.personas.flatMap((s) => s.points.map((p) => p.title))],
     audience: t.personas.map((p) => ({ '@type': 'Audience', audienceType: p.tag })),
     publisher: { '@id': org['@id'] },

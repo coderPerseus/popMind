@@ -34,6 +34,7 @@ var (
 	accountIDRe = regexp.MustCompile(`(?i)^[0-9a-f]{32}$`)
 	bucketRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$`)
 	spaces      = regexp.MustCompile(`\s+`)
+	accountIDIn = regexp.MustCompile(`(?i)[0-9a-f]{32}`)
 )
 
 // NewEncryptionKey makes a key for a new bucket.
@@ -95,5 +96,5 @@ func (c Credentials) Identity() string {
 
 // FindAccountID finds an account id in what was pasted (the id itself, or the S3 endpoint holding it).
 func FindAccountID(s string) string {
-	return regexp.MustCompile(`(?i)[0-9a-f]{32}`).FindString(s)
+	return accountIDIn.FindString(s)
 }

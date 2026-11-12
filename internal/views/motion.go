@@ -40,11 +40,6 @@ var fadeIn = ui.ElementTransition{Duration: motionBase, Enter: &ui.Motion{Y: 4}}
 // popIn is how floating pieces (menus, toasts, dialogs) appear: fading in, slightly smaller.
 var popIn = ui.ElementTransition{Duration: motionBase, Enter: &ui.Motion{Scale: 0.97}, Exit: &ui.Motion{Scale: 0.98}}
 
-// listItem is how rows and cards come, go and move: new ones fade in, removed ones fold away and the others
-// slide into their places.
-var listItem = ui.ElementTransition{Duration: motionBase, Position: true,
-	Enter: &ui.Motion{Scale: 0.96}, Exit: &ui.Motion{Collapse: true}}
-
 // appear fades and grows e into place over its first frames, for panels shown over a backdrop (dialogs,
 // Quick Look) whose parent is new as well, so an Enter transition would not run. *seen is reset when the panel
 // is opened again.

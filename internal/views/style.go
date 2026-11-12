@@ -93,9 +93,6 @@ func CardFill(t *ui.Theme) ui.Color {
 	return ui.RGBA(0, 0, 0, 0.018)
 }
 
-// PanelFill is what a panel draws: the surface.
-func PanelFill(t *ui.Theme) ui.Color { return Surface(t) }
-
 // Panel gives a floating window its background: over the window's material (vibrancy), a light tint of the
 // surface that lets the blurred desktop show through, as Spotlight's and the system popovers' do; without the
 // material, the plain surface.
@@ -132,10 +129,11 @@ func IconButton(c *ui.Context, icon, tip string) ui.Element {
 	return b.Children(func() { ui.Icon(c, icons.Get(icon)).FontSize(15).TextColor(t.TextMuted) })
 }
 
-// ActiveIconButton is IconButton in the accent color, for toggles that are on (pinned).
+// ActiveIconButton is IconButton in the accent color, for toggles that are on (pinned). Pressing it leaves the
+// keyboard focus where it was, so keys typed later (Space, Return) never flip the toggle; see ToggleClicked.
 func ActiveIconButton(c *ui.Context, icon, tip string, on bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Size(26, 26).Radius(6).Center().Label(tip).Tooltip(tip).Transition(hoverColors)
+	b := ui.ButtonBase(c).Size(26, 26).Radius(6).Center().Label(tip).Tooltip(tip).Transition(hoverColors).KeepFocus()
 	color := t.TextMuted
 	if on {
 		b.Background(t.Accent.Alpha(0.14))
@@ -144,6 +142,13 @@ func ActiveIconButton(c *ui.Context, icon, tip string, on bool) ui.Element {
 		b.Background(HoverFill(t))
 	}
 	return b.Children(func() { ui.Icon(c, icons.Get(icon)).FontSize(15).TextColor(color) })
+}
+
+// ToggleClicked reports a click on an ActiveIconButton by the pointer only. A floating window takes the keyboard
+// as it shows, so Space or Return typed for the app underneath must not pin it: a pinned popup ignores clicks
+// elsewhere and seems stuck.
+func ToggleClicked(b ui.Element) bool {
+	return b.Clicked() && !b.Focused()
 }
 
 // Kbd shows a key cap, as ⌘ or ↵.

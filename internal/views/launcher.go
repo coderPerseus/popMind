@@ -412,7 +412,8 @@ func (l *Launcher) queryChanged() {
 		l.translator.Reset()
 	}
 	q := strings.TrimSpace(l.query)
-	if q == "" || strings.HasPrefix(q, "/") {
+	// A command or a plugin typed by its alias ("-ai how do I…") shows its card: no apps to look for.
+	if q == "" || strings.HasPrefix(q, "/") || p.command != nil || p.plugin != nil {
 		l.mu.Lock()
 		l.results, l.searching = nil, false
 		l.searchSeq++
@@ -692,7 +693,6 @@ func (l *Launcher) view(c *ui.Context) {
 }
 
 func (l *Launcher) results_(c *ui.Context, list []entry) {
-	t := c.Theme()
 	q := strings.TrimSpace(l.query)
 	if len(list) == 0 {
 		title, desc := i18n.T("main.emptyTitle"), i18n.T("main.empty")
@@ -733,7 +733,6 @@ func (l *Launcher) results_(c *ui.Context, list []entry) {
 			l.row(c, list[i], i, i == l.chosen)
 		})
 	}).Grow(1)
-	_ = t
 }
 
 func (l *Launcher) row(c *ui.Context, e entry, index int, chosen bool) {

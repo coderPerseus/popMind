@@ -3,6 +3,7 @@ package clipboard
 import (
 	"errors"
 	"slices"
+	"strings"
 
 	"github.com/egoist/mygo/plugins/sqlite"
 
@@ -51,7 +52,7 @@ func (s *Store) UpdateText(id, text string) error {
 	add(`UPDATE clip_items SET kind = ?, sub_kind = ?, is_rich = 0, fingerprint = ?, preview_text = ?, plain_text = ?,
 	       html = NULL, url = ?, color_value = ?, byte_size = ?, char_count = ?, tags = ? WHERE id = ?`,
 		rec.Kind, nullable(rec.SubKind), rec.Fingerprint, rec.Preview, t, nullable(rec.URL), nullable(rec.Color),
-		rec.ByteSize, rec.CharCount, joinTags(rec.Tags), id)
+		rec.ByteSize, rec.CharCount, strings.Join(rec.Tags, " "), id)
 	stmts = append(stmts, s.searchRowStmts(id)...)
 	if err := s.tx(stmts); err != nil {
 		return err
@@ -69,15 +70,4 @@ func (s *Store) CreateText(text string) (string, error) {
 	}
 	id, _, err := s.Ingest(TextRecord(t, now()))
 	return id, err
-}
-
-func joinTags(tags []string) string {
-	out := ""
-	for i, t := range tags {
-		if i > 0 {
-			out += " "
-		}
-		out += t
-	}
-	return out
 }

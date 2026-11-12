@@ -13,8 +13,8 @@ var files embed.FS
 
 var cache sync.Map
 
-// Get returns the icon of name (a lucide name such as "languages"). It panics on an unknown name, which a
-// test catches.
+// Get returns the icon of name (a lucide name such as "languages"). It panics on an unknown name, which the
+// render tests of the views catch.
 func Get(name string) *ui.SVG {
 	if v, ok := cache.Load(name); ok {
 		return v.(*ui.SVG)
@@ -26,14 +26,4 @@ func Get(name string) *ui.SVG {
 	svg := ui.MustParseSVG(data)
 	cache.Store(name, svg)
 	return svg
-}
-
-// Names lists the embedded icons.
-func Names() []string {
-	entries, _ := files.ReadDir(".")
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, e.Name()[:len(e.Name())-len(".svg")])
-	}
-	return out
 }

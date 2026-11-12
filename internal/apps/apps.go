@@ -62,7 +62,7 @@ type Service struct {
 	entries  []entry
 	builtAt  time.Time
 	building chan struct{}
-	icons    sync.Map // path -> data URL
+	icons    sync.Map // path -> the icon as PNG bytes
 }
 
 // Default is the app's service.

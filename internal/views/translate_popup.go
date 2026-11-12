@@ -1,8 +1,6 @@
 package views
 
 import (
-	"time"
-
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
@@ -29,8 +27,7 @@ type TranslatePopup struct {
 	tr     Translator
 	pinned bool
 	// above is whether the popup sits above the selection: it then grows upward.
-	above   bool
-	resized time.Time
+	above bool
 }
 
 func newTranslatePopup(app *App) *TranslatePopup {
@@ -68,6 +65,7 @@ func newTranslatePopup(app *App) *TranslatePopup {
 			case ctx.Reason == windows.DismissEscape:
 				return true
 			case p.pinned:
+				logx.Info("[translate-popup] stays: pinned", "reason", ctx.Reason)
 				return false
 			case ctx.Reason == windows.DismissSurfaceOpened:
 				return ctx.Target != "translation"
@@ -94,7 +92,7 @@ func (p *TranslatePopup) Show(text string, anchor textpicker.Anchor) {
 	})
 	p.win.SetBounds(r)
 	showIn(p.win, 120, 0, p.win.Show)
-	logx.Info("[translate-popup] shown", "chars", len([]rune(text)), "x", r.X, "y", r.Y)
+	logx.Info("[translate-popup] shown", "chars", len([]rune(text)), "x", r.X, "y", r.Y, "pinned", p.pinned)
 }
 
 // ShowNotice shows a message instead of a translation (a screenshot with no text, a missing permission).
@@ -122,8 +120,15 @@ func (p *TranslatePopup) showStatus(status, msg string, anchor textpicker.Anchor
 }
 
 // Hide hides it and stops the translation.
-func (p *TranslatePopup) Hide() {
-	p.win.Update(func() { p.pinned = false })
+func (p *TranslatePopup) Hide() { p.hideBy("dismiss") }
+
+// hideBy is Hide, logging what closed it.
+func (p *TranslatePopup) hideBy(by string) {
+	logx.Info("[translate-popup] hide", "by", by)
+	p.win.Update(func() {
+		p.pinned = false
+		p.tr.stop()
+	})
 	p.win.Hide()
 	p.app.afterFloatingChange()
 }
@@ -138,7 +143,7 @@ func (p *TranslatePopup) view(c *ui.Context) {
 	t := Look(c)
 	Panel(c)
 	if c.Shortcut(0, ui.KeyEscape) {
-		go p.Hide()
+		go p.hideBy("escape")
 	}
 	if c.Shortcut(ui.Cmd, ui.KeyC) && !c.Root().FocusWithin() {
 		p.tr.Copy()
@@ -152,11 +157,12 @@ func (p *TranslatePopup) view(c *ui.Context) {
 			if p.pinned {
 				tip = i18n.T("translate.unpin")
 			}
-			if ActiveIconButton(c, "pin", tip, p.pinned).Clicked() {
+			if ToggleClicked(ActiveIconButton(c, "pin", tip, p.pinned)) {
 				p.pinned = !p.pinned
+				logx.Info("[translate-popup] pin", "pinned", p.pinned)
 			}
 			if IconButton(c, "x", i18n.T("common.close")).Clicked() {
-				go p.Hide()
+				go p.hideBy("close-button")
 			}
 		})
 		ui.Box(c).Height(0.5).Background(Hairline(t))

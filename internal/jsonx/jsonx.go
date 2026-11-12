@@ -62,17 +62,6 @@ func Convert(v any, out any) error {
 	return json.Unmarshal(data, out)
 }
 
-// ToMap encodes v as a JSON object.
-func ToMap(v any) map[string]any {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return nil
-	}
-	var out map[string]any
-	_ = json.Unmarshal(data, &out)
-	return out
-}
-
 // ReadFile decodes the JSON file at path into v.
 func ReadFile(path string, v any) error {
 	data, err := os.ReadFile(path)
@@ -108,16 +97,4 @@ func Get(v any, keys ...string) any {
 		v = m[k]
 	}
 	return v
-}
-
-// GetString is Get for a string value.
-func GetString(v any, keys ...string) string {
-	s, _ := Get(v, keys...).(string)
-	return s
-}
-
-// GetBool is Get for a boolean value.
-func GetBool(v any, keys ...string) bool {
-	b, _ := Get(v, keys...).(bool)
-	return b
 }

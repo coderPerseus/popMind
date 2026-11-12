@@ -53,8 +53,6 @@ const (
 	obMMove     = 620 // the "M" moving into the bubble
 	obMShapeAt  = 380 // and turning into the "m", from this far into the morph
 	obMShapeDur = 720
-	// The real launcher shows as the logo comes to rest: showing a window holds the main thread for a frame
-	// or two, which a moving logo would show as a hitch.
 	// The real launcher opens, transparent, this long before the logo flies (while nothing moves: showing a
 	// window holds the main thread for a frame or two), then fades in as the logo flies onto it.
 	obPrepare = 350

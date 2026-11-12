@@ -65,10 +65,16 @@ func snapshot() []*Surface {
 // Dispatch hides every visible surface that wants to go away in ctx.
 func Dispatch(ctx DismissContext) {
 	for _, s := range snapshot() {
-		if s.Visible() && s.ShouldDismiss != nil && s.ShouldDismiss(ctx) {
+		if !s.Visible() {
+			continue
+		}
+		if s.ShouldDismiss != nil && s.ShouldDismiss(ctx) {
 			logx.Info("[dismiss] hide", "surface", s.ID, "reason", ctx.Reason, "target", ctx.Target, "source", ctx.Source)
 			s.Hide()
+			continue
 		}
+		// A visible surface that stays: tells why a popup did not go away.
+		logx.Info("[dismiss] keep", "surface", s.ID, "reason", ctx.Reason, "target", ctx.Target, "source", ctx.Source)
 	}
 }
 
@@ -78,16 +84,6 @@ func DismissTopmost(reason DismissReason) bool {
 		if s.Visible() {
 			logx.Info("[dismiss] topmost", "surface", s.ID, "reason", reason)
 			s.Hide()
-			return true
-		}
-	}
-	return false
-}
-
-// AnyVisible reports whether a surface other than except shows.
-func AnyVisible(except ...string) bool {
-	for _, s := range snapshot() {
-		if !slices.Contains(except, s.ID) && s.Visible() {
 			return true
 		}
 	}

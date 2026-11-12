@@ -9,7 +9,8 @@ import (
 	"popmind/internal/logx"
 )
 
-// shortcutActions are the shortcut ids this build handles; the others stay "disabled" in Settings.
+// shortcutOrder lists the shortcut ids, in the order they register (the earlier one keeps an accelerator two
+// share). An id without a handler in this build stays "disabled".
 var shortcutOrder = []string{"toggleHome", "clipboardHistory", "clipboardPasteStack", "inputTranslation",
 	"screenshotTranslate", "screenshotSearch", "hideBubble"}
 

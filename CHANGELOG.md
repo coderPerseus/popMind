@@ -4,6 +4,12 @@ All notable changes to popMind are listed here.
 
 > Note: `v12.x` entries below are inherited from the upstream ERA template and are not popMind release tags.
 
+## v0.10.3
+
+- Translation popup and explain chat: the pin no longer turns on by itself. Once the pin had been clicked, Space or Return typed later (for the app underneath, or to scroll a long translation) pinned the window again, and a pinned window ignores clicks elsewhere, so it seemed stuck. The pin now answers only to a click.
+- Translation popup: closing it stops a translation still under way.
+- Turning the text picker on or off in Settings updates the menu bar menu at once.
+
 ## v0.10.2
 
 - Translation uses only the engines turned on in Settings › Translation: one turned off is no longer tried when the others fail, and the engine menu of the translation popup lists only the ones turned on.

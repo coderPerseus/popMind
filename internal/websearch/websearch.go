@@ -26,14 +26,6 @@ type Result struct {
 	Provider string
 }
 
-// Resolve returns the provider to use and its key, or "" when web search is off or has no key.
-func Resolve(c settings.Capability) (string, string) {
-	if !c.WebSearch.Enabled {
-		return "", ""
-	}
-	return Configured(c)
-}
-
 // Configured returns the first provider with a key and its key, whether web search is on by default or not
 // (a conversation's switch turns it on for itself), or "" when none has a key.
 func Configured(c settings.Capability) (string, string) {

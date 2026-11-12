@@ -20,7 +20,8 @@ export function keys(accelerator: string): string[] {
   return accelerator.split('+').map((k) => keyNames[k] ?? k);
 }
 
-// The shortcuts the app sets by default and handles (the screenshot ones are not wired yet).
+// The shortcuts the site lists: the ones the app sets by default and handles on every system (screenshot
+// translation, ⌘⌥T, is macOS's alone and not listed).
 export const SHORTCUTS = {
   toggleHome: keys(shortcutDefaults.toggleHome),
   clipboardHistory: keys(shortcutDefaults.clipboardHistory),

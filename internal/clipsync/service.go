@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +49,11 @@ type Service struct {
 	mu       sync.Mutex
 	running  bool
 	onChange []func()
+	// The sync key as the credential store has it, kept once read: the windows ask for the status on every
+	// frame they draw, and reading the Keychain is slow and leaves the main thread. Only this service
+	// writes it (save, Disconnect).
+	keyKnown bool
+	keyValue string
 }
 
 // NewService makes the sync service of store.
@@ -83,11 +89,24 @@ func (s *Service) changed() {
 }
 
 func (s *Service) key() string {
-	b, err := mygo.Secrets.Get(secretName)
-	if err != nil {
-		return ""
+	s.mu.Lock()
+	known, value := s.keyKnown, s.keyValue
+	s.mu.Unlock()
+	if known {
+		return value
 	}
+	b, err := mygo.Secrets.Get(secretName)
+	if err != nil && !errors.Is(err, mygo.ErrSecretNotFound) {
+		return "" // the store could not be read this time: ask it again next time
+	}
+	s.setKey(string(b))
 	return string(b)
+}
+
+func (s *Service) setKey(value string) {
+	s.mu.Lock()
+	s.keyKnown, s.keyValue = true, value
+	s.mu.Unlock()
 }
 
 // Credentials returns the saved credentials, if any.
@@ -119,6 +138,7 @@ func (s *Service) save(c Credentials, startedAt int64) error {
 	if err := mygo.Secrets.Set(secretName, []byte(c.Encode())); err != nil {
 		return err
 	}
+	s.setKey(c.Encode())
 	prev := s.readState()
 	id := c.Identity()
 	next := state{Identity: id, StartedAt: prev.StartedAt, LastSync: prev.LastSync}
@@ -192,7 +212,7 @@ func (s *Service) SetupWithToken(token, accountInput string) error {
 	id, err := verifyToken(ctx, token, account)
 	if err != nil {
 		code := ErrUnknown
-		if ce, ok := err.(*cfError); ok && (ce.Status == 401 || ce.Status == 403 || containsInt(ce.Codes, 1000)) {
+		if ce, ok := err.(*cfError); ok && (ce.Status == 401 || ce.Status == 403 || slices.Contains(ce.Codes, 1000)) {
 			code = ErrAuth
 		}
 		return &Error{code, err}
@@ -212,18 +232,16 @@ func (s *Service) SetupWithToken(token, accountInput string) error {
 	return nil
 }
 
-func containsInt(v []int, x int) bool {
-	for _, y := range v {
-		if y == x {
-			return true
-		}
-	}
-	return false
-}
-
 // Disconnect forgets the key on this Mac; the bookkeeping stays, so reconnecting re-uploads nothing.
 func (s *Service) Disconnect() {
-	_ = mygo.Secrets.Delete(secretName)
+	if err := mygo.Secrets.Delete(secretName); err != nil {
+		logx.Warn("[clip-sync] removing the key failed", "err", err)
+		s.mu.Lock()
+		s.keyKnown = false // read what the store really has next time
+		s.mu.Unlock()
+	} else {
+		s.setKey("")
+	}
 	st := s.readState()
 	s.writeState(state{Identity: st.Identity, StartedAt: st.StartedAt})
 	logx.Info("[clip-sync] disconnected")

@@ -129,7 +129,11 @@ func (p *ClipboardPanel) quickLookHead(c *ui.Context, it clipboard.Item, d *clip
 				FontSize(12).Height(22)
 		}
 		if it.Kind == clipboard.KindLink || it.Kind == clipboard.KindFile {
-			if actionButton(c, "ql-open", "external-link", i18n.T("clip.panel.menu.openLink"), false).Clicked() {
+			label := i18n.T("clip.panel.menu.openLink")
+			if it.Kind == clipboard.KindFile {
+				label = i18n.T("clip.panel.menu.openFile")
+			}
+			if actionButton(c, "ql-open", "external-link", label, false).Clicked() {
 				p.open(it)
 			}
 		}

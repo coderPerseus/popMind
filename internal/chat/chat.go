@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -416,7 +417,7 @@ func FallbackURL(text string) string {
 	if i18n.IsEnglish() {
 		label = "English"
 	}
-	return "https://www.perplexity.ai/search?q=" + urlQueryEscape("Explain the following text in "+label+": "+strings.TrimSpace(text))
+	return "https://www.perplexity.ai/search?q=" + url.QueryEscape("Explain the following text in "+label+": "+strings.TrimSpace(text))
 }
 
 // HasImage reports whether the session has a capture of the source window.

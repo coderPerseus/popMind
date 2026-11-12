@@ -1,7 +1,7 @@
 {
   "name": "popMind",
   "identifier": "com.popmind.app",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "copyright": "© 2026 popMind",
   "out": "build",
   "macos": {

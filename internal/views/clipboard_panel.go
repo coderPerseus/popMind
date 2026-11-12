@@ -809,8 +809,8 @@ func (p *ClipboardPanel) quickPaste(n int, plain bool) {
 
 // ---- keyboard ----
 
-// key handles a key the panel uses; inInput is whether it comes from the search field, which keeps the keys
-// that edit its text while it has any.
+// key handles a key the panel uses; text is what the search field holds when the key comes from it ("" from
+// elsewhere): while it has any, the keys that edit text stay the field's.
 func (p *ClipboardPanel) key(k ui.Key, mods ui.Modifiers, text string) bool {
 	if p.dialog.open {
 		return false

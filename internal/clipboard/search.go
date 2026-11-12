@@ -55,7 +55,7 @@ func kindOfWord(w string) string {
 			return k
 		}
 	}
-	if len(w) >= 2 && regexp.MustCompile(`^[a-z]+$`).MatchString(w) {
+	if len(w) >= 2 && lowerWord.MatchString(w) {
 		found := ""
 		for _, k := range Kinds {
 			for _, a := range typeAliases[k] {
@@ -103,6 +103,9 @@ var (
 	recentZH = regexp.MustCompile(`^(?:最近|近|过去)\s*(\d+|[零一二两三四五六七八九十]+)\s*个?\s*(天|日|小时)(?:内|以内)?$`)
 	recentEN = regexp.MustCompile(`(?i)^(?:last|past)\s+(\d+)\s+(days?|hours?)$`)
 	prefixRE = regexp.MustCompile(`(?i)^(type|kind|app|in|pinboard)[:：](.*)$`)
+	// lowerWord is a word a type alias may start with; nameSeparators are what names are compared without.
+	lowerWord      = regexp.MustCompile(`^[a-z]+$`)
+	nameSeparators = regexp.MustCompile(`[\s._\-·]+`)
 )
 
 func cnNumber(s string) int {
@@ -177,7 +180,7 @@ func dateRange(phrase string, now time.Time) (int64, int64, bool) {
 }
 
 func normalizeName(s string) string {
-	return regexp.MustCompile(`[\s._\-·]+`).ReplaceAllString(strings.ToLower(s), "")
+	return nameSeparators.ReplaceAllString(strings.ToLower(s), "")
 }
 
 func matchApps(q string, apps []App) []App {
